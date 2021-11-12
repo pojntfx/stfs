@@ -9,14 +9,14 @@ import (
 	"github.com/hanwen/go-fuse/v2/fuse"
 )
 
-type Root struct {
+type FileSystem struct {
 	fs.Inode
 }
 
-func (r *Root) OnAdd(ctx context.Context) {
-	r.AddChild(
+func (f *FileSystem) OnAdd(ctx context.Context) {
+	f.AddChild(
 		"hello_world.txt",
-		r.NewPersistentInode(
+		f.NewPersistentInode(
 			ctx,
 			&fs.MemRegularFile{
 				Data: []byte("Hello, world!"),
@@ -38,7 +38,7 @@ func main() {
 
 	server, err := fs.Mount(
 		*mountpoint,
-		&Root{},
+		&FileSystem{},
 		&fs.Options{
 			Logger: func() *log.Logger {
 				if *verbose {
