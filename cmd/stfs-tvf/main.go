@@ -56,6 +56,10 @@ func main() {
 		// Read exactly one record
 		bf := make([]byte, *recordSize*blockSize)
 		if _, err := io.ReadFull(f, bf); err != nil {
+			if err == io.EOF {
+				break
+			}
+
 			panic(err)
 		}
 
