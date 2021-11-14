@@ -7,7 +7,7 @@ import (
 	"unsafe"
 )
 
-// See https://github.com/benmcclelland/mtio/blob/f929531fb4fe6433f7198ccd89d1c1414ef8fa3f/mtst.go#L46
+// See https://github.com/benmcclelland/mtio
 const (
 	MTIOCTOP = 0x40086d01 // Do magnetic tape operation
 	MTSEEK   = 22         // Seek to block
@@ -15,11 +15,9 @@ const (
 
 // Operation is struct for MTIOCTOP
 type Operation struct {
-	op int16 // Operation ID
-
-	pad int16 // Padding to match C structures
-
-	count int32 // Operation count
+	Op    int16 // Operation ID
+	Pad   int16 // Padding to match C structures
+	Count int32 // Operation count
 }
 
 func main() {
@@ -40,8 +38,8 @@ func main() {
 		MTIOCTOP,
 		uintptr(unsafe.Pointer(
 			&Operation{
-				op:    MTSEEK,
-				count: int32(*record),
+				Op:    MTSEEK,
+				Count: int32(*record),
 			},
 		)),
 	)
