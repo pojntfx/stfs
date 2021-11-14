@@ -568,7 +568,7 @@ func testHeadersSelect(t *testing.T) {
 }
 
 var (
-	headerDBTypes = map[string]string{`Typeflag`: `INTEGER`, `Name`: `TEXT`, `Linkname`: `TEXT`, `Size`: `INTEGER`, `Mode`: `INTEGER`, `UID`: `INTEGER`, `Gid`: `INTEGER`, `Uname`: `TEXT`, `Gname`: `TEXT`, `Modtime`: `DATE`, `Accesstime`: `DATE`, `Changetime`: `DATE`, `Devmajor`: `INTEGER`, `Devminor`: `INTEGER`, `Paxrecords`: `TEXT`, `Format`: `INTEGER`, `Record`: `INTEGER`, `Block`: `INTEGER`}
+	headerDBTypes = map[string]string{`Typeflag`: `INTEGER`, `Name`: `TEXT`, `Linkname`: `TEXT`, `Size`: `INTEGER`, `Mode`: `INTEGER`, `UID`: `INTEGER`, `Gid`: `INTEGER`, `Uname`: `TEXT`, `Gname`: `TEXT`, `Modtime`: `DATE`, `Accesstime`: `DATE`, `Changetime`: `DATE`, `Devmajor`: `INTEGER`, `Devminor`: `INTEGER`, `Format`: `INTEGER`, `Record`: `INTEGER`, `Block`: `INTEGER`}
 	_             = bytes.MinRead
 )
 

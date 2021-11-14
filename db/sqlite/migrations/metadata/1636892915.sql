@@ -35,17 +35,6 @@ create table headers (
 	devmajor integer not null,
 	-- Minor device number (valid for TypeChar or TypeBlock)
 	devminor integer not null,
-	-- PAXRecords is a map of PAX extended header records.
-	--
-	-- User-defined records should have keys of the following form:
-	--	VENDOR.keyword
-	-- Where VENDOR is some namespace in all uppercase, and keyword may
-	-- not contain the '=' character (e.g., "GOLANG.pkg.version").
-	-- The key and value should be non-empty UTF-8 strings.
-	--
-	-- When Writer.WriteHeader is called, PAX records derived from the
-	-- other fields in Header take precedence over PAXRecords.
-	paxrecords text not null,
 	-- Format specifies the format of the tar header.
 	--
 	-- This is set by Reader.Next as a best-effort guess at the format.

@@ -36,7 +36,6 @@ type Header struct {
 	Changetime time.Time `boil:"changetime" json:"changetime" toml:"changetime" yaml:"changetime"`
 	Devmajor   int64     `boil:"devmajor" json:"devmajor" toml:"devmajor" yaml:"devmajor"`
 	Devminor   int64     `boil:"devminor" json:"devminor" toml:"devminor" yaml:"devminor"`
-	Paxrecords string    `boil:"paxrecords" json:"paxrecords" toml:"paxrecords" yaml:"paxrecords"`
 	Format     int64     `boil:"format" json:"format" toml:"format" yaml:"format"`
 	Record     int64     `boil:"record" json:"record" toml:"record" yaml:"record"`
 	Block      int64     `boil:"block" json:"block" toml:"block" yaml:"block"`
@@ -60,7 +59,6 @@ var HeaderColumns = struct {
 	Changetime string
 	Devmajor   string
 	Devminor   string
-	Paxrecords string
 	Format     string
 	Record     string
 	Block      string
@@ -79,7 +77,6 @@ var HeaderColumns = struct {
 	Changetime: "changetime",
 	Devmajor:   "devmajor",
 	Devminor:   "devminor",
-	Paxrecords: "paxrecords",
 	Format:     "format",
 	Record:     "record",
 	Block:      "block",
@@ -100,7 +97,6 @@ var HeaderTableColumns = struct {
 	Changetime string
 	Devmajor   string
 	Devminor   string
-	Paxrecords string
 	Format     string
 	Record     string
 	Block      string
@@ -119,7 +115,6 @@ var HeaderTableColumns = struct {
 	Changetime: "headers.changetime",
 	Devmajor:   "headers.devmajor",
 	Devminor:   "headers.devminor",
-	Paxrecords: "headers.paxrecords",
 	Format:     "headers.format",
 	Record:     "headers.record",
 	Block:      "headers.block",
@@ -186,7 +181,6 @@ var HeaderWhere = struct {
 	Changetime whereHelpertime_Time
 	Devmajor   whereHelperint64
 	Devminor   whereHelperint64
-	Paxrecords whereHelperstring
 	Format     whereHelperint64
 	Record     whereHelperint64
 	Block      whereHelperint64
@@ -205,7 +199,6 @@ var HeaderWhere = struct {
 	Changetime: whereHelpertime_Time{field: "\"headers\".\"changetime\""},
 	Devmajor:   whereHelperint64{field: "\"headers\".\"devmajor\""},
 	Devminor:   whereHelperint64{field: "\"headers\".\"devminor\""},
-	Paxrecords: whereHelperstring{field: "\"headers\".\"paxrecords\""},
 	Format:     whereHelperint64{field: "\"headers\".\"format\""},
 	Record:     whereHelperint64{field: "\"headers\".\"record\""},
 	Block:      whereHelperint64{field: "\"headers\".\"block\""},
@@ -228,8 +221,8 @@ func (*headerR) NewStruct() *headerR {
 type headerL struct{}
 
 var (
-	headerAllColumns            = []string{"typeflag", "name", "linkname", "size", "mode", "uid", "gid", "uname", "gname", "modtime", "accesstime", "changetime", "devmajor", "devminor", "paxrecords", "format", "record", "block"}
-	headerColumnsWithoutDefault = []string{"typeflag", "name", "linkname", "size", "mode", "uid", "gid", "uname", "gname", "modtime", "accesstime", "changetime", "devmajor", "devminor", "paxrecords", "format", "record", "block"}
+	headerAllColumns            = []string{"typeflag", "name", "linkname", "size", "mode", "uid", "gid", "uname", "gname", "modtime", "accesstime", "changetime", "devmajor", "devminor", "format", "record", "block"}
+	headerColumnsWithoutDefault = []string{"typeflag", "name", "linkname", "size", "mode", "uid", "gid", "uname", "gname", "modtime", "accesstime", "changetime", "devmajor", "devminor", "format", "record", "block"}
 	headerColumnsWithDefault    = []string{}
 	headerPrimaryKeyColumns     = []string{"name"}
 )

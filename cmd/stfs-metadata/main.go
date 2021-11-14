@@ -8,7 +8,6 @@ import (
 	"bytes"
 	"context"
 	"database/sql"
-	"encoding/json"
 	"flag"
 	"fmt"
 	"io"
@@ -118,11 +117,6 @@ func main() {
 				break
 			}
 
-			paxRecords, err := json.Marshal(hdr.PAXRecords)
-			if err != nil {
-				panic(err)
-			}
-
 			dbhdr := &models.Header{
 				Typeflag:   int64(hdr.Typeflag),
 				Name:       hdr.Name,
@@ -138,7 +132,6 @@ func main() {
 				Changetime: hdr.ChangeTime,
 				Devmajor:   hdr.Devmajor,
 				Devminor:   hdr.Devminor,
-				Paxrecords: string(paxRecords),
 				Format:     int64(hdr.Format),
 				Record:     int64(record),
 				Block:      int64(i),

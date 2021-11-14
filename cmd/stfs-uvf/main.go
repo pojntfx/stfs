@@ -9,7 +9,10 @@ import (
 	"os"
 	"path/filepath"
 	"syscall"
+	"time"
 	"unsafe"
+
+	"golang.org/x/sys/unix"
 )
 
 // See https://github.com/benmcclelland/mtio
@@ -90,6 +93,24 @@ func main() {
 			return err
 		}
 
+		hdr.Format = tar.FormatGNU // Required for AccessTime, ChangeTime etc.
+
+		var unixStat syscall.Stat_t
+		if err := syscall.Stat(path, &unixStat); err != nil {
+			return err
+		}
+
+		mtimesec, mtimensec := unixStat.Mtim.Unix()
+		atimesec, atimensec := unixStat.Atim.Unix()
+		ctimesec, ctimensec := unixStat.Ctim.Unix()
+
+		hdr.ModTime = time.Unix(mtimesec, mtimensec)
+		hdr.AccessTime = time.Unix(atimesec, atimensec)
+		hdr.ChangeTime = time.Unix(ctimesec, ctimensec)
+
+		hdr.Devmajor = int64(unix.Major(unixStat.Dev))
+		hdr.Devminor = int64(unix.Minor(unixStat.Dev))
+
 		hdr.Name = path
 
 		log.Println(hdr)
@@ -98,7 +119,6 @@ func main() {
 			return err
 		}
 
-		// Skip writing non-regular files
 		if !info.Mode().IsRegular() {
 			return nil
 		}
