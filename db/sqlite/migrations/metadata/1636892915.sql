@@ -55,7 +55,11 @@ create table headers (
 	-- If the format is unspecified when Writer.WriteHeader is called,
 	-- then it uses the first format (in the order of USTAR, PAX, GNU)
 	-- capable of encoding this Header (see Format).
-	format text not null
+	format integer not null,
+	-- The record on the tape
+	record integer not null,
+	-- The header's block in the record
+	block integer not null
 );
 -- +migrate Down
 drop table headers;

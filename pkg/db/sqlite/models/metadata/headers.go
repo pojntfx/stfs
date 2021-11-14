@@ -37,7 +37,9 @@ type Header struct {
 	Devmajor   int64     `boil:"devmajor" json:"devmajor" toml:"devmajor" yaml:"devmajor"`
 	Devminor   int64     `boil:"devminor" json:"devminor" toml:"devminor" yaml:"devminor"`
 	Paxrecords string    `boil:"paxrecords" json:"paxrecords" toml:"paxrecords" yaml:"paxrecords"`
-	Format     string    `boil:"format" json:"format" toml:"format" yaml:"format"`
+	Format     int64     `boil:"format" json:"format" toml:"format" yaml:"format"`
+	Record     int64     `boil:"record" json:"record" toml:"record" yaml:"record"`
+	Block      int64     `boil:"block" json:"block" toml:"block" yaml:"block"`
 
 	R *headerR `boil:"-" json:"-" toml:"-" yaml:"-"`
 	L headerL  `boil:"-" json:"-" toml:"-" yaml:"-"`
@@ -60,6 +62,8 @@ var HeaderColumns = struct {
 	Devminor   string
 	Paxrecords string
 	Format     string
+	Record     string
+	Block      string
 }{
 	Typeflag:   "typeflag",
 	Name:       "name",
@@ -77,6 +81,8 @@ var HeaderColumns = struct {
 	Devminor:   "devminor",
 	Paxrecords: "paxrecords",
 	Format:     "format",
+	Record:     "record",
+	Block:      "block",
 }
 
 var HeaderTableColumns = struct {
@@ -96,6 +102,8 @@ var HeaderTableColumns = struct {
 	Devminor   string
 	Paxrecords string
 	Format     string
+	Record     string
+	Block      string
 }{
 	Typeflag:   "headers.typeflag",
 	Name:       "headers.name",
@@ -113,6 +121,8 @@ var HeaderTableColumns = struct {
 	Devminor:   "headers.devminor",
 	Paxrecords: "headers.paxrecords",
 	Format:     "headers.format",
+	Record:     "headers.record",
+	Block:      "headers.block",
 }
 
 // Generated where
@@ -177,7 +187,9 @@ var HeaderWhere = struct {
 	Devmajor   whereHelperint64
 	Devminor   whereHelperint64
 	Paxrecords whereHelperstring
-	Format     whereHelperstring
+	Format     whereHelperint64
+	Record     whereHelperint64
+	Block      whereHelperint64
 }{
 	Typeflag:   whereHelperint64{field: "\"headers\".\"typeflag\""},
 	Name:       whereHelperstring{field: "\"headers\".\"name\""},
@@ -194,7 +206,9 @@ var HeaderWhere = struct {
 	Devmajor:   whereHelperint64{field: "\"headers\".\"devmajor\""},
 	Devminor:   whereHelperint64{field: "\"headers\".\"devminor\""},
 	Paxrecords: whereHelperstring{field: "\"headers\".\"paxrecords\""},
-	Format:     whereHelperstring{field: "\"headers\".\"format\""},
+	Format:     whereHelperint64{field: "\"headers\".\"format\""},
+	Record:     whereHelperint64{field: "\"headers\".\"record\""},
+	Block:      whereHelperint64{field: "\"headers\".\"block\""},
 }
 
 // HeaderRels is where relationship names are stored.
@@ -214,8 +228,8 @@ func (*headerR) NewStruct() *headerR {
 type headerL struct{}
 
 var (
-	headerAllColumns            = []string{"typeflag", "name", "linkname", "size", "mode", "uid", "gid", "uname", "gname", "modtime", "accesstime", "changetime", "devmajor", "devminor", "paxrecords", "format"}
-	headerColumnsWithoutDefault = []string{"typeflag", "name", "linkname", "size", "mode", "uid", "gid", "uname", "gname", "modtime", "accesstime", "changetime", "devmajor", "devminor", "paxrecords", "format"}
+	headerAllColumns            = []string{"typeflag", "name", "linkname", "size", "mode", "uid", "gid", "uname", "gname", "modtime", "accesstime", "changetime", "devmajor", "devminor", "paxrecords", "format", "record", "block"}
+	headerColumnsWithoutDefault = []string{"typeflag", "name", "linkname", "size", "mode", "uid", "gid", "uname", "gname", "modtime", "accesstime", "changetime", "devmajor", "devminor", "paxrecords", "format", "record", "block"}
 	headerColumnsWithDefault    = []string{}
 	headerPrimaryKeyColumns     = []string{"name"}
 )
