@@ -60,6 +60,11 @@ func main() {
 				break
 			}
 
+			// Missing trailer (expected for concatenated tars)
+			if err == io.ErrUnexpectedEOF {
+				break
+			}
+
 			panic(err)
 		}
 
