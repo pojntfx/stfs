@@ -22,7 +22,6 @@ type Operation struct {
 
 func main() {
 	file := flag.String("file", "/dev/nst0", "File of tape drive to open")
-	record := flag.Int("record", 0, "Record to seek too")
 
 	flag.Parse()
 
@@ -38,8 +37,7 @@ func main() {
 		MTIOCTOP,
 		uintptr(unsafe.Pointer(
 			&Operation{
-				Op:    MTEOM,
-				Count: int32(*record),
+				Op: MTEOM,
 			},
 		)),
 	)
