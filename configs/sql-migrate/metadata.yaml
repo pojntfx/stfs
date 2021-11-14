@@ -1,0 +1,4 @@
+production:
+  dialect: sqlite3
+  datasource: /tmp/stfs-metadata.sqlite
+  dir: db/sqlite/migrations/metadata/
