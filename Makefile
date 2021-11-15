@@ -3,4 +3,4 @@ generate:
 	go generate ./...
 
 clean:
-	rm -rf pkg/db
+	rm -rf pkg/db pkg/api

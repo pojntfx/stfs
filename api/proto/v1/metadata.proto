@@ -1,0 +1,22 @@
+syntax = "proto3";
+
+package com.pojtinger.felicitas.stfs;
+
+option go_package = "github.com/pojntfx/stfs/pkg/api/proto/v1";
+
+message Wrapper {
+    int64 Version = 1;
+    Header Header = 2;
+}
+
+enum Action {
+    CREATE = 0;
+    UPDATE = 1;
+    DELETE = 2;
+}
+
+message Header {
+    Action Action = 1;
+    string Name = 2;
+    string Replaces = 3;
+}

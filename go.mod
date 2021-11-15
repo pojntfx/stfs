@@ -14,6 +14,8 @@ require (
 	github.com/volatiletech/randomize v0.0.1
 	github.com/volatiletech/sqlboiler/v4 v4.7.1
 	github.com/volatiletech/strmangle v0.0.1
+	golang.org/x/sys v0.0.0-20211112193437-faf0a1b62c6b
+	google.golang.org/protobuf v1.27.1
 )
 
 require (
@@ -30,7 +32,6 @@ require (
 	github.com/subosito/gotenv v1.2.0 // indirect
 	github.com/volatiletech/inflect v0.0.1 // indirect
 	github.com/ziutek/mymysql v1.5.4 // indirect
-	golang.org/x/sys v0.0.0-20211112193437-faf0a1b62c6b // indirect
 	golang.org/x/text v0.3.6 // indirect
 	golang.org/x/xerrors v0.0.0-20200804184101-5ec99f83aff1 // indirect
 	gopkg.in/gorp.v1 v1.7.2 // indirect
