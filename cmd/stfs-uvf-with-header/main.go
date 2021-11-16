@@ -38,12 +38,17 @@ type Operation struct {
 	Count int32 // Operation count
 }
 
+const (
+	blockSize = 512
+)
+
 func main() {
 	file := flag.String("file", "/dev/nst0", "File (tape drive or tar file) to open")
 	dir := flag.String("dir", ".", "Directory to add to the file")
 
 	flag.Parse()
 
+	seekBackwards := int64(-blockSize) // Seek back one block (half a trailer) so we can detect the invalid trailer in `tvf` and seek accordingly
 	isRegular := true
 	stat, err := os.Stat(*file)
 	if err == nil {
@@ -63,6 +68,8 @@ func main() {
 			if err := tw.Close(); err != nil {
 				panic(err)
 			}
+
+			seekBackwards = -(blockSize * 2) // Overwrite the file completely the first time
 		} else {
 			panic(err)
 		}
@@ -75,8 +82,8 @@ func main() {
 			panic(err)
 		}
 
-		// Seek backwards two blocks from end (to overwrite the trailer)
-		if _, err := f.Seek(-1024, io.SeekEnd); err != nil {
+		// Seek backwards into header
+		if _, err := f.Seek(seekBackwards, io.SeekEnd); err != nil {
 			panic(err)
 		}
 	} else {
@@ -92,8 +99,7 @@ func main() {
 			)),
 		)
 
-		// TODO: Seek backwards 2 blocks (1024 bytes) with the matching syscall
-
+		// TODO: Seek backwards into header with the matching syscall (`mt bsr 1`/`mt bsr 2`)
 		f, err = os.OpenFile(*file, os.O_APPEND|os.O_WRONLY, os.ModeCharDevice)
 		if err != nil {
 			panic(err)
