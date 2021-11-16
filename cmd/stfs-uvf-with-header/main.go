@@ -25,6 +25,7 @@ import (
 const (
 	MTIOCTOP = 0x40086d01 // Do magnetic tape operation
 	MTEOM    = 12         // Goto end of recorded media (for appending files)
+	MTBSR    = 4          // Backward space record
 
 	STFSVersion    = 1
 	STFSVersionPAX = "STFS.Version"
@@ -99,11 +100,25 @@ func main() {
 			)),
 		)
 
-		// TODO: Seek backwards into header with the matching syscall (`mt bsr 1`/`mt bsr 2`)
 		f, err = os.OpenFile(*file, os.O_APPEND|os.O_WRONLY, os.ModeCharDevice)
 		if err != nil {
 			panic(err)
 		}
+
+		// Seek backwards into header
+		// TODO: Validate that this iterates by block, not by record
+		// TODO: Only run this if output of tell syscall != 0
+		syscall.Syscall(
+			syscall.SYS_IOCTL,
+			f.Fd(),
+			MTIOCTOP,
+			uintptr(unsafe.Pointer(
+				&Operation{
+					Op:    MTBSR,
+					Count: 1,
+				},
+			)),
+		)
 	}
 	defer f.Close()
 
