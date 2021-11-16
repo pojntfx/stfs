@@ -49,7 +49,19 @@ func main() {
 				break
 			}
 
-			panic(err)
+			// Seek one block backwards (half into the trailer) into trailer
+			if _, err := f.Seek((int64(*recordSize)*blockSize*record)+block*blockSize, io.SeekStart); err == nil {
+				tr = tar.NewReader(f)
+
+				hdr, err = tr.Next()
+				if err != nil {
+					panic(err)
+				}
+			} else {
+				panic(err)
+			}
+
+			// TODO: Seek with matching syscall (`mt seek (int64(*recordSize)*record)+1`)
 		}
 
 		// TODO: Do `tell` on tape drive instead, which returns the block - but how do we get the current block? Maybe we have to use the old, iterating method and call.Next after we found the correct record & block.
