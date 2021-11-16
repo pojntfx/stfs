@@ -11,6 +11,7 @@ import (
 	"log"
 	"os"
 	"path/filepath"
+	"strconv"
 	"syscall"
 	"time"
 	"unsafe"
@@ -25,7 +26,9 @@ const (
 	MTIOCTOP = 0x40086d01 // Do magnetic tape operation
 	MTEOM    = 12         // Goto end of recorded media (for appending files)
 
-	STFSVersion = 1
+	STFSVersion    = 1
+	STFSVersionPAX = "STFS.Version"
+	STFSHeaderPAX  = "STFS.Header"
 )
 
 // Operation is struct for MTIOCTOP
@@ -48,6 +51,18 @@ func main() {
 	} else {
 		if os.IsNotExist(err) {
 			isRegular = true
+
+			// Create the file
+			f, err := os.OpenFile(*file, os.O_APPEND|os.O_WRONLY|os.O_CREATE, 0600)
+			if err != nil {
+				panic(err)
+			}
+
+			// Create an empty tar archive with a trailer so that we may seek back
+			tw := tar.NewWriter(f)
+			if err := tw.Close(); err != nil {
+				panic(err)
+			}
 		} else {
 			panic(err)
 		}
@@ -55,12 +70,15 @@ func main() {
 
 	var f *os.File
 	if isRegular {
-		f, err = os.OpenFile(*file, os.O_APPEND|os.O_WRONLY|os.O_CREATE, 0600)
+		f, err = os.OpenFile(*file, os.O_RDWR, 0600)
 		if err != nil {
 			panic(err)
 		}
 
-		// No need to go to end manually due to `os.O_APPEND`
+		// Seek backwards two blocks from end (to overwrite the trailer)
+		if _, err := f.Seek(-1024, io.SeekEnd); err != nil {
+			panic(err)
+		}
 	} else {
 		// Go to end of file
 		syscall.Syscall(
@@ -74,6 +92,8 @@ func main() {
 			)),
 		)
 
+		// TODO: Seek backwards 2 blocks (1024 bytes) with the matching syscall
+
 		f, err = os.OpenFile(*file, os.O_APPEND|os.O_WRONLY, os.ModeCharDevice)
 		if err != nil {
 			panic(err)
@@ -81,7 +101,8 @@ func main() {
 	}
 	defer f.Close()
 
-	tw := tar.NewWriter(f) // We are not closing the tar writer to prevent writing the trailer
+	tw := tar.NewWriter(f)
+	defer tw.Close()
 
 	if err := filepath.Walk(*dir, func(path string, info fs.FileInfo, err error) error {
 		if err != nil {
@@ -118,20 +139,21 @@ func main() {
 		hdr.Devmajor = int64(unix.Major(unixStat.Dev))
 		hdr.Devminor = int64(unix.Minor(unixStat.Dev))
 
-		wrapper := &api.Wrapper{
-			Version: STFSVersion,
-			Header: &api.Header{
-				Action: api.Action_CREATE,
-				Name:   path,
-			},
+		stfsHeader := &api.Header{
+			Action: api.Action_CREATE,
 		}
 
-		encodedName, err := proto.Marshal(wrapper)
+		encodedHeader, err := proto.Marshal(stfsHeader)
 		if err != nil {
 			return err
 		}
 
-		hdr.Name = base64.StdEncoding.EncodeToString(encodedName)
+		hdr.Name = path
+		hdr.PAXRecords = map[string]string{
+			STFSVersionPAX: strconv.Itoa(STFSVersion),
+			STFSHeaderPAX:  base64.StdEncoding.EncodeToString(encodedHeader),
+		}
+		hdr.Format = tar.FormatPAX
 
 		log.Println(hdr)
 
