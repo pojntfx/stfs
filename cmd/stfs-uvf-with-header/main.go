@@ -4,6 +4,7 @@ package main
 
 import (
 	"archive/tar"
+	"bufio"
 	"encoding/base64"
 	"flag"
 	"io"
@@ -30,6 +31,8 @@ const (
 	STFSVersion    = 1
 	STFSVersionPAX = "STFS.Version"
 	STFSHeaderPAX  = "STFS.Header"
+
+	blockSize = 512
 )
 
 // Operation is struct for MTIOCTOP
@@ -42,6 +45,7 @@ type Operation struct {
 func main() {
 	file := flag.String("file", "/dev/nst0", "File (tape drive or tar file) to open")
 	dir := flag.String("dir", ".", "Directory to add to the file")
+	recordSize := flag.Int("recordSize", 20, "Amount of 512-bit blocks per record")
 
 	flag.Parse()
 
@@ -66,7 +70,12 @@ func main() {
 
 		// No need to go to end manually due to `os.O_APPEND`
 	} else {
-		// Go to end of file
+		f, err = os.OpenFile(*file, os.O_APPEND|os.O_WRONLY, os.ModeCharDevice)
+		if err != nil {
+			panic(err)
+		}
+
+		// Go to end of tape
 		syscall.Syscall(
 			syscall.SYS_IOCTL,
 			f.Fd(),
@@ -77,15 +86,16 @@ func main() {
 				},
 			)),
 		)
-
-		f, err = os.OpenFile(*file, os.O_APPEND|os.O_WRONLY, os.ModeCharDevice)
-		if err != nil {
-			panic(err)
-		}
 	}
 	defer f.Close()
 
-	tw := tar.NewWriter(f)
+	var tw *tar.Writer
+	if isRegular {
+		tw = tar.NewWriter(f)
+	} else {
+		bw := bufio.NewWriterSize(f, blockSize**recordSize)
+		tw = tar.NewWriter(bw)
+	}
 	defer tw.Close()
 
 	if err := filepath.Walk(*dir, func(path string, info fs.FileInfo, err error) error {
@@ -104,8 +114,6 @@ func main() {
 		if err != nil {
 			return err
 		}
-
-		hdr.Format = tar.FormatGNU // Required for AccessTime, ChangeTime etc.
 
 		var unixStat syscall.Stat_t
 		if err := syscall.Stat(path, &unixStat); err != nil {
@@ -155,8 +163,15 @@ func main() {
 		}
 		defer file.Close()
 
-		if _, err := io.Copy(tw, file); err != nil {
-			return err
+		if isRegular {
+			if _, err := io.Copy(tw, file); err != nil {
+				return err
+			}
+		} else {
+			buf := make([]byte, blockSize**recordSize)
+			if _, err := io.CopyBuffer(tw, file, buf); err != nil {
+				return err
+			}
 		}
 
 		return nil
