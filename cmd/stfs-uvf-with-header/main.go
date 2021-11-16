@@ -39,17 +39,12 @@ type Operation struct {
 	Count int32 // Operation count
 }
 
-const (
-	blockSize = 512
-)
-
 func main() {
 	file := flag.String("file", "/dev/nst0", "File (tape drive or tar file) to open")
 	dir := flag.String("dir", ".", "Directory to add to the file")
 
 	flag.Parse()
 
-	seekBackwards := int64(-blockSize) // Seek back one block (half a trailer) so we can detect the invalid trailer in `tvf` and seek accordingly
 	isRegular := true
 	stat, err := os.Stat(*file)
 	if err == nil {
@@ -57,20 +52,6 @@ func main() {
 	} else {
 		if os.IsNotExist(err) {
 			isRegular = true
-
-			// Create the file
-			f, err := os.OpenFile(*file, os.O_APPEND|os.O_WRONLY|os.O_CREATE, 0600)
-			if err != nil {
-				panic(err)
-			}
-
-			// Create an empty tar archive with a trailer so that we may seek back
-			tw := tar.NewWriter(f)
-			if err := tw.Close(); err != nil {
-				panic(err)
-			}
-
-			seekBackwards = -(blockSize * 2) // Overwrite the file completely the first time
 		} else {
 			panic(err)
 		}
@@ -78,15 +59,12 @@ func main() {
 
 	var f *os.File
 	if isRegular {
-		f, err = os.OpenFile(*file, os.O_RDWR, 0600)
+		f, err = os.OpenFile(*file, os.O_APPEND|os.O_WRONLY|os.O_CREATE, 0600)
 		if err != nil {
 			panic(err)
 		}
 
-		// Seek backwards into header
-		if _, err := f.Seek(seekBackwards, io.SeekEnd); err != nil {
-			panic(err)
-		}
+		// No need to go to end manually due to `os.O_APPEND`
 	} else {
 		// Go to end of file
 		syscall.Syscall(
@@ -104,21 +82,6 @@ func main() {
 		if err != nil {
 			panic(err)
 		}
-
-		// Seek backwards into header
-		// TODO: Validate that this iterates by block, not by record
-		// TODO: Only run this if output of tell syscall != 0
-		syscall.Syscall(
-			syscall.SYS_IOCTL,
-			f.Fd(),
-			MTIOCTOP,
-			uintptr(unsafe.Pointer(
-				&Operation{
-					Op:    MTBSR,
-					Count: 1,
-				},
-			)),
-		)
 	}
 	defer f.Close()
 

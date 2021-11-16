@@ -41,22 +41,31 @@ func main() {
 
 	record := int64(0)
 	block := int64(0)
+	firstRecordOfArchive := int64(0)
 
 	for {
 		hdr, err := tr.Next()
 		if err != nil {
-			if err == io.EOF {
-				break
-			}
-
-			// Seek one block backwards (half into the trailer) into trailer
-			if _, err := f.Seek((int64(*recordSize)*blockSize*record)+block*blockSize, io.SeekStart); err == nil {
+			// Seek right after the next two blocks to skip the trailer
+			if _, err := f.Seek((int64(*recordSize)*blockSize*record)+(block+1)*blockSize, io.SeekStart); err == nil {
 				tr = tar.NewReader(f)
 
 				hdr, err = tr.Next()
 				if err != nil {
+					if err == io.EOF {
+						break
+					}
+
 					panic(err)
 				}
+
+				block++
+				if block > int64(*recordSize) {
+					record++
+					block = 0
+				}
+
+				firstRecordOfArchive = record
 			} else {
 				panic(err)
 			}
@@ -77,13 +86,11 @@ func main() {
 		}
 
 		nextTotalBlocks := (curr + hdr.Size) / blockSize
+		record = nextTotalBlocks / int64(*recordSize)
 
-		// TODO: This currently returns one block to little on appended tar archives
-		if record == 0 && block == 0 {
-			record = nextTotalBlocks / int64(*recordSize)
-			block = nextTotalBlocks - (record * int64(*recordSize)) // For the first record, the offset of one is not needed
+		if record == 0 && block == 0 || record == firstRecordOfArchive {
+			block = nextTotalBlocks - (record * int64(*recordSize)) // For the first record of the file or archive, the offset of one is not needed
 		} else {
-			record = nextTotalBlocks / int64(*recordSize)
 			block = nextTotalBlocks - (record * int64(*recordSize)) + 1 // +1 because we need to start reading right after the last block
 		}
 
