@@ -3,6 +3,7 @@ package main
 import (
 	"archive/tar"
 	"flag"
+	"io"
 	"log"
 	"os"
 )
@@ -33,10 +34,21 @@ func main() {
 
 	tr := tar.NewReader(f)
 
-	hdr, err := tr.Next()
-	if err != nil {
-		panic(err)
-	}
+	for {
+		hdr, err := tr.Next()
+		if err != nil {
+			panic(err)
+		}
 
-	log.Println(hdr)
+		log.Println(hdr)
+
+		curr, err := f.Seek(0, io.SeekCurrent)
+		if err != nil {
+			panic(err)
+		}
+
+		if currentRecord := ((curr + hdr.Size) / blockSize) / int64(*recordSize); currentRecord > int64(*record) {
+			break
+		}
+	}
 }
