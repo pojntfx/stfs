@@ -14,6 +14,8 @@ import (
 // See https://github.com/benmcclelland/mtio
 const (
 	MTIOCPOS = 0x80086d03 // Get tape position
+	MTIOCTOP = 0x40086d01 // Do magnetic tape operation
+	MTFSF    = 1          // Forward space over FileMark, position at first record of next file
 
 	blockSize = 512
 )
@@ -21,6 +23,13 @@ const (
 // Position is struct for MTIOCPOS
 type Position struct {
 	BlkNo int64 // Current block number
+}
+
+// Operation is struct for MTIOCTOP
+type Operation struct {
+	Op    int16 // Operation ID
+	Pad   int16 // Padding to match C structures
+	Count int32 // Operation count
 }
 
 func main() {
@@ -48,75 +57,81 @@ func main() {
 	}
 	defer f.Close()
 
-	br := bufio.NewReaderSize(f, blockSize**recordSize)
-	tr := tar.NewReader(br)
+	var tr *tar.Reader
+	if fileDescription.Mode().IsRegular() {
+		tr = tar.NewReader(f)
+	} else {
+		br := bufio.NewReaderSize(f, blockSize**recordSize)
+		tr = tar.NewReader(br)
+	}
 
 	record := int64(0)
-	block := int64(0)
 
 	for {
 		hdr, err := tr.Next()
-		if err != nil {
-			if err == io.EOF {
-				break
+		if err == io.EOF {
+			if err := gotoNextFile(f); err != nil {
+				panic(err)
 			}
 
-			// Seek one block backwards (half into the trailer) into trailer
 			if fileDescription.Mode().IsRegular() {
-				if _, err := f.Seek((int64(*recordSize)*blockSize*record)+block*blockSize, io.SeekStart); err == nil {
-					tr = tar.NewReader(br)
-
-					hdr, err = tr.Next()
-					if err != nil {
-						panic(err)
-					}
-				} else {
-					panic(err)
-				}
+				tr = tar.NewReader(f)
 			} else {
-				panic(err)
+				br := bufio.NewReaderSize(f, blockSize**recordSize)
+				tr = tar.NewReader(br)
 			}
-		}
 
-		curr := int64(0)
-		if fileDescription.Mode().IsRegular() {
-			curr, err = f.Seek(0, io.SeekCurrent)
+			hdr, err = tr.Next()
 			if err != nil {
+				if err == io.EOF {
+					break
+				}
+
 				panic(err)
 			}
-		} else {
-			pos := &Position{}
-
-			syscall.Syscall(
-				syscall.SYS_IOCTL,
-				f.Fd(),
-				MTIOCPOS,
-				uintptr(unsafe.Pointer(pos)),
-			)
-
-			// TODO: Ensure that this is in fact the block, not just the record
-			curr = pos.BlkNo * blockSize
 		}
 
-		if record == 0 && block == 0 {
-			log.Println("Record:", 0, "Block:", 0, "Header:", hdr)
-		} else {
-			log.Println("Record:", record, "Block:", block, "Header:", hdr)
+		if err != nil {
+			panic(err)
 		}
 
-		nextTotalBlocks := (curr + hdr.Size) / blockSize
+		log.Println("Record:", record, "Block:", 0, "Header:", hdr)
 
-		if record == 0 && block == 0 {
-			record = nextTotalBlocks / int64(*recordSize)
-			block = nextTotalBlocks - (record * int64(*recordSize)) // For the first record, the offset of one is not needed
-		} else {
-			record = nextTotalBlocks / int64(*recordSize)
-			block = nextTotalBlocks - (record * int64(*recordSize)) + 1 // +1 because we need to start reading right after the last block
-		}
-
-		if block > int64(*recordSize) {
-			record++
-			block = 0
+		record, err = getCurrentRecord(f)
+		if err != nil {
+			panic(err)
 		}
 	}
+}
+
+func gotoNextFile(f *os.File) error {
+	if _, _, err := syscall.Syscall(
+		syscall.SYS_IOCTL,
+		f.Fd(),
+		MTIOCTOP,
+		uintptr(unsafe.Pointer(
+			&Operation{
+				Op:    MTFSF,
+				Count: 1,
+			},
+		)),
+	); err != 0 {
+		return err
+	}
+
+	return nil
+}
+
+func getCurrentRecord(f *os.File) (int64, error) {
+	pos := &Position{}
+	if _, _, err := syscall.Syscall(
+		syscall.SYS_IOCTL,
+		f.Fd(),
+		MTIOCPOS,
+		uintptr(unsafe.Pointer(pos)),
+	); err != 0 {
+		return 0, err
+	}
+
+	return pos.BlkNo, nil
 }
