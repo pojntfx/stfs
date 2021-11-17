@@ -125,7 +125,7 @@ func main() {
 		for {
 			hdr, err := tr.Next()
 			if err == io.EOF {
-				if err := gotoNextFileOnTape(f); err != nil {
+				if err := goToNextFileOnTape(f); err != nil {
 					panic(err)
 				}
 
@@ -166,7 +166,7 @@ func main() {
 	}
 }
 
-func gotoNextFileOnTape(f *os.File) error {
+func goToNextFileOnTape(f *os.File) error {
 	if _, _, err := syscall.Syscall(
 		syscall.SYS_IOCTL,
 		f.Fd(),
