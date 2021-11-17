@@ -1,7 +1,10 @@
 package main
 
 import (
+	"archive/tar"
+	"bufio"
 	"flag"
+	"log"
 	"os"
 	"syscall"
 	"unsafe"
@@ -11,6 +14,8 @@ import (
 const (
 	MTIOCTOP = 0x40086d01 // Do magnetic tape operation
 	MTSEEK   = 22         // Seek to block
+
+	blockSize = 512
 )
 
 // Operation is struct for MTIOCTOP
@@ -21,8 +26,10 @@ type Operation struct {
 }
 
 func main() {
-	file := flag.String("file", "/dev/nst0", "File of tape drive to open")
+	file := flag.String("file", "/dev/nst0", "File (tape drive or tar file) to open")
+	recordSize := flag.Int("recordSize", 20, "Amount of 512-bit blocks per record")
 	record := flag.Int("record", 0, "Record to seek too")
+	block := flag.Int("block", 0, "Block in record to seek too")
 
 	flag.Parse()
 
@@ -32,7 +39,7 @@ func main() {
 	}
 	defer f.Close()
 
-	syscall.Syscall(
+	if _, _, err := syscall.Syscall(
 		syscall.SYS_IOCTL,
 		f.Fd(),
 		MTIOCTOP,
@@ -42,5 +49,21 @@ func main() {
 				Count: int32(*record),
 			},
 		)),
-	)
+	); err != 0 {
+		panic(err)
+	}
+
+	br := bufio.NewReaderSize(f, blockSize**recordSize)
+	if _, err := br.Read(make([]byte, *block*blockSize)); err != nil {
+		panic(err)
+	}
+
+	tr := tar.NewReader(br)
+
+	hdr, err := tr.Next()
+	if err != nil {
+		panic(err)
+	}
+
+	log.Println(hdr)
 }
