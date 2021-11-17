@@ -46,6 +46,7 @@ func main() {
 	file := flag.String("file", "/dev/nst0", "File (tape drive or tar file) to open")
 	dir := flag.String("dir", ".", "Directory to add to the file")
 	recordSize := flag.Int("recordSize", 20, "Amount of 512-bit blocks per record")
+	overwrite := flag.Bool("overwrite", false, "Whether to start writing from the current position instead of from the end of the tape")
 
 	flag.Parse()
 
@@ -63,9 +64,16 @@ func main() {
 
 	var f *os.File
 	if isRegular {
-		f, err = os.OpenFile(*file, os.O_APPEND|os.O_WRONLY|os.O_CREATE, 0600)
-		if err != nil {
-			panic(err)
+		if *overwrite {
+			f, err = os.OpenFile(*file, os.O_WRONLY|os.O_CREATE, 0600)
+			if err != nil {
+				panic(err)
+			}
+		} else {
+			f, err = os.OpenFile(*file, os.O_APPEND|os.O_WRONLY|os.O_CREATE, 0600)
+			if err != nil {
+				panic(err)
+			}
 		}
 
 		// No need to go to end manually due to `os.O_APPEND`
@@ -75,17 +83,12 @@ func main() {
 			panic(err)
 		}
 
-		// Go to end of tape
-		syscall.Syscall(
-			syscall.SYS_IOCTL,
-			f.Fd(),
-			MTIOCTOP,
-			uintptr(unsafe.Pointer(
-				&Operation{
-					Op: MTEOM,
-				},
-			)),
-		)
+		if !*overwrite {
+			// Go to end of tape
+			if err := goToEndOfTape(f); err != nil {
+				panic(err)
+			}
+		}
 	}
 	defer f.Close()
 
@@ -178,4 +181,21 @@ func main() {
 	}); err != nil {
 		panic(err)
 	}
+}
+
+func goToEndOfTape(f *os.File) error {
+	if _, _, err := syscall.Syscall(
+		syscall.SYS_IOCTL,
+		f.Fd(),
+		MTIOCTOP,
+		uintptr(unsafe.Pointer(
+			&Operation{
+				Op: MTEOM,
+			},
+		)),
+	); err != 0 {
+		return err
+	}
+
+	return nil
 }
