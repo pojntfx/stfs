@@ -122,7 +122,6 @@ func main() {
 		tr := tar.NewReader(br)
 
 		record := int64(0)
-
 		for {
 			hdr, err := tr.Next()
 			if err == io.EOF {
@@ -147,11 +146,21 @@ func main() {
 				panic(err)
 			}
 
-			log.Println("Record:", record, "Block:", 0, "Header:", hdr)
+			if record == 0 {
+				log.Println("Record:", 0, "Block:", 0, "Header:", hdr)
+			} else {
+				log.Println("Record:", record, "Block:", 0, "Header:", hdr)
+			}
 
-			record, err = getCurrentRecordFromTape(f)
+			curr, err := getCurrentRecordFromTape(f)
 			if err != nil {
 				panic(err)
+			}
+
+			if record == 0 {
+				record = ((curr * int64(*recordSize) * blockSize) + hdr.Size) / (int64(*recordSize) * blockSize) // For the first record of the file or archive, the offset of one is not needed
+			} else {
+				record = ((curr*int64(*recordSize)*blockSize)+hdr.Size)/(int64(*recordSize)*blockSize) + 2 // +2 because we need to start reading right after the last block
 			}
 		}
 	}
