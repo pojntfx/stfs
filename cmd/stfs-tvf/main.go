@@ -14,16 +14,15 @@ const (
 	blockSize = 512
 )
 
-type HeaderInBlock struct {
-	Record int
-	Block  int
+type Wrapper struct {
+	Record int64
+	Block  int64
 	Header string
 }
 
 func main() {
 	file := flag.String("file", "/dev/nst0", "File (tape drive or tar file) to open")
 	recordSize := flag.Int("recordSize", 20, "Amount of 512-bit blocks per record")
-	checkpoint := flag.Int("checkpoint", 0, "Log current record after checkpoint kilobytes have been read")
 
 	flag.Parse()
 
@@ -46,13 +45,9 @@ func main() {
 	}
 	defer f.Close()
 
-	record := 0
+	record := int64(0)
+	block := int64(0)
 	for {
-		// Lock the current record if requested
-		if *checkpoint > 0 && record%*checkpoint == 0 {
-			log.Println("Checkpoint:", record)
-		}
-
 		// Read exactly one record
 		bf := make([]byte, *recordSize*blockSize)
 		if _, err := io.ReadFull(f, bf); err != nil {
@@ -60,37 +55,35 @@ func main() {
 				break
 			}
 
-			// Missing trailer (expected for concatenated tars)
-			if err == io.ErrUnexpectedEOF {
-				break
-			}
-
 			panic(err)
 		}
 
 		// Get the headers from the record
-		headers := []HeaderInBlock{}
-		for i := 0; i < *recordSize; i++ {
-			tr := tar.NewReader(bytes.NewReader(bf[blockSize*i : blockSize*(i+1)]))
-			hdr, err := tr.Next()
+		for currentBlock := 0; currentBlock < *recordSize; currentBlock++ {
+			tr := tar.NewReader(bytes.NewReader(bf[blockSize*currentBlock : blockSize*(currentBlock+1)]))
+			hdr, err := tr.Next() // TODO: Read PAX header info by a plain `tar tvf` before; reads should still be efficient even when seeking back as reads are cached
 			if err != nil {
 				continue
 			}
 
-			if hdr.Format == tar.FormatUnknown {
-				// EOF
-				break
+			wrapper := &Wrapper{
+				Record: record,
+				Block:  block,
+				Header: fmt.Sprintf("%v", hdr),
 			}
 
-			headers = append(headers, HeaderInBlock{
-				Record: record,
-				Block:  i,
-				Header: fmt.Sprintf("%v", hdr),
-			})
-		}
+			log.Println(wrapper)
 
-		if len(headers) > 0 {
-			fmt.Println(headers)
+			curr := (record * int64(*recordSize) * blockSize) + int64(currentBlock)*blockSize
+
+			nextTotalBlocks := (curr + hdr.Size) / blockSize
+			record := nextTotalBlocks / int64(*recordSize)
+
+			block = nextTotalBlocks - (record * int64(*recordSize)) + 1
+			if block > int64(*recordSize) {
+				record++
+				block = 0
+			}
 		}
 
 		record++
