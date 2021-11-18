@@ -6,30 +6,9 @@ import (
 	"flag"
 	"log"
 	"os"
-	"syscall"
-	"unsafe"
+
+	"github.com/pojntfx/stfs/pkg/controllers"
 )
-
-// See https://github.com/benmcclelland/mtio
-const (
-	MTIOCTOP = 0x40086d01 // Do magnetic tape operation
-	MTSEEK   = 22         // Seek to block
-	MTIOCPOS = 0x80086d03 // Get tape position
-
-	blockSize = 512
-)
-
-// Operation is struct for MTIOCTOP
-type Operation struct {
-	Op    int16 // Operation ID
-	Pad   int16 // Padding to match C structures
-	Count int32 // Operation count
-}
-
-// Position is struct for MTIOCPOS
-type Position struct {
-	BlkNo int64 // Current block number
-}
 
 func main() {
 	file := flag.String("file", "/dev/nst0", "File (tape drive or tar file) to open")
@@ -62,20 +41,20 @@ func main() {
 	var tr *tar.Reader
 	if fileDescription.Mode().IsRegular() {
 		// Seek to record and block
-		if _, err := f.Seek(int64((*recordSize*blockSize**record)+*block*blockSize), 0); err != nil {
+		if _, err := f.Seek(int64((*recordSize*controllers.BlockSize**record)+*block*controllers.BlockSize), 0); err != nil {
 			panic(err)
 		}
 
 		tr = tar.NewReader(f)
 	} else {
 		// Seek to record
-		if err := seekToRecordOnTape(f, int32(*record)); err != nil {
+		if err := controllers.SeekToRecordOnTape(f, int32(*record)); err != nil {
 			panic(err)
 		}
 
 		// Seek to block
-		br := bufio.NewReaderSize(f, blockSize**recordSize)
-		if _, err := br.Read(make([]byte, *block*blockSize)); err != nil {
+		br := bufio.NewReaderSize(f, controllers.BlockSize**recordSize)
+		if _, err := br.Read(make([]byte, *block*controllers.BlockSize)); err != nil {
 			panic(err)
 		}
 
@@ -90,22 +69,4 @@ func main() {
 
 		log.Println(hdr)
 	}
-}
-
-func seekToRecordOnTape(f *os.File, record int32) error {
-	if _, _, err := syscall.Syscall(
-		syscall.SYS_IOCTL,
-		f.Fd(),
-		MTIOCTOP,
-		uintptr(unsafe.Pointer(
-			&Operation{
-				Op:    MTSEEK,
-				Count: record,
-			},
-		)),
-	); err != 0 {
-		return err
-	}
-
-	return nil
 }
