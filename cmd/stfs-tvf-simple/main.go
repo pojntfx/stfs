@@ -7,8 +7,6 @@ import (
 	"io"
 	"log"
 	"os"
-	"syscall"
-	"unsafe"
 )
 
 // See https://github.com/benmcclelland/mtio
@@ -30,6 +28,24 @@ type Operation struct {
 	Op    int16 // Operation ID
 	Pad   int16 // Padding to match C structures
 	Count int32 // Operation count
+}
+
+type Counter struct {
+	reader io.Reader
+
+	bytesRead int
+}
+
+func (r *Counter) Read(p []byte) (n int, err error) {
+	n, err = r.reader.Read(p)
+
+	r.bytesRead += n
+
+	return n, err
+}
+
+func (r *Counter) GetBytesRead() int {
+	return r.bytesRead
 }
 
 func main() {
@@ -119,54 +135,28 @@ func main() {
 		}
 	} else {
 		br := bufio.NewReaderSize(f, blockSize**recordSize)
+		counter := &Counter{reader: br}
 
-		currentRecord := 0
-	o:
+		record := int64(0)
+		block := int64(0)
+
 		for {
-			for currentBlock := 0; currentBlock < *recordSize; currentBlock++ {
-				if currentRecord%4096 == 0 {
-					tell, err := getCurrentRecordFromTape(f)
-					if err != nil {
-						panic(err)
-					}
-
-					if tell < int64(currentRecord) {
-						// EOD
-
-						break o
-					}
-				}
-
-				tr := tar.NewReader(br)
-				hdr, err := tr.Next()
-				if err != nil {
-					continue
-				}
-
-				if hdr.Format == tar.FormatUnknown {
-					continue
-				}
-
-				log.Println("Record:", currentRecord, "Block:", currentBlock, "Header:", hdr)
-
-				// TODO: Seek to (curr + hdr.Size)/blockSize if recordToSeekTo != currentRecord, re-write `br`
+			tr := tar.NewReader(counter)
+			hdr, err := tr.Next()
+			if err != nil {
+				continue
 			}
 
-			currentRecord++
+			if hdr.Format == tar.FormatUnknown {
+				continue
+			}
+
+			log.Println("Record:", record, "Block:", block, "Header:", hdr)
+
+			nextBytes := int64(counter.GetBytesRead()) + hdr.Size + blockSize - 1
+
+			record = nextBytes / (blockSize * int64(*recordSize))
+			block = (nextBytes - (record * int64(*recordSize) * blockSize)) / blockSize
 		}
 	}
-}
-
-func getCurrentRecordFromTape(f *os.File) (int64, error) {
-	pos := &Position{}
-	if _, _, err := syscall.Syscall(
-		syscall.SYS_IOCTL,
-		f.Fd(),
-		MTIOCPOS,
-		uintptr(unsafe.Pointer(pos)),
-	); err != 0 {
-		return 0, err
-	}
-
-	return pos.BlkNo, nil
 }

@@ -39,17 +39,7 @@ func main() {
 	}
 	defer f.Close()
 
-	if _, _, err := syscall.Syscall(
-		syscall.SYS_IOCTL,
-		f.Fd(),
-		MTIOCTOP,
-		uintptr(unsafe.Pointer(
-			&Operation{
-				Op:    MTSEEK,
-				Count: int32(*record),
-			},
-		)),
-	); err != 0 {
+	if err := seekToRecordOnTape(f, int32(*record)); err != nil {
 		panic(err)
 	}
 
@@ -66,4 +56,22 @@ func main() {
 	}
 
 	log.Println(hdr)
+}
+
+func seekToRecordOnTape(f *os.File, record int32) error {
+	if _, _, err := syscall.Syscall(
+		syscall.SYS_IOCTL,
+		f.Fd(),
+		MTIOCTOP,
+		uintptr(unsafe.Pointer(
+			&Operation{
+				Op:    MTSEEK,
+				Count: record,
+			},
+		)),
+	); err != 0 {
+		return err
+	}
+
+	return nil
 }
