@@ -36,6 +36,7 @@ func main() {
 	recordSize := flag.Int("recordSize", 20, "Amount of 512-bit blocks per record")
 	record := flag.Int("record", 0, "Record to seek too")
 	block := flag.Int("block", 0, "Block in record to seek too")
+	read := flag.Bool("read", false, "Whether to read the next header")
 
 	flag.Parse()
 
@@ -81,12 +82,14 @@ func main() {
 		tr = tar.NewReader(br)
 	}
 
-	hdr, err := tr.Next()
-	if err != nil {
-		panic(err)
-	}
+	if *read {
+		hdr, err := tr.Next()
+		if err != nil {
+			panic(err)
+		}
 
-	log.Println(hdr)
+		log.Println(hdr)
+	}
 }
 
 func seekToRecordOnTape(f *os.File, record int32) error {
