@@ -7,44 +7,10 @@ import (
 	"io"
 	"log"
 	"os"
-	"syscall"
-	"unsafe"
+
+	"github.com/pojntfx/stfs/pkg/controllers"
+	"github.com/pojntfx/stfs/pkg/readers"
 )
-
-// See https://github.com/benmcclelland/mtio
-const (
-	MTIOCPOS = 0x80086d03 // Get tape position
-	MTIOCTOP = 0x40086d01 // Do magnetic tape operation
-	MTFSF    = 1          // Forward space over FileMark, position at first record of next file
-
-	blockSize = 512
-)
-
-// Position is struct for MTIOCPOS
-type Position struct {
-	BlkNo int64 // Current block number
-}
-
-// Operation is struct for MTIOCTOP
-type Operation struct {
-	Op    int16 // Operation ID
-	Pad   int16 // Padding to match C structures
-	Count int32 // Operation count
-}
-
-type Counter struct {
-	Reader io.Reader
-
-	BytesRead int
-}
-
-func (r *Counter) Read(p []byte) (n int, err error) {
-	n, err = r.Reader.Read(p)
-
-	r.BytesRead += n
-
-	return n, err
-}
 
 func main() {
 	file := flag.String("file", "/dev/nst0", "File (tape drive or tar file) to open")
@@ -82,7 +48,7 @@ func main() {
 			hdr, err := tr.Next()
 			if err != nil {
 				// Seek right after the next two blocks to skip the trailer
-				if _, err := f.Seek((int64(*recordSize)*blockSize*record)+(block+1)*blockSize, io.SeekStart); err == nil {
+				if _, err := f.Seek((int64(*recordSize)*controllers.BlockSize*record)+(block+1)*controllers.BlockSize, io.SeekStart); err == nil {
 					tr = tar.NewReader(f)
 
 					hdr, err = tr.Next()
@@ -117,7 +83,7 @@ func main() {
 				panic(err)
 			}
 
-			nextTotalBlocks := (curr + hdr.Size) / blockSize
+			nextTotalBlocks := (curr + hdr.Size) / controllers.BlockSize
 			record = nextTotalBlocks / int64(*recordSize)
 
 			if record == 0 && block == 0 || record == firstRecordOfArchive {
@@ -132,9 +98,9 @@ func main() {
 			}
 		}
 	} else {
-		br := bufio.NewReaderSize(f, blockSize**recordSize)
+		br := bufio.NewReaderSize(f, controllers.BlockSize**recordSize)
 
-		counter := &Counter{Reader: br}
+		counter := &readers.Counter{Reader: br}
 		lastBytesRead := 0
 		dirty := false
 
@@ -152,19 +118,19 @@ func main() {
 						break
 					}
 
-					if err := goToNextFileOnTape(f); err != nil {
+					if err := controllers.GoToNextFileOnTape(f); err != nil {
 						// EOD
 
 						break
 					}
 
-					currentRecord, err := getCurrentRecordFromTape(f)
+					currentRecord, err := controllers.GetCurrentRecordFromTape(f)
 					if err != nil {
 						panic(err)
 					}
 
-					br = bufio.NewReaderSize(f, blockSize**recordSize)
-					counter = &Counter{Reader: br, BytesRead: (int(currentRecord) * *recordSize * blockSize)} // We asume we are at record n, block 0
+					br = bufio.NewReaderSize(f, controllers.BlockSize**recordSize)
+					counter = &readers.Counter{Reader: br, BytesRead: (int(currentRecord) * *recordSize * controllers.BlockSize)} // We asume we are at record n, block 0
 
 					dirty = true
 				}
@@ -184,42 +150,10 @@ func main() {
 
 			log.Println("Record:", record, "Block:", block, "Header:", hdr)
 
-			nextBytes := int64(counter.BytesRead) + hdr.Size + blockSize - 1
+			nextBytes := int64(counter.BytesRead) + hdr.Size + controllers.BlockSize - 1
 
-			record = nextBytes / (blockSize * int64(*recordSize))
-			block = (nextBytes - (record * int64(*recordSize) * blockSize)) / blockSize
+			record = nextBytes / (controllers.BlockSize * int64(*recordSize))
+			block = (nextBytes - (record * int64(*recordSize) * controllers.BlockSize)) / controllers.BlockSize
 		}
 	}
-}
-
-func goToNextFileOnTape(f *os.File) error {
-	if _, _, err := syscall.Syscall(
-		syscall.SYS_IOCTL,
-		f.Fd(),
-		MTIOCTOP,
-		uintptr(unsafe.Pointer(
-			&Operation{
-				Op:    MTFSF,
-				Count: 1,
-			},
-		)),
-	); err != 0 {
-		return err
-	}
-
-	return nil
-}
-
-func getCurrentRecordFromTape(f *os.File) (int64, error) {
-	pos := &Position{}
-	if _, _, err := syscall.Syscall(
-		syscall.SYS_IOCTL,
-		f.Fd(),
-		MTIOCPOS,
-		uintptr(unsafe.Pointer(pos)),
-	); err != 0 {
-		return 0, err
-	}
-
-	return pos.BlkNo, nil
 }

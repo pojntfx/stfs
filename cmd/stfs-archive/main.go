@@ -14,36 +14,22 @@ import (
 	"strconv"
 	"syscall"
 	"time"
-	"unsafe"
 
+	"github.com/pojntfx/stfs/pkg/controllers"
 	"golang.org/x/sys/unix"
 )
 
-// See https://github.com/benmcclelland/mtio
 const (
-	MTIOCTOP = 0x40086d01 // Do magnetic tape operation
-	MTEOM    = 12         // Goto end of recorded media (for appending files)
-	MTBSR    = 4          // Backward space record
+	stfsVersionPAX = "STFS.Version"
+	stfsVersion    = 1
 
-	STFSVersionPAX = "STFS.Version"
-	STFSVersion    = 1
+	stfsActionPAX    = "STFS.Action"
+	stfsActionCreate = "CREATE"
+	stfsActionUpdate = "UPDATE"
+	stfsActionDelete = "DELETE"
 
-	STFSActionPAX    = "STFS.Action"
-	STFSActionCreate = "CREATE"
-	STFSActionUpdate = "UPDATE"
-	STFSActionDelete = "DELETE"
-
-	STFSReplacesPAX = "STFS.Replaces"
-
-	blockSize = 512
+	stfsReplacesPAX = "STFS.Replaces"
 )
-
-// Operation is struct for MTIOCTOP
-type Operation struct {
-	Op    int16 // Operation ID
-	Pad   int16 // Padding to match C structures
-	Count int32 // Operation count
-}
 
 func main() {
 	file := flag.String("file", "/dev/nst0", "File (tape drive or tar file) to open")
@@ -88,7 +74,7 @@ func main() {
 
 		if !*overwrite {
 			// Go to end of tape
-			if err := goToEndOfTape(f); err != nil {
+			if err := controllers.GoToEndOfTape(f); err != nil {
 				panic(err)
 			}
 		}
@@ -99,7 +85,7 @@ func main() {
 	if isRegular {
 		tw = tar.NewWriter(f)
 	} else {
-		bw := bufio.NewWriterSize(f, blockSize**recordSize)
+		bw := bufio.NewWriterSize(f, controllers.BlockSize**recordSize)
 		tw = tar.NewWriter(bw)
 	}
 	defer tw.Close()
@@ -139,9 +125,9 @@ func main() {
 
 		hdr.Name = path
 		hdr.PAXRecords = map[string]string{
-			STFSVersionPAX:  strconv.Itoa(STFSVersion),
-			STFSActionPAX:   STFSActionUpdate,
-			STFSReplacesPAX: "",
+			stfsVersionPAX:  strconv.Itoa(stfsVersion),
+			stfsActionPAX:   stfsActionUpdate,
+			stfsReplacesPAX: "",
 		}
 		hdr.Format = tar.FormatPAX
 
@@ -166,7 +152,7 @@ func main() {
 				return err
 			}
 		} else {
-			buf := make([]byte, blockSize**recordSize)
+			buf := make([]byte, controllers.BlockSize**recordSize)
 			if _, err := io.CopyBuffer(tw, file, buf); err != nil {
 				return err
 			}
@@ -176,21 +162,4 @@ func main() {
 	}); err != nil {
 		panic(err)
 	}
-}
-
-func goToEndOfTape(f *os.File) error {
-	if _, _, err := syscall.Syscall(
-		syscall.SYS_IOCTL,
-		f.Fd(),
-		MTIOCTOP,
-		uintptr(unsafe.Pointer(
-			&Operation{
-				Op: MTEOM,
-			},
-		)),
-	); err != 0 {
-		return err
-	}
-
-	return nil
 }
