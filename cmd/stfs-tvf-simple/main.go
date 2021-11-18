@@ -119,69 +119,42 @@ func main() {
 		}
 	} else {
 		br := bufio.NewReaderSize(f, blockSize**recordSize)
-		tr := tar.NewReader(br)
 
-		record := int64(0)
+		currentRecord := 0
+	o:
 		for {
-			hdr, err := tr.Next()
-			if err == io.EOF {
-				if err := goToNextFileOnTape(f); err != nil {
-					panic(err)
-				}
-
-				br = bufio.NewReaderSize(f, blockSize**recordSize)
-				tr = tar.NewReader(br)
-
-				hdr, err = tr.Next()
-				if err != nil {
-					if err == io.EOF {
-						break
+			for currentBlock := 0; currentBlock < *recordSize; currentBlock++ {
+				if currentRecord%4096 == 0 {
+					tell, err := getCurrentRecordFromTape(f)
+					if err != nil {
+						panic(err)
 					}
 
-					panic(err)
+					if tell < int64(currentRecord) {
+						// EOD
+
+						break o
+					}
 				}
+
+				tr := tar.NewReader(br)
+				hdr, err := tr.Next()
+				if err != nil {
+					continue
+				}
+
+				if hdr.Format == tar.FormatUnknown {
+					continue
+				}
+
+				log.Println("Record:", currentRecord, "Block:", currentBlock, "Header:", hdr)
+
+				// TODO: Seek to (curr + hdr.Size)/blockSize if recordToSeekTo != currentRecord, re-write `br`
 			}
 
-			if err != nil {
-				panic(err)
-			}
-
-			if record == 0 {
-				log.Println("Record:", 0, "Block:", 0, "Header:", hdr)
-			} else {
-				log.Println("Record:", record, "Block:", 0, "Header:", hdr)
-			}
-
-			curr, err := getCurrentRecordFromTape(f)
-			if err != nil {
-				panic(err)
-			}
-
-			if record == 0 {
-				record = ((curr * int64(*recordSize) * blockSize) + hdr.Size) / (int64(*recordSize) * blockSize) // For the first record of the file or archive, the offset of one is not needed
-			} else {
-				record = ((curr*int64(*recordSize)*blockSize)+hdr.Size)/(int64(*recordSize)*blockSize) + 2 // +2 because we need to start reading right after the last block
-			}
+			currentRecord++
 		}
 	}
-}
-
-func goToNextFileOnTape(f *os.File) error {
-	if _, _, err := syscall.Syscall(
-		syscall.SYS_IOCTL,
-		f.Fd(),
-		MTIOCTOP,
-		uintptr(unsafe.Pointer(
-			&Operation{
-				Op:    MTFSF,
-				Count: 1,
-			},
-		)),
-	); err != 0 {
-		return err
-	}
-
-	return nil
 }
 
 func getCurrentRecordFromTape(f *os.File) (int64, error) {
