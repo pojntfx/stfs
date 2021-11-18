@@ -29,14 +29,24 @@ func main() {
 	}
 	defer f.Close()
 
-	pos := &Position{}
+	currentRecord, err := getCurrentRecordFromTape(f)
+	if err != nil {
+		panic(err)
+	}
 
-	syscall.Syscall(
+	fmt.Println(currentRecord)
+}
+
+func getCurrentRecordFromTape(f *os.File) (int64, error) {
+	pos := &Position{}
+	if _, _, err := syscall.Syscall(
 		syscall.SYS_IOCTL,
 		f.Fd(),
 		MTIOCPOS,
 		uintptr(unsafe.Pointer(pos)),
-	)
+	); err != 0 {
+		return 0, err
+	}
 
-	fmt.Println(pos.BlkNo)
+	return pos.BlkNo, nil
 }
