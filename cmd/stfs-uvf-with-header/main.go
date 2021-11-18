@@ -5,7 +5,6 @@ package main
 import (
 	"archive/tar"
 	"bufio"
-	"encoding/base64"
 	"flag"
 	"io"
 	"io/fs"
@@ -17,9 +16,7 @@ import (
 	"time"
 	"unsafe"
 
-	api "github.com/pojntfx/stfs/pkg/api/proto/v1"
 	"golang.org/x/sys/unix"
-	"google.golang.org/protobuf/proto"
 )
 
 // See https://github.com/benmcclelland/mtio
@@ -28,9 +25,15 @@ const (
 	MTEOM    = 12         // Goto end of recorded media (for appending files)
 	MTBSR    = 4          // Backward space record
 
-	STFSVersion    = 1
 	STFSVersionPAX = "STFS.Version"
-	STFSHeaderPAX  = "STFS.Header"
+	STFSVersion    = 1
+
+	STFSActionPAX    = "STFS.Action"
+	STFSActionCreate = "CREATE"
+	STFSActionUpdate = "UPDATE"
+	STFSActionDelete = "DELETE"
+
+	STFSReplacesPAX = "STFS.Replaces"
 
 	blockSize = 512
 )
@@ -134,19 +137,11 @@ func main() {
 		hdr.Devmajor = int64(unix.Major(unixStat.Dev))
 		hdr.Devminor = int64(unix.Minor(unixStat.Dev))
 
-		stfsHeader := &api.Header{
-			Action: api.Action_CREATE,
-		}
-
-		encodedHeader, err := proto.Marshal(stfsHeader)
-		if err != nil {
-			return err
-		}
-
 		hdr.Name = path
 		hdr.PAXRecords = map[string]string{
-			STFSVersionPAX: strconv.Itoa(STFSVersion),
-			STFSHeaderPAX:  base64.StdEncoding.EncodeToString(encodedHeader),
+			STFSVersionPAX:  strconv.Itoa(STFSVersion),
+			STFSActionPAX:   STFSActionUpdate,
+			STFSReplacesPAX: "",
 		}
 		hdr.Format = tar.FormatPAX
 
