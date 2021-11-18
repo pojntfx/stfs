@@ -4,7 +4,6 @@ import (
 	"archive/tar"
 	"bufio"
 	"flag"
-	"io"
 	"log"
 	"os"
 	"syscall"
@@ -51,20 +50,9 @@ func main() {
 		if err != nil {
 			panic(err)
 		}
-
-		// Seek to record & block
-		if _, err := f.Seek(int64((*recordSize*blockSize**record)+*block*blockSize), 0); err != nil {
-			panic(err)
-		}
 	} else {
 		f, err = os.OpenFile(*file, os.O_RDONLY, os.ModeCharDevice)
 		if err != nil {
-			panic(err)
-		}
-
-		// Seek to record (we can't seek to block on tape)
-		// TODO: Seek to next header here too; currently this only works for the start of each archive/after a filemark
-		if err := seekToRecordOnTape(f, int32(*record)); err != nil {
 			panic(err)
 		}
 	}
@@ -72,39 +60,33 @@ func main() {
 
 	var tr *tar.Reader
 	if fileDescription.Mode().IsRegular() {
-		tr = tar.NewReader(f)
-	} else {
-		br := bufio.NewReaderSize(f, blockSize**recordSize)
-		tr = tar.NewReader(br)
-	}
-
-	for {
-		hdr, err := tr.Next()
-		if err != nil {
+		// Seek to record and block
+		if _, err := f.Seek(int64((*recordSize*blockSize**record)+*block*blockSize), 0); err != nil {
 			panic(err)
 		}
 
-		log.Println(hdr)
-
-		currentRecord := int64(0)
-		if fileDescription.Mode().IsRegular() {
-			curr, err := f.Seek(0, io.SeekCurrent)
-			if err != nil {
-				panic(err)
-			}
-
-			currentRecord = ((curr + hdr.Size) / blockSize) / int64(*recordSize)
-		} else {
-			currentRecord, err = getCurrentRecordFromTape(f)
-			if err != nil {
-				panic(err)
-			}
+		tr = tar.NewReader(f)
+	} else {
+		// Seek to record
+		if err := seekToRecordOnTape(f, int32(*record)); err != nil {
+			panic(err)
 		}
 
-		if currentRecord > int64(*record) {
-			break
+		// Seek to block
+		br := bufio.NewReaderSize(f, blockSize**recordSize)
+		if _, err := br.Read(make([]byte, *block*blockSize)); err != nil {
+			panic(err)
 		}
+
+		tr = tar.NewReader(br)
 	}
+
+	hdr, err := tr.Next()
+	if err != nil {
+		panic(err)
+	}
+
+	log.Println(hdr)
 }
 
 func seekToRecordOnTape(f *os.File, record int32) error {
@@ -123,18 +105,4 @@ func seekToRecordOnTape(f *os.File, record int32) error {
 	}
 
 	return nil
-}
-
-func getCurrentRecordFromTape(f *os.File) (int64, error) {
-	pos := &Position{}
-	if _, _, err := syscall.Syscall(
-		syscall.SYS_IOCTL,
-		f.Fd(),
-		MTIOCPOS,
-		uintptr(unsafe.Pointer(pos)),
-	); err != 0 {
-		return 0, err
-	}
-
-	return pos.BlkNo, nil
 }
