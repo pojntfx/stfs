@@ -31,21 +31,17 @@ type Operation struct {
 }
 
 type Counter struct {
-	reader io.Reader
+	Reader io.Reader
 
-	bytesRead int
+	BytesRead int
 }
 
 func (r *Counter) Read(p []byte) (n int, err error) {
-	n, err = r.reader.Read(p)
+	n, err = r.Reader.Read(p)
 
-	r.bytesRead += n
+	r.BytesRead += n
 
 	return n, err
-}
-
-func (r *Counter) GetBytesRead() int {
-	return r.bytesRead
 }
 
 func main() {
@@ -135,7 +131,9 @@ func main() {
 		}
 	} else {
 		br := bufio.NewReaderSize(f, blockSize**recordSize)
-		counter := &Counter{reader: br}
+
+		counter := &Counter{Reader: br}
+		errorCounter := 0
 
 		record := int64(0)
 		block := int64(0)
@@ -144,6 +142,14 @@ func main() {
 			tr := tar.NewReader(counter)
 			hdr, err := tr.Next()
 			if err != nil {
+				if counter.BytesRead != 0 && errorCounter == counter.BytesRead {
+					// EOD
+
+					break
+				}
+
+				errorCounter = counter.BytesRead
+
 				continue
 			}
 
@@ -153,7 +159,7 @@ func main() {
 
 			log.Println("Record:", record, "Block:", block, "Header:", hdr)
 
-			nextBytes := int64(counter.GetBytesRead()) + hdr.Size + blockSize - 1
+			nextBytes := int64(counter.BytesRead) + hdr.Size + blockSize - 1
 
 			record = nextBytes / (blockSize * int64(*recordSize))
 			block = (nextBytes - (record * int64(*recordSize) * blockSize)) / blockSize
