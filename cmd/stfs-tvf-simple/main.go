@@ -7,6 +7,8 @@ import (
 	"io"
 	"log"
 	"os"
+	"syscall"
+	"unsafe"
 )
 
 // See https://github.com/benmcclelland/mtio
@@ -133,7 +135,8 @@ func main() {
 		br := bufio.NewReaderSize(f, blockSize**recordSize)
 
 		counter := &Counter{Reader: br}
-		errorCounter := 0
+		lastBytesRead := 0
+		dirty := false
 
 		record := int64(0)
 		block := int64(0)
@@ -142,20 +145,42 @@ func main() {
 			tr := tar.NewReader(counter)
 			hdr, err := tr.Next()
 			if err != nil {
-				if counter.BytesRead != 0 && errorCounter == counter.BytesRead {
-					// EOD
+				if lastBytesRead == counter.BytesRead {
+					if dirty {
+						// EOD
 
-					break
+						break
+					}
+
+					if err := goToNextFileOnTape(f); err != nil {
+						// EOD
+
+						break
+					}
+
+					currentRecord, err := getCurrentRecordFromTape(f)
+					if err != nil {
+						panic(err)
+					}
+
+					br = bufio.NewReaderSize(f, blockSize**recordSize)
+					counter = &Counter{Reader: br, BytesRead: (int(currentRecord) * *recordSize * blockSize)} // We asume we are at record n, block 0
+
+					dirty = true
 				}
 
-				errorCounter = counter.BytesRead
+				lastBytesRead = counter.BytesRead
 
 				continue
 			}
+
+			lastBytesRead = counter.BytesRead
 
 			if hdr.Format == tar.FormatUnknown {
 				continue
 			}
+
+			dirty = false
 
 			log.Println("Record:", record, "Block:", block, "Header:", hdr)
 
@@ -165,4 +190,36 @@ func main() {
 			block = (nextBytes - (record * int64(*recordSize) * blockSize)) / blockSize
 		}
 	}
+}
+
+func goToNextFileOnTape(f *os.File) error {
+	if _, _, err := syscall.Syscall(
+		syscall.SYS_IOCTL,
+		f.Fd(),
+		MTIOCTOP,
+		uintptr(unsafe.Pointer(
+			&Operation{
+				Op:    MTFSF,
+				Count: 1,
+			},
+		)),
+	); err != 0 {
+		return err
+	}
+
+	return nil
+}
+
+func getCurrentRecordFromTape(f *os.File) (int64, error) {
+	pos := &Position{}
+	if _, _, err := syscall.Syscall(
+		syscall.SYS_IOCTL,
+		f.Fd(),
+		MTIOCPOS,
+		uintptr(unsafe.Pointer(pos)),
+	); err != 0 {
+		return 0, err
+	}
+
+	return pos.BlkNo, nil
 }
