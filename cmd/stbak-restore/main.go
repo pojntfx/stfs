@@ -5,11 +5,11 @@ import (
 	"bufio"
 	"flag"
 	"io"
-	"log"
 	"os"
 	"path/filepath"
 
 	"github.com/pojntfx/stfs/pkg/controllers"
+	"github.com/pojntfx/stfs/pkg/formatting"
 )
 
 func main() {
@@ -69,7 +69,13 @@ func main() {
 		panic(err)
 	}
 
-	log.Println(hdr)
+	if err := formatting.PrintCSV(formatting.TARHeaderCSV); err != nil {
+		panic(err)
+	}
+
+	if err := formatting.PrintCSV(formatting.GetTARHeaderAsCSV(int64(*record), int64(*block), hdr)); err != nil {
+		panic(err)
+	}
 
 	if !*preview {
 		if *dst == "" {
