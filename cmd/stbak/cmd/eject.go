@@ -1,7 +1,6 @@
 package cmd
 
 import (
-	"fmt"
 	"os"
 
 	"github.com/pojntfx/stfs/pkg/controllers"
@@ -9,10 +8,10 @@ import (
 	"github.com/spf13/viper"
 )
 
-var tellCmd = &cobra.Command{
-	Use:     "tell",
-	Aliases: []string{"t"},
-	Short:   "Get the current record (tape only)",
+var ejectCmd = &cobra.Command{
+	Use:     "eject",
+	Aliases: []string{"e"},
+	Short:   "Eject the tape (tape only)",
 	RunE: func(cmd *cobra.Command, args []string) error {
 		if err := viper.BindPFlags(cmd.PersistentFlags()); err != nil {
 			return err
@@ -24,21 +23,14 @@ var tellCmd = &cobra.Command{
 		}
 		defer f.Close()
 
-		currentRecord, err := controllers.GetCurrentRecordFromTape(f)
-		if err != nil {
-			panic(err)
-		}
-
-		fmt.Println(currentRecord)
-
-		return nil
+		return controllers.EjectTape(f)
 	},
 }
 
 func init() {
-	tellCmd.PersistentFlags().StringP(tapeFlag, "t", "/dev/nst0", "Tape drive to get the current record from")
+	ejectCmd.PersistentFlags().StringP(tapeFlag, "t", "/dev/nst0", "Tape drive to get the current record from")
 
 	viper.AutomaticEnv()
 
-	rootCmd.AddCommand(tellCmd)
+	rootCmd.AddCommand(ejectCmd)
 }
