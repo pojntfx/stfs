@@ -12,6 +12,7 @@ const (
 	mtioCtop = 0x40086d01 // Do magnetic tape operation
 
 	mtFsf  = 1  // Forward space over FileMark, position at first record of next file
+	mtOffl = 7  // Rewind and put the drive offline (eject?)
 	mtEom  = 12 // Goto end of recorded media (for appending files)
 	mtSeek = 22 // Seek to block
 
@@ -88,6 +89,23 @@ func SeekToRecordOnTape(f *os.File, record int32) error {
 			&operation{
 				op:    mtSeek,
 				count: record,
+			},
+		)),
+	); err != 0 {
+		return err
+	}
+
+	return nil
+}
+
+func EjectTape(f *os.File) error {
+	if _, _, err := syscall.Syscall(
+		syscall.SYS_IOCTL,
+		f.Fd(),
+		mtioCtop,
+		uintptr(unsafe.Pointer(
+			&operation{
+				op: mtOffl,
 			},
 		)),
 	); err != 0 {
