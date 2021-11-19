@@ -32,15 +32,15 @@ const (
 )
 
 func main() {
-	file := flag.String("file", "/dev/nst0", "File (tape drive or tar file) to open")
-	dir := flag.String("dir", ".", "Directory to add to the file")
+	drive := flag.String("drive", "/dev/nst0", "Tape or tar file to write to")
 	recordSize := flag.Int("recordSize", 20, "Amount of 512-bit blocks per record")
-	overwrite := flag.Bool("overwrite", false, "Whether to start writing from the current position instead of from the end of the tape")
+	src := flag.String("src", ".", "Directory to archive")
+	overwrite := flag.Bool("overwrite", false, "Start writing from the current position instead of from the end of the tape/file")
 
 	flag.Parse()
 
 	isRegular := true
-	stat, err := os.Stat(*file)
+	stat, err := os.Stat(*drive)
 	if err == nil {
 		isRegular = stat.Mode().IsRegular()
 	} else {
@@ -54,12 +54,12 @@ func main() {
 	var f *os.File
 	if isRegular {
 		if *overwrite {
-			f, err = os.OpenFile(*file, os.O_WRONLY|os.O_CREATE, 0600)
+			f, err = os.OpenFile(*drive, os.O_WRONLY|os.O_CREATE, 0600)
 			if err != nil {
 				panic(err)
 			}
 		} else {
-			f, err = os.OpenFile(*file, os.O_APPEND|os.O_WRONLY|os.O_CREATE, 0600)
+			f, err = os.OpenFile(*drive, os.O_APPEND|os.O_WRONLY|os.O_CREATE, 0600)
 			if err != nil {
 				panic(err)
 			}
@@ -67,7 +67,7 @@ func main() {
 
 		// No need to go to end manually due to `os.O_APPEND`
 	} else {
-		f, err = os.OpenFile(*file, os.O_APPEND|os.O_WRONLY, os.ModeCharDevice)
+		f, err = os.OpenFile(*drive, os.O_APPEND|os.O_WRONLY, os.ModeCharDevice)
 		if err != nil {
 			panic(err)
 		}
@@ -90,7 +90,7 @@ func main() {
 	}
 	defer tw.Close()
 
-	if err := filepath.Walk(*dir, func(path string, info fs.FileInfo, err error) error {
+	if err := filepath.Walk(*src, func(path string, info fs.FileInfo, err error) error {
 		if err != nil {
 			return err
 		}
