@@ -8,27 +8,14 @@ import (
 	"flag"
 	"io"
 	"io/fs"
-	"log"
 	"os"
 	"path/filepath"
-	"strconv"
 	"syscall"
 	"time"
 
 	"github.com/pojntfx/stfs/pkg/controllers"
+	"github.com/pojntfx/stfs/pkg/formatting"
 	"golang.org/x/sys/unix"
-)
-
-const (
-	stfsVersionPAX = "STFS.Version"
-	stfsVersion    = 1
-
-	stfsActionPAX    = "STFS.Action"
-	stfsActionCreate = "CREATE"
-	stfsActionUpdate = "UPDATE"
-	stfsActionDelete = "DELETE"
-
-	stfsReplacesPAX = "STFS.Replaces"
 )
 
 func main() {
@@ -90,6 +77,7 @@ func main() {
 	}
 	defer tw.Close()
 
+	first := true
 	if err := filepath.Walk(*src, func(path string, info fs.FileInfo, err error) error {
 		if err != nil {
 			return err
@@ -124,14 +112,19 @@ func main() {
 		hdr.Devminor = int64(unix.Minor(unixStat.Dev))
 
 		hdr.Name = path
-		hdr.PAXRecords = map[string]string{
-			stfsVersionPAX:  strconv.Itoa(stfsVersion),
-			stfsActionPAX:   stfsActionUpdate,
-			stfsReplacesPAX: "",
-		}
 		hdr.Format = tar.FormatPAX
 
-		log.Println(hdr)
+		if first {
+			if err := formatting.PrintCSV(formatting.TARHeaderCSV); err != nil {
+				return err
+			}
+
+			first = false
+		}
+
+		if err := formatting.PrintCSV(formatting.GetTARHeaderAsCSV(-1, -1, hdr)); err != nil {
+			return err
+		}
 
 		if err := tw.WriteHeader(hdr); err != nil {
 			return err

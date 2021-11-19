@@ -5,10 +5,10 @@ import (
 	"bufio"
 	"flag"
 	"io"
-	"log"
 	"os"
 
 	"github.com/pojntfx/stfs/pkg/controllers"
+	"github.com/pojntfx/stfs/pkg/formatting"
 	"github.com/pojntfx/stfs/pkg/readers"
 )
 
@@ -73,9 +73,13 @@ func main() {
 			}
 
 			if record == 0 && block == 0 {
-				log.Println("Record:", 0, "Block:", 0, "Header:", hdr)
-			} else {
-				log.Println("Record:", record, "Block:", block, "Header:", hdr)
+				if err := formatting.PrintCSV(formatting.TARHeaderCSV); err != nil {
+					panic(err)
+				}
+			}
+
+			if err := formatting.PrintCSV(formatting.GetTARHeaderAsCSV(record, block, hdr)); err != nil {
+				panic(err)
 			}
 
 			curr, err := f.Seek(0, io.SeekCurrent)
@@ -148,7 +152,15 @@ func main() {
 
 			dirty = false
 
-			log.Println("Record:", record, "Block:", block, "Header:", hdr)
+			if counter.BytesRead == 0 {
+				if err := formatting.PrintCSV(formatting.TARHeaderCSV); err != nil {
+					panic(err)
+				}
+			}
+
+			if err := formatting.PrintCSV(formatting.GetTARHeaderAsCSV(record, block, hdr)); err != nil {
+				panic(err)
+			}
 
 			nextBytes := int64(counter.BytesRead) + hdr.Size + controllers.BlockSize - 1
 
