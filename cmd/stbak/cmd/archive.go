@@ -19,7 +19,7 @@ import (
 
 const (
 	tapeFlag       = "tape"
-	recordSizeFlag = "recordSize"
+	recordSizeFlag = "record-size"
 	srcFlag        = "src"
 	overwriteFlag  = "overwrite"
 )

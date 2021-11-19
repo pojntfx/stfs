@@ -42,10 +42,15 @@ var listCmd = &cobra.Command{
 		defer f.Close()
 
 		if fileDescription.Mode().IsRegular() {
+			// Seek to record and block
+			if _, err := f.Seek(int64((viper.GetInt(recordSizeFlag)*controllers.BlockSize*viper.GetInt(recordFlag))+viper.GetInt(blockFlag)*controllers.BlockSize), 0); err != nil {
+				return err
+			}
+
 			tr := tar.NewReader(f)
 
-			record := int64(0)
-			block := int64(0)
+			record := viper.GetInt64(recordFlag)
+			block := viper.GetInt64(blockFlag)
 			firstRecordOfArchive := int64(0)
 
 			for {
@@ -106,14 +111,23 @@ var listCmd = &cobra.Command{
 				}
 			}
 		} else {
+			// Seek to record
+			if err := controllers.SeekToRecordOnTape(f, int32(viper.GetInt(recordFlag))); err != nil {
+				return err
+			}
+
+			// Seek to block
 			br := bufio.NewReaderSize(f, controllers.BlockSize*viper.GetInt(recordSizeFlag))
+			if _, err := br.Read(make([]byte, viper.GetInt(blockFlag)*controllers.BlockSize)); err != nil {
+				return err
+			}
 
-			counter := &readers.Counter{Reader: br}
-			lastBytesRead := 0
+			record := viper.GetInt64(recordFlag)
+			block := viper.GetInt64(blockFlag)
+
+			lastBytesRead := (viper.GetInt(recordSizeFlag) * controllers.BlockSize * viper.GetInt(recordFlag)) + (viper.GetInt(blockFlag) * controllers.BlockSize)
+			counter := &readers.Counter{Reader: br, BytesRead: lastBytesRead}
 			dirty := false
-
-			record := int64(0)
-			block := int64(0)
 
 			for {
 				tr := tar.NewReader(counter)
@@ -180,6 +194,8 @@ var listCmd = &cobra.Command{
 func init() {
 	listCmd.PersistentFlags().StringP(tapeFlag, "t", "/dev/nst0", "Tape or tar file to read from")
 	listCmd.PersistentFlags().IntP(recordSizeFlag, "e", 20, "Amount of 512-bit blocks per record")
+	listCmd.PersistentFlags().IntP(recordFlag, "r", 0, "Record to seek too before counting")
+	listCmd.PersistentFlags().IntP(blockFlag, "b", 0, "Block in record to seek too before counting")
 
 	viper.AutomaticEnv()
 
