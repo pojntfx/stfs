@@ -9,11 +9,11 @@ import (
 )
 
 func main() {
-	file := flag.String("file", "/dev/nst0", "File of tape drive to open")
+	drive := flag.String("drive", "/dev/nst0", "Tape drive to get position from")
 
 	flag.Parse()
 
-	f, err := os.OpenFile(*file, os.O_RDONLY, os.ModeCharDevice)
+	f, err := os.OpenFile(*drive, os.O_RDONLY, os.ModeCharDevice)
 	if err != nil {
 		panic(err)
 	}

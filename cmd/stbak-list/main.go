@@ -13,24 +13,24 @@ import (
 )
 
 func main() {
-	file := flag.String("file", "/dev/nst0", "File (tape drive or tar file) to open")
+	drive := flag.String("drive", "/dev/nst0", "Tape or tar file to read from")
 	recordSize := flag.Int("recordSize", 20, "Amount of 512-bit blocks per record")
 
 	flag.Parse()
 
-	fileDescription, err := os.Stat(*file)
+	fileDescription, err := os.Stat(*drive)
 	if err != nil {
 		panic(err)
 	}
 
 	var f *os.File
 	if fileDescription.Mode().IsRegular() {
-		f, err = os.Open(*file)
+		f, err = os.Open(*drive)
 		if err != nil {
 			panic(err)
 		}
 	} else {
-		f, err = os.OpenFile(*file, os.O_RDONLY, os.ModeCharDevice)
+		f, err = os.OpenFile(*drive, os.O_RDONLY, os.ModeCharDevice)
 		if err != nil {
 			panic(err)
 		}
