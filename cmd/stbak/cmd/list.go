@@ -192,7 +192,6 @@ var listCmd = &cobra.Command{
 }
 
 func init() {
-	listCmd.PersistentFlags().StringP(tapeFlag, "t", "/dev/nst0", "Tape or tar file to read from")
 	listCmd.PersistentFlags().IntP(recordSizeFlag, "e", 20, "Amount of 512-bit blocks per record")
 	listCmd.PersistentFlags().IntP(recordFlag, "r", 0, "Record to seek too before counting")
 	listCmd.PersistentFlags().IntP(blockFlag, "b", 0, "Block in record to seek too before counting")

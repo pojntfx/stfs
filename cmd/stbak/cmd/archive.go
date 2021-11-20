@@ -16,7 +16,6 @@ import (
 )
 
 const (
-	tapeFlag       = "tape"
 	recordSizeFlag = "record-size"
 	srcFlag        = "src"
 	overwriteFlag  = "overwrite"
@@ -150,7 +149,6 @@ var archiveCmd = &cobra.Command{
 }
 
 func init() {
-	archiveCmd.PersistentFlags().StringP(tapeFlag, "t", "/dev/nst0", "Tape or tar file to write to")
 	archiveCmd.PersistentFlags().IntP(recordSizeFlag, "e", 20, "Amount of 512-bit blocks per record")
 	archiveCmd.PersistentFlags().StringP(srcFlag, "s", ".", "Directory to archive")
 	archiveCmd.PersistentFlags().BoolP(overwriteFlag, "o", false, "Start writing from the current position instead of from the end of the tape/file")

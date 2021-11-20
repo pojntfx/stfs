@@ -105,7 +105,6 @@ var restoreCmd = &cobra.Command{
 }
 
 func init() {
-	restoreCmd.PersistentFlags().StringP(tapeFlag, "t", "/dev/nst0", "Tape or tar file to read from")
 	restoreCmd.PersistentFlags().IntP(recordSizeFlag, "e", 20, "Amount of 512-bit blocks per record")
 	restoreCmd.PersistentFlags().IntP(recordFlag, "r", 0, "Record to seek too")
 	restoreCmd.PersistentFlags().IntP(blockFlag, "b", 0, "Block in record to seek too")
