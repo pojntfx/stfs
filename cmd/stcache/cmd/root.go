@@ -7,6 +7,10 @@ import (
 	"github.com/spf13/viper"
 )
 
+const (
+	tapeFlag = "tape"
+)
+
 var rootCmd = &cobra.Command{
 	Use:   "stcache",
 	Short: "Simple Tape Cache",
@@ -21,6 +25,14 @@ https://github.com/pojntfx/stfs`,
 }
 
 func Execute() {
+	rootCmd.PersistentFlags().StringP(tapeFlag, "t", "/dev/nst0", "Tape or tar file to use")
+
+	if err := viper.BindPFlags(rootCmd.PersistentFlags()); err != nil {
+		panic(err)
+	}
+
+	viper.AutomaticEnv()
+
 	if err := rootCmd.Execute(); err != nil {
 		panic(err)
 	}

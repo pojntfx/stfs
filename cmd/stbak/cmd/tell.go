@@ -36,8 +36,6 @@ var tellCmd = &cobra.Command{
 }
 
 func init() {
-	tellCmd.PersistentFlags().StringP(tapeFlag, "t", "/dev/nst0", "Tape drive to get the current record from")
-
 	viper.AutomaticEnv()
 
 	rootCmd.AddCommand(tellCmd)

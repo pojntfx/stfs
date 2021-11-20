@@ -16,7 +16,6 @@ import (
 
 const (
 	dbFlag         = "db"
-	tapeFlag       = "tape"
 	recordSizeFlag = "record-size"
 	recordFlag     = "record"
 	blockFlag      = "block"
@@ -209,7 +208,6 @@ func init() {
 	workingDirDefault := filepath.Join(home, ".local", "share", "stcache", "var", "lib", "stcache")
 
 	indexCmd.PersistentFlags().StringP(dbFlag, "d", filepath.Join(workingDirDefault, "index.sqlite"), "Database to use")
-	indexCmd.PersistentFlags().StringP(tapeFlag, "t", "/dev/nst0", "Tape or tar file to read from")
 	indexCmd.PersistentFlags().IntP(recordSizeFlag, "e", 20, "Amount of 512-bit blocks per record")
 	indexCmd.PersistentFlags().IntP(recordFlag, "r", 0, "Record to seek too before counting")
 	indexCmd.PersistentFlags().IntP(blockFlag, "b", 0, "Block in record to seek too before counting")
