@@ -49,6 +49,10 @@ var archiveCmd = &cobra.Command{
 				if err != nil {
 					return err
 				}
+
+				if err := f.Truncate(0); err != nil {
+					return err
+				}
 			} else {
 				f, err = os.OpenFile(viper.GetString(tapeFlag), os.O_APPEND|os.O_WRONLY|os.O_CREATE, 0600)
 				if err != nil {
