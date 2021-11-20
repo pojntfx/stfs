@@ -7,14 +7,12 @@ import (
 	"io/fs"
 	"os"
 	"path/filepath"
-	"syscall"
-	"time"
 
+	"github.com/pojntfx/stfs/pkg/adapters"
 	"github.com/pojntfx/stfs/pkg/controllers"
 	"github.com/pojntfx/stfs/pkg/formatting"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
-	"golang.org/x/sys/unix"
 )
 
 const (
@@ -102,21 +100,9 @@ var archiveCmd = &cobra.Command{
 				return err
 			}
 
-			var unixStat syscall.Stat_t
-			if err := syscall.Stat(path, &unixStat); err != nil {
+			if err := adapters.EnhanceHeader(path, hdr); err != nil {
 				return err
 			}
-
-			mtimesec, mtimensec := unixStat.Mtim.Unix()
-			atimesec, atimensec := unixStat.Atim.Unix()
-			ctimesec, ctimensec := unixStat.Ctim.Unix()
-
-			hdr.ModTime = time.Unix(mtimesec, mtimensec)
-			hdr.AccessTime = time.Unix(atimesec, atimensec)
-			hdr.ChangeTime = time.Unix(ctimesec, ctimensec)
-
-			hdr.Devmajor = int64(unix.Major(unixStat.Dev))
-			hdr.Devminor = int64(unix.Minor(unixStat.Dev))
 
 			hdr.Name = path
 			hdr.Format = tar.FormatPAX
