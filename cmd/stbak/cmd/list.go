@@ -51,13 +51,26 @@ var listCmd = &cobra.Command{
 
 			record := viper.GetInt64(recordFlag)
 			block := viper.GetInt64(blockFlag)
-			firstRecordOfArchive := int64(0)
 
 			for {
 				hdr, err := tr.Next()
 				if err != nil {
 					// Seek right after the next two blocks to skip the trailer
-					if _, err := f.Seek((int64(viper.GetInt(recordSizeFlag))*controllers.BlockSize*record)+(block+1)*controllers.BlockSize, io.SeekStart); err == nil {
+					if _, err := f.Seek((controllers.BlockSize * 2), io.SeekCurrent); err == nil {
+						curr, err := f.Seek(0, io.SeekCurrent)
+						if err != nil {
+							return err
+						}
+
+						nextTotalBlocks := curr / controllers.BlockSize
+						record = nextTotalBlocks / int64(viper.GetInt(recordSizeFlag))
+						block = nextTotalBlocks - (record * int64(viper.GetInt(recordSizeFlag)))
+
+						if block > int64(viper.GetInt(recordSizeFlag)) {
+							record++
+							block = 0
+						}
+
 						tr = tar.NewReader(f)
 
 						hdr, err = tr.Next()
@@ -68,14 +81,6 @@ var listCmd = &cobra.Command{
 
 							return err
 						}
-
-						block++
-						if block > int64(viper.GetInt(recordSizeFlag)) {
-							record++
-							block = 0
-						}
-
-						firstRecordOfArchive = record
 					} else {
 						return err
 					}
@@ -98,12 +103,7 @@ var listCmd = &cobra.Command{
 
 				nextTotalBlocks := (curr + hdr.Size) / controllers.BlockSize
 				record = nextTotalBlocks / int64(viper.GetInt(recordSizeFlag))
-
-				if record == 0 && block == 0 || record == firstRecordOfArchive {
-					block = nextTotalBlocks - (record * int64(viper.GetInt(recordSizeFlag))) // For the first record of the file or archive, the offset of one is not needed
-				} else {
-					block = nextTotalBlocks - (record * int64(viper.GetInt(recordSizeFlag))) + 1 // +1 because we need to start reading right after the last block
-				}
+				block = nextTotalBlocks - (record * int64(viper.GetInt(recordSizeFlag)))
 
 				if block > int64(viper.GetInt(recordSizeFlag)) {
 					record++
