@@ -1,17 +1,28 @@
 package cmd
 
+//go:generate sqlboiler sqlite3 -o ../../../pkg/db/sqlite/models/metadata -c ../../../configs/sqlboiler/metadata.yaml
+//go:generate go-bindata -pkg metadata -o ../../../pkg/db/sqlite/migrations/metadata/migrations.go ../../../db/sqlite/migrations/metadata
+
 import (
 	"archive/tar"
 	"bufio"
+	"context"
+	"database/sql"
+	"encoding/json"
 	"io"
 	"os"
 	"path/filepath"
 
+	_ "github.com/mattn/go-sqlite3"
 	"github.com/pojntfx/stfs/pkg/controllers"
+	"github.com/pojntfx/stfs/pkg/db/sqlite/migrations/metadata"
+	models "github.com/pojntfx/stfs/pkg/db/sqlite/models/metadata"
 	"github.com/pojntfx/stfs/pkg/formatting"
 	"github.com/pojntfx/stfs/pkg/readers"
+	migrate "github.com/rubenv/sql-migrate"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
+	"github.com/volatiletech/sqlboiler/v4/boil"
 )
 
 const (
@@ -27,6 +38,30 @@ var indexCmd = &cobra.Command{
 	Short:   "Index contents of tape or tar file",
 	RunE: func(cmd *cobra.Command, args []string) error {
 		if err := viper.BindPFlags(cmd.PersistentFlags()); err != nil {
+			return err
+		}
+
+		leading, _ := filepath.Split(viper.GetString(dbFlag))
+		if err := os.MkdirAll(leading, os.ModePerm); err != nil {
+			return err
+		}
+
+		db, err := sql.Open("sqlite3", viper.GetString(dbFlag))
+		if err != nil {
+			return err
+		}
+		defer db.Close()
+
+		if _, err := migrate.Exec(
+			db,
+			"sqlite3",
+			migrate.AssetMigrationSource{
+				Asset:    metadata.Asset,
+				AssetDir: metadata.AssetDir,
+				Dir:      "../../../db/sqlite/migrations/metadata",
+			},
+			migrate.Up,
+		); err != nil {
 			return err
 		}
 
@@ -102,6 +137,47 @@ var indexCmd = &cobra.Command{
 
 				if err := formatting.PrintCSV(formatting.GetTARHeaderAsCSV(record, block, hdr)); err != nil {
 					return err
+				}
+
+				paxHeaders, err := json.Marshal(hdr.PAXRecords)
+				if err != nil {
+					return err
+				}
+
+				dbhdr := models.Header{
+					Record:     record,
+					Block:      block,
+					Typeflag:   int64(hdr.Typeflag),
+					Name:       hdr.Name,
+					Linkname:   hdr.Linkname,
+					Size:       hdr.Size,
+					Mode:       hdr.Mode,
+					UID:        int64(hdr.Uid),
+					Gid:        int64(hdr.Gid),
+					Uname:      hdr.Uname,
+					Gname:      hdr.Gname,
+					Modtime:    hdr.ModTime,
+					Accesstime: hdr.AccessTime,
+					Changetime: hdr.ChangeTime,
+					Devmajor:   hdr.Devmajor,
+					Devminor:   hdr.Devminor,
+					Paxrecords: string(paxHeaders),
+					Format:     int64(hdr.Format),
+				}
+
+				// TODO: Decompose to persister
+				if _, err := models.FindHeader(context.Background(), db, dbhdr.Name, models.HeaderColumns.Name); err != nil {
+					if err == sql.ErrNoRows {
+						if err := dbhdr.Insert(cmd.Context(), db, boil.Infer()); err != nil {
+							return err
+						}
+					} else {
+						return err
+					}
+				} else {
+					if _, err := dbhdr.Update(cmd.Context(), db, boil.Infer()); err != nil {
+						return err
+					}
 				}
 
 				curr, err := f.Seek(0, io.SeekCurrent)
