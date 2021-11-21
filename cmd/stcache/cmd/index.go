@@ -5,6 +5,7 @@ import (
 	"bufio"
 	"context"
 	"io"
+	"math"
 	"os"
 	"path/filepath"
 
@@ -77,9 +78,9 @@ var indexCmd = &cobra.Command{
 							return err
 						}
 
-						nextTotalBlocks := curr / controllers.BlockSize
-						record = nextTotalBlocks / int64(viper.GetInt(recordSizeFlag))
-						block = nextTotalBlocks - (record * int64(viper.GetInt(recordSizeFlag)))
+						nextTotalBlocks := math.Ceil(float64((curr)) / float64(controllers.BlockSize))
+						record = int64(nextTotalBlocks) / int64(viper.GetInt(recordSizeFlag))
+						block = int64(nextTotalBlocks) - (record * int64(viper.GetInt(recordSizeFlag)))
 
 						if block > int64(viper.GetInt(recordSizeFlag)) {
 							record++
@@ -120,9 +121,9 @@ var indexCmd = &cobra.Command{
 					return err
 				}
 
-				nextTotalBlocks := (curr + hdr.Size) / controllers.BlockSize
-				record = nextTotalBlocks / int64(viper.GetInt(recordSizeFlag))
-				block = nextTotalBlocks - (record * int64(viper.GetInt(recordSizeFlag)))
+				nextTotalBlocks := math.Ceil(float64((curr + hdr.Size)) / float64(controllers.BlockSize))
+				record = int64(nextTotalBlocks) / int64(viper.GetInt(recordSizeFlag))
+				block = int64(nextTotalBlocks) - (record * int64(viper.GetInt(recordSizeFlag)))
 
 				if block > int64(viper.GetInt(recordSizeFlag)) {
 					record++
