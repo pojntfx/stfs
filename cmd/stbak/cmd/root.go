@@ -1,6 +1,8 @@
 package cmd
 
 import (
+	"os"
+	"path/filepath"
 	"strings"
 
 	"github.com/spf13/cobra"
@@ -9,12 +11,13 @@ import (
 
 const (
 	tapeFlag = "tape"
+	dbFlag   = "db"
 )
 
 var rootCmd = &cobra.Command{
 	Use:   "stbak",
 	Short: "Simple Tape Backup",
-	Long: `Simple Tape Backup (stbak) is a CLI to interact with STFS-managed tapes or tar files.
+	Long: `Simple Tape Backup (stbak) is a CLI to interact with STFS-managed tapes, tar files and indexes.
 
 Find more information at:
 https://github.com/pojntfx/stfs`,
@@ -25,7 +28,15 @@ https://github.com/pojntfx/stfs`,
 }
 
 func Execute() {
+	// Get default working dir
+	home, err := os.UserHomeDir()
+	if err != nil {
+		panic(err)
+	}
+	workingDirDefault := filepath.Join(home, ".local", "share", "stcache", "var", "lib", "stcache")
+
 	rootCmd.PersistentFlags().StringP(tapeFlag, "t", "/dev/nst0", "Tape or tar file to use")
+	rootCmd.PersistentFlags().StringP(dbFlag, "d", filepath.Join(workingDirDefault, "index.sqlite"), "Database to use")
 
 	if err := viper.BindPFlags(rootCmd.PersistentFlags()); err != nil {
 		panic(err)

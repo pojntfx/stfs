@@ -7,7 +7,6 @@ import (
 	"io"
 	"math"
 	"os"
-	"path/filepath"
 
 	"github.com/pojntfx/stfs/pkg/controllers"
 	"github.com/pojntfx/stfs/pkg/formatting"
@@ -15,14 +14,6 @@ import (
 	"github.com/pojntfx/stfs/pkg/readers"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
-)
-
-const (
-	dbFlag         = "db"
-	recordSizeFlag = "record-size"
-	recordFlag     = "record"
-	blockFlag      = "block"
-	overwriteFlag  = "overwrite"
 )
 
 var indexCmd = &cobra.Command{
@@ -232,14 +223,6 @@ var indexCmd = &cobra.Command{
 }
 
 func init() {
-	// Get default working dir
-	home, err := os.UserHomeDir()
-	if err != nil {
-		panic(err)
-	}
-	workingDirDefault := filepath.Join(home, ".local", "share", "stcache", "var", "lib", "stcache")
-
-	indexCmd.PersistentFlags().StringP(dbFlag, "d", filepath.Join(workingDirDefault, "index.sqlite"), "Database to use")
 	indexCmd.PersistentFlags().IntP(recordSizeFlag, "e", 20, "Amount of 512-bit blocks per record")
 	indexCmd.PersistentFlags().IntP(recordFlag, "r", 0, "Record to seek too before counting")
 	indexCmd.PersistentFlags().IntP(blockFlag, "b", 0, "Block in record to seek too before counting")

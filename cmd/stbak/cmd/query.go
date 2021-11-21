@@ -4,8 +4,6 @@ import (
 	"archive/tar"
 	"context"
 	"encoding/json"
-	"os"
-	"path/filepath"
 
 	"github.com/pojntfx/stfs/pkg/formatting"
 	"github.com/pojntfx/stfs/pkg/persisters"
@@ -13,10 +11,10 @@ import (
 	"github.com/spf13/viper"
 )
 
-var list = &cobra.Command{
-	Use:     "list",
-	Aliases: []string{"l"},
-	Short:   "List contents of index",
+var queryCmd = &cobra.Command{
+	Use:     "query",
+	Aliases: []string{"q"},
+	Short:   "Query the contents of an index",
 	RunE: func(cmd *cobra.Command, args []string) error {
 		if err := viper.BindPFlags(cmd.PersistentFlags()); err != nil {
 			return err
@@ -71,16 +69,7 @@ var list = &cobra.Command{
 }
 
 func init() {
-	// Get default working dir
-	home, err := os.UserHomeDir()
-	if err != nil {
-		panic(err)
-	}
-	workingDirDefault := filepath.Join(home, ".local", "share", "stcache", "var", "lib", "stcache")
-
-	list.PersistentFlags().StringP(dbFlag, "d", filepath.Join(workingDirDefault, "index.sqlite"), "Database to use")
-
 	viper.AutomaticEnv()
 
-	rootCmd.AddCommand(list)
+	rootCmd.AddCommand(queryCmd)
 }
