@@ -83,7 +83,7 @@ func (p *MetadataPersister) GetHeaders(ctx context.Context) (models.HeaderSlice,
 }
 
 func (p *MetadataPersister) DeleteHeader(ctx context.Context, name string) (*models.Header, error) {
-	hdr, err := models.FindHeader(ctx, p.db, name, models.HeaderColumns.Name, models.HeaderColumns.Record, models.HeaderColumns.Block)
+	hdr, err := models.FindHeader(ctx, p.db, name)
 	if err != nil {
 		return nil, err
 	}

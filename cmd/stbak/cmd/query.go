@@ -1,10 +1,9 @@
 package cmd
 
 import (
-	"archive/tar"
 	"context"
-	"encoding/json"
 
+	"github.com/pojntfx/stfs/pkg/converters"
 	"github.com/pojntfx/stfs/pkg/formatting"
 	"github.com/pojntfx/stfs/pkg/persisters"
 	"github.com/spf13/cobra"
@@ -20,7 +19,7 @@ var queryCmd = &cobra.Command{
 			return err
 		}
 
-		metadataPersister := persisters.NewMetadataPersister(viper.GetString(dbFlag))
+		metadataPersister := persisters.NewMetadataPersister(viper.GetString(metadataFlag))
 		if err := metadataPersister.Open(); err != nil {
 			return err
 		}
@@ -30,36 +29,19 @@ var queryCmd = &cobra.Command{
 			return err
 		}
 
-		for i, hdr := range headers {
+		for i, dbhdr := range headers {
 			if i == 0 {
 				if err := formatting.PrintCSV(formatting.TARHeaderCSV); err != nil {
 					return err
 				}
 			}
 
-			paxRecords := map[string]string{}
-			if err := json.Unmarshal([]byte(hdr.Paxrecords), &paxRecords); err != nil {
+			hdr, err := converters.DBHeaderToTarHeader(dbhdr)
+			if err != nil {
 				return err
 			}
 
-			if err := formatting.PrintCSV(formatting.GetTARHeaderAsCSV(hdr.Record, hdr.Block, &tar.Header{
-				Typeflag:   byte(hdr.Typeflag),
-				Name:       hdr.Name,
-				Linkname:   hdr.Linkname,
-				Size:       hdr.Size,
-				Mode:       hdr.Mode,
-				Uid:        int(hdr.UID),
-				Gid:        int(hdr.Gid),
-				Uname:      hdr.Uname,
-				Gname:      hdr.Gname,
-				ModTime:    hdr.Modtime,
-				AccessTime: hdr.Accesstime,
-				ChangeTime: hdr.Changetime,
-				Devmajor:   hdr.Devmajor,
-				Devminor:   hdr.Devminor,
-				PAXRecords: paxRecords,
-				Format:     tar.Format(hdr.Format),
-			})); err != nil {
+			if err := formatting.PrintCSV(formatting.GetTARHeaderAsCSV(dbhdr.Record, dbhdr.Block, hdr)); err != nil {
 				return err
 			}
 		}

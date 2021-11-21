@@ -65,11 +65,19 @@ var listCmd = &cobra.Command{
 
 						nextTotalBlocks := math.Ceil(float64((curr)) / float64(controllers.BlockSize))
 						record = int64(nextTotalBlocks) / int64(viper.GetInt(recordSizeFlag))
-						block = int64(nextTotalBlocks) - (record * int64(viper.GetInt(recordSizeFlag)))
+						block = int64(nextTotalBlocks) - (record * int64(viper.GetInt(recordSizeFlag))) - 2
 
-						if block > int64(viper.GetInt(recordSizeFlag)) {
+						if block < 0 {
+							record--
+							block = int64(viper.GetInt(recordSizeFlag)) - 1
+						} else if block >= int64(viper.GetInt(recordSizeFlag)) {
 							record++
 							block = 0
+						}
+
+						// Seek to record and block
+						if _, err := f.Seek(int64((viper.GetInt(recordSizeFlag)*controllers.BlockSize*int(record))+int(block)*controllers.BlockSize), io.SeekStart); err != nil {
+							return err
 						}
 
 						tr = tar.NewReader(f)
