@@ -34,3 +34,33 @@ func DBHeaderToTarHeader(dbhdr *models.Header) (*tar.Header, error) {
 
 	return hdr, nil
 }
+
+func TarHeaderToDBHeader(record, block int64, tarhdr *tar.Header) (*models.Header, error) {
+	paxRecords, err := json.Marshal(tarhdr.PAXRecords)
+	if err != nil {
+		return nil, err
+	}
+
+	hdr := models.Header{
+		Record:     record,
+		Block:      block,
+		Typeflag:   int64(tarhdr.Typeflag),
+		Name:       tarhdr.Name,
+		Linkname:   tarhdr.Linkname,
+		Size:       tarhdr.Size,
+		Mode:       tarhdr.Mode,
+		UID:        int64(tarhdr.Uid),
+		Gid:        int64(tarhdr.Gid),
+		Uname:      tarhdr.Uname,
+		Gname:      tarhdr.Gname,
+		Modtime:    tarhdr.ModTime,
+		Accesstime: tarhdr.AccessTime,
+		Changetime: tarhdr.ChangeTime,
+		Devmajor:   tarhdr.Devmajor,
+		Devminor:   tarhdr.Devminor,
+		Paxrecords: string(paxRecords),
+		Format:     int64(tarhdr.Format),
+	}
+
+	return &hdr, nil
+}
