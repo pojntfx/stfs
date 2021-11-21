@@ -2,11 +2,13 @@ package cmd
 
 import (
 	"archive/tar"
+	"bufio"
 	"context"
 	"os"
 
 	"github.com/pojntfx/stfs/pkg/controllers"
 	"github.com/pojntfx/stfs/pkg/converters"
+	"github.com/pojntfx/stfs/pkg/counters"
 	"github.com/pojntfx/stfs/pkg/formatting"
 	"github.com/pojntfx/stfs/pkg/pax"
 	"github.com/pojntfx/stfs/pkg/persisters"
@@ -61,12 +63,34 @@ var removeCmd = &cobra.Command{
 		defer f.Close()
 
 		dirty := false
-		tw := tar.NewWriter(f)
+		var tw *tar.Writer
+		var bw *bufio.Writer
+		var counter *counters.CounterWriter
+		if isRegular {
+			tw = tar.NewWriter(f)
+		} else {
+			bw = bufio.NewWriterSize(f, controllers.BlockSize*viper.GetInt(recordSizeFlag))
+			counter = &counters.CounterWriter{Writer: bw, BytesRead: 0}
+			tw = tar.NewWriter(counter)
+		}
 		defer func() {
 			// Only write the trailer if we wrote to the archive
 			if dirty {
 				if err := tw.Close(); err != nil {
 					panic(err)
+				}
+
+				if !isRegular {
+					if controllers.BlockSize*viper.GetInt(recordSizeFlag)-counter.BytesRead > 0 {
+						// Fill the rest of the record with zeros
+						if _, err := bw.Write(make([]byte, controllers.BlockSize*viper.GetInt(recordSizeFlag)-counter.BytesRead)); err != nil {
+							panic(err)
+						}
+					}
+
+					if err := bw.Flush(); err != nil {
+						panic(err)
+					}
 				}
 			}
 		}()
@@ -109,6 +133,7 @@ var removeCmd = &cobra.Command{
 }
 
 func init() {
+	removeCmd.PersistentFlags().IntP(recordSizeFlag, "e", 20, "Amount of 512-bit blocks per record")
 	removeCmd.PersistentFlags().StringP(nameFlag, "n", "", "Name of the file to remove")
 
 	viper.AutomaticEnv()
