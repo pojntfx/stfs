@@ -22,6 +22,7 @@ const (
 	recordSizeFlag = "record-size"
 	recordFlag     = "record"
 	blockFlag      = "block"
+	overwriteFlag  = "overwrite"
 )
 
 var indexCmd = &cobra.Command{
@@ -31,6 +32,21 @@ var indexCmd = &cobra.Command{
 	RunE: func(cmd *cobra.Command, args []string) error {
 		if err := viper.BindPFlags(cmd.PersistentFlags()); err != nil {
 			return err
+		}
+
+		if viper.GetBool(overwriteFlag) {
+			f, err := os.OpenFile(viper.GetString(dbFlag), os.O_WRONLY|os.O_CREATE, 0600)
+			if err != nil {
+				return err
+			}
+
+			if err := f.Truncate(0); err != nil {
+				return err
+			}
+
+			if err := f.Close(); err != nil {
+				return err
+			}
 		}
 
 		metadataPersister := persisters.NewMetadataPersister(viper.GetString(dbFlag))
@@ -227,6 +243,7 @@ func init() {
 	indexCmd.PersistentFlags().IntP(recordSizeFlag, "e", 20, "Amount of 512-bit blocks per record")
 	indexCmd.PersistentFlags().IntP(recordFlag, "r", 0, "Record to seek too before counting")
 	indexCmd.PersistentFlags().IntP(blockFlag, "b", 0, "Block in record to seek too before counting")
+	indexCmd.PersistentFlags().BoolP(overwriteFlag, "o", false, "Start writing from the current position instead of from the end of the tape/file")
 
 	viper.AutomaticEnv()
 
