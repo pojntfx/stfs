@@ -100,7 +100,7 @@ var removeCmd = &cobra.Command{
 			return err
 		}
 
-		dbhdr, err := metadataPersister.DeleteHeader(context.Background(), viper.GetString(nameFlag))
+		dbhdr, err := metadataPersister.DeleteHeader(context.Background(), viper.GetString(nameFlag), false)
 		if err != nil {
 			return err
 		}

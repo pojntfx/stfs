@@ -9,8 +9,10 @@ import (
 	"os"
 
 	"github.com/pojntfx/stfs/pkg/controllers"
+	"github.com/pojntfx/stfs/pkg/converters"
 	"github.com/pojntfx/stfs/pkg/counters"
 	"github.com/pojntfx/stfs/pkg/formatting"
+	"github.com/pojntfx/stfs/pkg/pax"
 	"github.com/pojntfx/stfs/pkg/persisters"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
@@ -117,18 +119,8 @@ var indexCmd = &cobra.Command{
 					}
 				}
 
-				if record == 0 && block == 0 {
-					if err := formatting.PrintCSV(formatting.TARHeaderCSV); err != nil {
-						return err
-					}
-				}
-
-				if err := formatting.PrintCSV(formatting.GetTARHeaderAsCSV(record, block, hdr)); err != nil {
-					return err
-				}
-
-				if err := metadataPersister.UpsertHeader(context.Background(), record, block, hdr); err != nil {
-					return err
+				if err := indexHeader(record, block, hdr, metadataPersister); err != nil {
+					return nil
 				}
 
 				curr, err := f.Seek(0, io.SeekCurrent)
@@ -191,18 +183,8 @@ var indexCmd = &cobra.Command{
 					}
 				}
 
-				if record == 0 && block == 0 {
-					if err := formatting.PrintCSV(formatting.TARHeaderCSV); err != nil {
-						return err
-					}
-				}
-
-				if err := formatting.PrintCSV(formatting.GetTARHeaderAsCSV(record, block, hdr)); err != nil {
-					return err
-				}
-
-				if err := metadataPersister.UpsertHeader(context.Background(), record, block, hdr); err != nil {
-					return err
+				if err := indexHeader(record, block, hdr, metadataPersister); err != nil {
+					return nil
 				}
 
 				curr = int64(counter.BytesRead)
@@ -231,4 +213,51 @@ func init() {
 	viper.AutomaticEnv()
 
 	rootCmd.AddCommand(indexCmd)
+}
+
+func indexHeader(record, block int64, hdr *tar.Header, metadataPersister *persisters.MetadataPersister) error {
+	if record == 0 && block == 0 {
+		if err := formatting.PrintCSV(formatting.TARHeaderCSV); err != nil {
+			return err
+		}
+	}
+
+	if err := formatting.PrintCSV(formatting.GetTARHeaderAsCSV(record, block, hdr)); err != nil {
+		return err
+	}
+
+	stfsVersion, ok := hdr.PAXRecords[pax.STFSRecordVersion]
+	if !ok {
+		stfsVersion = pax.STFSRecordVersion1
+	}
+
+	switch stfsVersion {
+	case pax.STFSRecordVersion1:
+		stfsAction, ok := hdr.PAXRecords[pax.STFSRecordAction]
+		if !ok {
+			stfsAction = pax.STFSRecordActionCreate
+		}
+
+		switch stfsAction {
+		case pax.STFSRecordActionCreate:
+			dbhdr, err := converters.TarHeaderToDBHeader(record, block, hdr)
+			if err != nil {
+				return err
+			}
+
+			if err := metadataPersister.UpsertHeader(context.Background(), dbhdr); err != nil {
+				return err
+			}
+		case pax.STFSRecordActionDelete:
+			if _, err := metadataPersister.DeleteHeader(context.Background(), hdr.Name, true); err != nil {
+				return err
+			}
+		default:
+			return pax.ErrUnsupportedAction
+		}
+	default:
+		return pax.ErrUnsupportedVersion
+	}
+
+	return nil
 }
