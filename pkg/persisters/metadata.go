@@ -33,7 +33,7 @@ func NewMetadataPersister(dbPath string) *MetadataPersister {
 }
 
 func (c *MetadataPersister) UpsertHeader(ctx context.Context, record, block int64, hdr *tar.Header) error {
-	paxHeaders, err := json.Marshal(hdr.PAXRecords)
+	paxRecords, err := json.Marshal(hdr.PAXRecords)
 	if err != nil {
 		return err
 	}
@@ -55,7 +55,7 @@ func (c *MetadataPersister) UpsertHeader(ctx context.Context, record, block int6
 		Changetime: hdr.ChangeTime,
 		Devmajor:   hdr.Devmajor,
 		Devminor:   hdr.Devminor,
-		Paxrecords: string(paxHeaders),
+		Paxrecords: string(paxRecords),
 		Format:     int64(hdr.Format),
 	}
 
@@ -76,4 +76,8 @@ func (c *MetadataPersister) UpsertHeader(ctx context.Context, record, block int6
 	}
 
 	return nil
+}
+
+func (p *MetadataPersister) GetHeaders(ctx context.Context) (models.HeaderSlice, error) {
+	return models.Headers().All(ctx, p.db)
 }
