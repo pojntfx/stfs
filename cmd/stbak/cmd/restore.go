@@ -51,7 +51,7 @@ var restoreCmd = &cobra.Command{
 		var tr *tar.Reader
 		if fileDescription.Mode().IsRegular() {
 			// Seek to record and block
-			if _, err := f.Seek(int64((viper.GetInt(recordSizeFlag)*controllers.BlockSize*viper.GetInt(recordFlag))+viper.GetInt(blockFlag)*controllers.BlockSize), 0); err != nil {
+			if _, err := f.Seek(int64((viper.GetInt(recordSizeFlag)*controllers.BlockSize*viper.GetInt(recordFlag))+viper.GetInt(blockFlag)*controllers.BlockSize), io.SeekStart); err != nil {
 				return err
 			}
 

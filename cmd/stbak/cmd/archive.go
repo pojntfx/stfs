@@ -67,7 +67,12 @@ var archiveCmd = &cobra.Command{
 				return err
 			}
 
-			if !viper.GetBool(overwriteFlag) {
+			if viper.GetBool(overwriteFlag) {
+				// Go to start of tape
+				if err := controllers.SeekToRecordOnTape(f, 0); err != nil {
+					return err
+				}
+			} else {
 				// Go to end of tape
 				if err := controllers.GoToEndOfTape(f); err != nil {
 					return err
@@ -76,6 +81,7 @@ var archiveCmd = &cobra.Command{
 		}
 		defer f.Close()
 
+		dirty := false
 		var tw *tar.Writer
 		if isRegular {
 			tw = tar.NewWriter(f)
@@ -83,7 +89,14 @@ var archiveCmd = &cobra.Command{
 			bw := bufio.NewWriterSize(f, controllers.BlockSize*viper.GetInt(recordSizeFlag))
 			tw = tar.NewWriter(bw)
 		}
-		defer tw.Close()
+		defer func() {
+			// Only write the trailer if we wrote to the archive
+			if dirty {
+				if err := tw.Close(); err != nil {
+					panic(err)
+				}
+			}
+		}()
 
 		first := true
 		return filepath.Walk(viper.GetString(srcFlag), func(path string, info fs.FileInfo, err error) error {
@@ -146,6 +159,8 @@ var archiveCmd = &cobra.Command{
 					return err
 				}
 			}
+
+			dirty = true
 
 			return nil
 		})

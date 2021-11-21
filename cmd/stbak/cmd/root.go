@@ -10,8 +10,8 @@ import (
 )
 
 const (
-	tapeFlag = "tape"
-	dbFlag   = "db"
+	tapeFlag     = "tape"
+	metadataFlag = "metadata"
 )
 
 var rootCmd = &cobra.Command{
@@ -33,10 +33,10 @@ func Execute() {
 	if err != nil {
 		panic(err)
 	}
-	dbPath := filepath.Join(home, ".local", "share", "stbak", "var", "lib", "stbak", "metadata.sqlite")
+	metadataPath := filepath.Join(home, ".local", "share", "stbak", "var", "lib", "stbak", "metadata.sqlite")
 
 	rootCmd.PersistentFlags().StringP(tapeFlag, "t", "/dev/nst0", "Tape or tar file to use")
-	rootCmd.PersistentFlags().StringP(dbFlag, "d", dbPath, "Database to use")
+	rootCmd.PersistentFlags().StringP(metadataFlag, "m", metadataPath, "Metadata database to use")
 
 	if err := viper.BindPFlags(rootCmd.PersistentFlags()); err != nil {
 		panic(err)
