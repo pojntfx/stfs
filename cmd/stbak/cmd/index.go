@@ -27,181 +27,199 @@ var indexCmd = &cobra.Command{
 			return err
 		}
 
-		if viper.GetBool(overwriteFlag) {
-			f, err := os.OpenFile(viper.GetString(metadataFlag), os.O_WRONLY|os.O_CREATE, 0600)
-			if err != nil {
-				return err
-			}
+		return index(
+			viper.GetString(tapeFlag),
+			viper.GetString(metadataFlag),
+			viper.GetInt(recordSizeFlag),
+			viper.GetInt(recordFlag),
+			viper.GetInt(blockFlag),
+			viper.GetBool(overwriteFlag),
+		)
+	},
+}
 
-			if err := f.Truncate(0); err != nil {
-				return err
-			}
-
-			if err := f.Close(); err != nil {
-				return err
-			}
-		}
-
-		metadataPersister := persisters.NewMetadataPersister(viper.GetString(metadataFlag))
-		if err := metadataPersister.Open(); err != nil {
-			return err
-		}
-
-		fileDescription, err := os.Stat(viper.GetString(tapeFlag))
+func index(
+	tape string,
+	metadata string,
+	recordSize int,
+	record int,
+	block int,
+	overwrite bool,
+) error {
+	if overwrite {
+		f, err := os.OpenFile(metadata, os.O_WRONLY|os.O_CREATE, 0600)
 		if err != nil {
 			return err
 		}
 
-		var f *os.File
-		if fileDescription.Mode().IsRegular() {
-			f, err = os.Open(viper.GetString(tapeFlag))
-			if err != nil {
-				return err
-			}
-		} else {
-			f, err = os.OpenFile(viper.GetString(tapeFlag), os.O_RDONLY, os.ModeCharDevice)
-			if err != nil {
-				return err
-			}
+		if err := f.Truncate(0); err != nil {
+			return err
 		}
-		defer f.Close()
 
-		if fileDescription.Mode().IsRegular() {
-			// Seek to record and block
-			if _, err := f.Seek(int64((viper.GetInt(recordSizeFlag)*controllers.BlockSize*viper.GetInt(recordFlag))+viper.GetInt(blockFlag)*controllers.BlockSize), 0); err != nil {
-				return err
-			}
+		if err := f.Close(); err != nil {
+			return err
+		}
+	}
 
-			tr := tar.NewReader(f)
+	metadataPersister := persisters.NewMetadataPersister(metadata)
+	if err := metadataPersister.Open(); err != nil {
+		return err
+	}
 
-			record := viper.GetInt64(recordFlag)
-			block := viper.GetInt64(blockFlag)
+	fileDescription, err := os.Stat(tape)
+	if err != nil {
+		return err
+	}
 
-			for {
-				hdr, err := tr.Next()
-				if err != nil {
-					// Seek right after the next two blocks to skip the trailer
-					if _, err := f.Seek((controllers.BlockSize * 2), io.SeekCurrent); err == nil {
-						curr, err := f.Seek(0, io.SeekCurrent)
-						if err != nil {
-							return err
-						}
+	var f *os.File
+	if fileDescription.Mode().IsRegular() {
+		f, err = os.Open(tape)
+		if err != nil {
+			return err
+		}
+	} else {
+		f, err = os.OpenFile(tape, os.O_RDONLY, os.ModeCharDevice)
+		if err != nil {
+			return err
+		}
+	}
+	defer f.Close()
 
-						nextTotalBlocks := math.Ceil(float64((curr)) / float64(controllers.BlockSize))
-						record = int64(nextTotalBlocks) / int64(viper.GetInt(recordSizeFlag))
-						block = int64(nextTotalBlocks) - (record * int64(viper.GetInt(recordSizeFlag))) - 2
+	if fileDescription.Mode().IsRegular() {
+		// Seek to record and block
+		if _, err := f.Seek(int64((recordSize*controllers.BlockSize*record)+block*controllers.BlockSize), 0); err != nil {
+			return err
+		}
 
-						if block < 0 {
-							record--
-							block = int64(viper.GetInt(recordSizeFlag)) - 1
-						} else if block >= int64(viper.GetInt(recordSizeFlag)) {
-							record++
-							block = 0
-						}
+		tr := tar.NewReader(f)
 
-						// Seek to record and block
-						if _, err := f.Seek(int64((viper.GetInt(recordSizeFlag)*controllers.BlockSize*int(record))+int(block)*controllers.BlockSize), io.SeekStart); err != nil {
-							return err
-						}
+		record := int64(record)
+		block := int64(block)
 
-						tr = tar.NewReader(f)
-
-						hdr, err = tr.Next()
-						if err != nil {
-							if err == io.EOF {
-								break
-							}
-
-							return err
-						}
-					} else {
+		for {
+			hdr, err := tr.Next()
+			if err != nil {
+				// Seek right after the next two blocks to skip the trailer
+				if _, err := f.Seek((controllers.BlockSize * 2), io.SeekCurrent); err == nil {
+					curr, err := f.Seek(0, io.SeekCurrent)
+					if err != nil {
 						return err
 					}
-				}
 
-				if err := indexHeader(record, block, hdr, metadataPersister); err != nil {
-					return nil
-				}
+					nextTotalBlocks := math.Ceil(float64((curr)) / float64(controllers.BlockSize))
+					record = int64(nextTotalBlocks) / int64(recordSize)
+					block = int64(nextTotalBlocks) - (record * int64(recordSize)) - 2
 
-				curr, err := f.Seek(0, io.SeekCurrent)
-				if err != nil {
-					return err
-				}
+					if block < 0 {
+						record--
+						block = int64(recordSize) - 1
+					} else if block >= int64(recordSize) {
+						record++
+						block = 0
+					}
 
-				nextTotalBlocks := math.Ceil(float64((curr + hdr.Size)) / float64(controllers.BlockSize))
-				record = int64(nextTotalBlocks) / int64(viper.GetInt(recordSizeFlag))
-				block = int64(nextTotalBlocks) - (record * int64(viper.GetInt(recordSizeFlag)))
+					// Seek to record and block
+					if _, err := f.Seek(int64((recordSize*controllers.BlockSize*int(record))+int(block)*controllers.BlockSize), io.SeekStart); err != nil {
+						return err
+					}
 
-				if block > int64(viper.GetInt(recordSizeFlag)) {
-					record++
-					block = 0
-				}
-			}
-		} else {
-			// Seek to record
-			if err := controllers.SeekToRecordOnTape(f, int32(viper.GetInt(recordFlag))); err != nil {
-				return err
-			}
+					tr = tar.NewReader(f)
 
-			// Seek to block
-			br := bufio.NewReaderSize(f, controllers.BlockSize*viper.GetInt(recordSizeFlag))
-			if _, err := br.Read(make([]byte, viper.GetInt(blockFlag)*controllers.BlockSize)); err != nil {
-				return err
-			}
-
-			record := viper.GetInt64(recordFlag)
-			block := viper.GetInt64(blockFlag)
-
-			curr := int64((viper.GetInt(recordSizeFlag) * controllers.BlockSize * viper.GetInt(recordFlag)) + (viper.GetInt(blockFlag) * controllers.BlockSize))
-			counter := &counters.CounterReader{Reader: br, BytesRead: int(curr)}
-
-			tr := tar.NewReader(counter)
-			for {
-				hdr, err := tr.Next()
-				if err != nil {
-					if err == io.EOF {
-						if err := controllers.GoToNextFileOnTape(f); err != nil {
-							// EOD
-
+					hdr, err = tr.Next()
+					if err != nil {
+						if err == io.EOF {
 							break
 						}
 
-						record, err = controllers.GetCurrentRecordFromTape(f)
-						if err != nil {
-							return err
-						}
-						block = 0
-
-						br = bufio.NewReaderSize(f, controllers.BlockSize*viper.GetInt(recordSizeFlag))
-						curr := int64(int64(viper.GetInt(recordSizeFlag)) * controllers.BlockSize * record)
-						counter := &counters.CounterReader{Reader: br, BytesRead: int(curr)}
-						tr = tar.NewReader(counter)
-
-						continue
-					} else {
 						return err
 					}
-				}
-
-				if err := indexHeader(record, block, hdr, metadataPersister); err != nil {
-					return nil
-				}
-
-				curr = int64(counter.BytesRead)
-
-				nextTotalBlocks := math.Ceil(float64((curr + hdr.Size)) / float64(controllers.BlockSize))
-				record = int64(nextTotalBlocks) / int64(viper.GetInt(recordSizeFlag))
-				block = int64(nextTotalBlocks) - (record * int64(viper.GetInt(recordSizeFlag)))
-
-				if block > int64(viper.GetInt(recordSizeFlag)) {
-					record++
-					block = 0
+				} else {
+					return err
 				}
 			}
+
+			if err := indexHeader(record, block, hdr, metadataPersister); err != nil {
+				return nil
+			}
+
+			curr, err := f.Seek(0, io.SeekCurrent)
+			if err != nil {
+				return err
+			}
+
+			nextTotalBlocks := math.Ceil(float64((curr + hdr.Size)) / float64(controllers.BlockSize))
+			record = int64(nextTotalBlocks) / int64(recordSize)
+			block = int64(nextTotalBlocks) - (record * int64(recordSize))
+
+			if block > int64(recordSize) {
+				record++
+				block = 0
+			}
+		}
+	} else {
+		// Seek to record
+		if err := controllers.SeekToRecordOnTape(f, int32(record)); err != nil {
+			return err
 		}
 
-		return nil
-	},
+		// Seek to block
+		br := bufio.NewReaderSize(f, controllers.BlockSize*recordSize)
+		if _, err := br.Read(make([]byte, block*controllers.BlockSize)); err != nil {
+			return err
+		}
+
+		record := int64(record)
+		block := int64(block)
+
+		curr := int64((recordSize * controllers.BlockSize * int(record)) + (int(block) * controllers.BlockSize))
+		counter := &counters.CounterReader{Reader: br, BytesRead: int(curr)}
+
+		tr := tar.NewReader(counter)
+		for {
+			hdr, err := tr.Next()
+			if err != nil {
+				if err == io.EOF {
+					if err := controllers.GoToNextFileOnTape(f); err != nil {
+						// EOD
+
+						break
+					}
+
+					record, err = controllers.GetCurrentRecordFromTape(f)
+					if err != nil {
+						return err
+					}
+					block = 0
+
+					br = bufio.NewReaderSize(f, controllers.BlockSize*recordSize)
+					curr = int64(int64(recordSize) * controllers.BlockSize * record)
+					counter = &counters.CounterReader{Reader: br, BytesRead: int(curr)}
+					tr = tar.NewReader(counter)
+
+					continue
+				} else {
+					return err
+				}
+			}
+
+			if err := indexHeader(record, block, hdr, metadataPersister); err != nil {
+				return nil
+			}
+
+			curr = int64(counter.BytesRead)
+
+			nextTotalBlocks := math.Ceil(float64((curr + hdr.Size)) / float64(controllers.BlockSize))
+			record = int64(nextTotalBlocks) / int64(recordSize)
+			block = int64(nextTotalBlocks) - (record * int64(recordSize))
+
+			if block > int64(recordSize) {
+				record++
+				block = 0
+			}
+		}
+	}
+
+	return nil
 }
 
 func init() {
