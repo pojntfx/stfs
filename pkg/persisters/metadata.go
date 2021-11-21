@@ -32,7 +32,7 @@ func NewMetadataPersister(dbPath string) *MetadataPersister {
 	}
 }
 
-func (c *MetadataPersister) UpsertHeader(ctx context.Context, record, block int64, hdr *tar.Header) error {
+func (p *MetadataPersister) UpsertHeader(ctx context.Context, record, block int64, hdr *tar.Header) error {
 	paxRecords, err := json.Marshal(hdr.PAXRecords)
 	if err != nil {
 		return err
@@ -59,9 +59,9 @@ func (c *MetadataPersister) UpsertHeader(ctx context.Context, record, block int6
 		Format:     int64(hdr.Format),
 	}
 
-	if _, err := models.FindHeader(ctx, c.db, dbhdr.Name, models.HeaderColumns.Name); err != nil {
+	if _, err := models.FindHeader(ctx, p.db, dbhdr.Name, models.HeaderColumns.Name); err != nil {
 		if err == sql.ErrNoRows {
-			if err := dbhdr.Insert(ctx, c.db, boil.Infer()); err != nil {
+			if err := dbhdr.Insert(ctx, p.db, boil.Infer()); err != nil {
 				return err
 			}
 
@@ -71,7 +71,7 @@ func (c *MetadataPersister) UpsertHeader(ctx context.Context, record, block int6
 		return err
 	}
 
-	if _, err := dbhdr.Update(ctx, c.db, boil.Infer()); err != nil {
+	if _, err := dbhdr.Update(ctx, p.db, boil.Infer()); err != nil {
 		return err
 	}
 
@@ -80,4 +80,17 @@ func (c *MetadataPersister) UpsertHeader(ctx context.Context, record, block int6
 
 func (p *MetadataPersister) GetHeaders(ctx context.Context) (models.HeaderSlice, error) {
 	return models.Headers().All(ctx, p.db)
+}
+
+func (p *MetadataPersister) DeleteHeader(ctx context.Context, name string) (*models.Header, error) {
+	hdr, err := models.FindHeader(ctx, p.db, name, models.HeaderColumns.Name, models.HeaderColumns.Record, models.HeaderColumns.Block)
+	if err != nil {
+		return nil, err
+	}
+
+	if _, err := hdr.Delete(ctx, p.db); err != nil {
+		return nil, err
+	}
+
+	return hdr, nil
 }
