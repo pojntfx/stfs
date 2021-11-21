@@ -9,9 +9,9 @@ import (
 	"os"
 
 	"github.com/pojntfx/stfs/pkg/controllers"
+	"github.com/pojntfx/stfs/pkg/counters"
 	"github.com/pojntfx/stfs/pkg/formatting"
 	"github.com/pojntfx/stfs/pkg/persisters"
-	"github.com/pojntfx/stfs/pkg/readers"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 )
@@ -160,52 +160,38 @@ var indexCmd = &cobra.Command{
 			record := viper.GetInt64(recordFlag)
 			block := viper.GetInt64(blockFlag)
 
-			lastBytesRead := (viper.GetInt(recordSizeFlag) * controllers.BlockSize * viper.GetInt(recordFlag)) + (viper.GetInt(blockFlag) * controllers.BlockSize)
-			counter := &readers.Counter{Reader: br, BytesRead: lastBytesRead}
-			dirty := false
+			curr := int64((viper.GetInt(recordSizeFlag) * controllers.BlockSize * viper.GetInt(recordFlag)) + (viper.GetInt(blockFlag) * controllers.BlockSize))
+			counter := &counters.CounterReader{Reader: br, BytesRead: int(curr)}
 
+			tr := tar.NewReader(counter)
 			for {
-				tr := tar.NewReader(counter)
 				hdr, err := tr.Next()
 				if err != nil {
-					if lastBytesRead == counter.BytesRead {
-						if dirty {
-							// EOD
-
-							break
-						}
-
+					if err == io.EOF {
 						if err := controllers.GoToNextFileOnTape(f); err != nil {
 							// EOD
 
 							break
 						}
 
-						currentRecord, err := controllers.GetCurrentRecordFromTape(f)
+						record, err = controllers.GetCurrentRecordFromTape(f)
 						if err != nil {
 							return err
 						}
+						block = 0
 
 						br = bufio.NewReaderSize(f, controllers.BlockSize*viper.GetInt(recordSizeFlag))
-						counter = &readers.Counter{Reader: br, BytesRead: (int(currentRecord) * viper.GetInt(recordSizeFlag) * controllers.BlockSize)} // We asume we are at record n, block 0
+						curr := int64(int64(viper.GetInt(recordSizeFlag)) * controllers.BlockSize * record)
+						counter := &counters.CounterReader{Reader: br, BytesRead: int(curr)}
+						tr = tar.NewReader(counter)
 
-						dirty = true
+						continue
+					} else {
+						return err
 					}
-
-					lastBytesRead = counter.BytesRead
-
-					continue
 				}
 
-				lastBytesRead = counter.BytesRead
-
-				if hdr.Format == tar.FormatUnknown {
-					continue
-				}
-
-				dirty = false
-
-				if counter.BytesRead == 0 {
+				if record == 0 && block == 0 {
 					if err := formatting.PrintCSV(formatting.TARHeaderCSV); err != nil {
 						return err
 					}
@@ -219,10 +205,16 @@ var indexCmd = &cobra.Command{
 					return err
 				}
 
-				nextBytes := int64(counter.BytesRead) + hdr.Size + controllers.BlockSize - 1
+				curr = int64(counter.BytesRead)
 
-				record = nextBytes / (controllers.BlockSize * int64(viper.GetInt(recordSizeFlag)))
-				block = (nextBytes - (record * int64(viper.GetInt(recordSizeFlag)) * controllers.BlockSize)) / controllers.BlockSize
+				nextTotalBlocks := math.Ceil(float64((curr + hdr.Size)) / float64(controllers.BlockSize))
+				record = int64(nextTotalBlocks) / int64(viper.GetInt(recordSizeFlag))
+				block = int64(nextTotalBlocks) - (record * int64(viper.GetInt(recordSizeFlag)))
+
+				if block > int64(viper.GetInt(recordSizeFlag)) {
+					record++
+					block = 0
+				}
 			}
 		}
 
