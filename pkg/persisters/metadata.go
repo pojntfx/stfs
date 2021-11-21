@@ -6,11 +6,13 @@ package persisters
 import (
 	"context"
 	"database/sql"
+	"fmt"
 
 	"github.com/pojntfx/stfs/pkg/db/sqlite/migrations/metadata"
 	models "github.com/pojntfx/stfs/pkg/db/sqlite/models/metadata"
 	migrate "github.com/rubenv/sql-migrate"
 	"github.com/volatiletech/sqlboiler/v4/boil"
+	"github.com/volatiletech/sqlboiler/v4/queries"
 )
 
 type MetadataPersister struct {
@@ -69,4 +71,27 @@ func (p *MetadataPersister) DeleteHeader(ctx context.Context, name string, ignor
 	}
 
 	return hdr, nil
+}
+
+func (p *MetadataPersister) GetLastIndexedRecordAndBlock(ctx context.Context, recordSize int) (int64, int64, error) {
+	var header models.Header
+	if err := queries.Raw(
+		fmt.Sprintf(
+			`select %v, %v, ((%v*$1)+%v) as location from %v order by location desc limit 1`,
+			models.HeaderColumns.Record,
+			models.HeaderColumns.Block,
+			models.HeaderColumns.Record,
+			models.HeaderColumns.Block,
+			models.TableNames.Headers,
+		),
+		recordSize,
+	).Bind(ctx, p.db, &header); err != nil {
+		if err == sql.ErrNoRows {
+			return 0, 0, nil
+		}
+
+		return 0, 0, err
+	}
+
+	return header.Record, header.Block, nil
 }
