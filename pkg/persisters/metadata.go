@@ -7,12 +7,14 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
+	"strings"
 
 	"github.com/pojntfx/stfs/pkg/db/sqlite/migrations/metadata"
 	models "github.com/pojntfx/stfs/pkg/db/sqlite/models/metadata"
 	migrate "github.com/rubenv/sql-migrate"
 	"github.com/volatiletech/sqlboiler/v4/boil"
 	"github.com/volatiletech/sqlboiler/v4/queries"
+	"github.com/volatiletech/sqlboiler/v4/queries/qm"
 )
 
 type MetadataPersister struct {
@@ -56,6 +58,16 @@ func (p *MetadataPersister) GetHeaders(ctx context.Context) (models.HeaderSlice,
 	return models.Headers().All(ctx, p.db)
 }
 
+func (p *MetadataPersister) GetHeader(ctx context.Context, name string) (*models.Header, error) {
+	return models.FindHeader(ctx, p.db, name)
+}
+
+func (p *MetadataPersister) GetHeaderChildren(ctx context.Context, name string) (models.HeaderSlice, error) {
+	return models.Headers(
+		qm.Where(models.HeaderColumns.Name+" like ?", strings.TrimSuffix(name, "/")+"/%"), // Prevent double trailing slashes
+	).All(ctx, p.db)
+}
+
 func (p *MetadataPersister) DeleteHeader(ctx context.Context, name string, ignoreNotExists bool) (*models.Header, error) {
 	hdr, err := models.FindHeader(ctx, p.db, name)
 	if err != nil {
@@ -71,6 +83,21 @@ func (p *MetadataPersister) DeleteHeader(ctx context.Context, name string, ignor
 	}
 
 	return hdr, nil
+}
+
+func (p *MetadataPersister) DeleteHeaders(ctx context.Context, hdrs models.HeaderSlice) error {
+	tx, err := p.db.BeginTx(ctx, nil)
+	if err != nil {
+		return err
+	}
+
+	for _, hdr := range hdrs {
+		if _, err := hdr.Delete(ctx, tx); err != nil {
+			return err
+		}
+	}
+
+	return tx.Commit()
 }
 
 func (p *MetadataPersister) GetLastIndexedRecordAndBlock(ctx context.Context, recordSize int) (int64, int64, error) {

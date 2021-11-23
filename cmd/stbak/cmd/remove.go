@@ -9,6 +9,7 @@ import (
 	"github.com/pojntfx/stfs/pkg/controllers"
 	"github.com/pojntfx/stfs/pkg/converters"
 	"github.com/pojntfx/stfs/pkg/counters"
+	models "github.com/pojntfx/stfs/pkg/db/sqlite/models/metadata"
 	"github.com/pojntfx/stfs/pkg/formatting"
 	"github.com/pojntfx/stfs/pkg/pax"
 	"github.com/pojntfx/stfs/pkg/persisters"
@@ -100,32 +101,52 @@ var removeCmd = &cobra.Command{
 			return err
 		}
 
-		dbhdr, err := metadataPersister.DeleteHeader(context.Background(), viper.GetString(nameFlag), false)
+		headersToDelete := []*models.Header{}
+		dbhdr, err := metadataPersister.GetHeader(context.Background(), viper.GetString(nameFlag))
 		if err != nil {
 			return err
 		}
+		headersToDelete = append(headersToDelete, dbhdr)
 
-		hdr, err := converters.DBHeaderToTarHeader(dbhdr)
-		if err != nil {
-			return err
+		// If the header refers to a directory, get it's children
+		if dbhdr.Typeflag == tar.TypeDir {
+			dbhdrs, err := metadataPersister.GetHeaderChildren(context.Background(), viper.GetString(nameFlag))
+			if err != nil {
+				return err
+			}
+
+			headersToDelete = append(headersToDelete, dbhdrs...)
 		}
 
-		hdr.Size = 0 // Don't try to seek after the record
-		hdr.PAXRecords[pax.STFSRecordVersion] = pax.STFSRecordVersion1
-		hdr.PAXRecords[pax.STFSRecordAction] = pax.STFSRecordActionDelete
-
-		if err := tw.WriteHeader(hdr); err != nil {
-			return err
+		// Remove the headers from the index
+		if err := metadataPersister.DeleteHeaders(context.Background(), headersToDelete); err != nil {
+			return nil
 		}
-
-		dirty = true
 
 		if err := formatting.PrintCSV(formatting.TARHeaderCSV); err != nil {
 			return err
 		}
 
-		if err := formatting.PrintCSV(formatting.GetTARHeaderAsCSV(-1, -1, hdr)); err != nil {
-			return err
+		// Append deletion headers to the tape/tar file
+		for _, dbhdr := range headersToDelete {
+			hdr, err := converters.DBHeaderToTarHeader(dbhdr)
+			if err != nil {
+				return err
+			}
+
+			hdr.Size = 0 // Don't try to seek after the record
+			hdr.PAXRecords[pax.STFSRecordVersion] = pax.STFSRecordVersion1
+			hdr.PAXRecords[pax.STFSRecordAction] = pax.STFSRecordActionDelete
+
+			if err := tw.WriteHeader(hdr); err != nil {
+				return err
+			}
+
+			dirty = true
+
+			if err := formatting.PrintCSV(formatting.GetTARHeaderAsCSV(-1, -1, hdr)); err != nil {
+				return err
+			}
 		}
 
 		return nil
