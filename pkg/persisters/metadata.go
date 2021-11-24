@@ -68,6 +68,39 @@ func (p *MetadataPersister) GetHeaderChildren(ctx context.Context, name string) 
 	).All(ctx, p.db)
 }
 
+func (p *MetadataPersister) GetHeaderDirectChildren(ctx context.Context, name string) (models.HeaderSlice, error) {
+	if name == "" || name == "." || name == "/" {
+		return p.GetHeaders(ctx)
+	}
+
+	prefixWithoutTrailingSlash := strings.TrimSuffix(name, "/")
+	prefixWithTrailingSlash := prefixWithoutTrailingSlash + "/%"
+
+	headers := models.HeaderSlice{}
+	if err := queries.Raw(
+		fmt.Sprintf(
+			`select * from %v where %v = ? or %v = ? or (%v like ? and %v not like ?)`,
+			models.TableNames.Headers,
+			models.HeaderColumns.Name,
+			models.HeaderColumns.Name,
+			models.HeaderColumns.Name,
+			models.HeaderColumns.Name,
+		),
+		prefixWithoutTrailingSlash,
+		prefixWithTrailingSlash,
+		prefixWithTrailingSlash,
+		prefixWithTrailingSlash+"/%",
+	).Bind(ctx, p.db, &headers); err != nil {
+		if err == sql.ErrNoRows {
+			return headers, nil
+		}
+
+		return nil, err
+	}
+
+	return headers, nil
+}
+
 func (p *MetadataPersister) DeleteHeader(ctx context.Context, name string, ignoreNotExists bool) (*models.Header, error) {
 	hdr, err := models.FindHeader(ctx, p.db, name)
 	if err != nil {

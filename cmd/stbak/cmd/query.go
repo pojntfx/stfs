@@ -24,7 +24,7 @@ var queryCmd = &cobra.Command{
 			return err
 		}
 
-		headers, err := metadataPersister.GetHeaders(context.Background())
+		headers, err := metadataPersister.GetHeaderDirectChildren(context.Background(), viper.GetString(nameFlag))
 		if err != nil {
 			return err
 		}
@@ -51,6 +51,8 @@ var queryCmd = &cobra.Command{
 }
 
 func init() {
+	queryCmd.PersistentFlags().StringP(nameFlag, "n", "", "Name of the file or directory to query")
+
 	viper.AutomaticEnv()
 
 	rootCmd.AddCommand(queryCmd)
