@@ -286,6 +286,11 @@ func indexHeader(record, block int64, hdr *tar.Header, metadataPersister *persis
 					return err
 				}
 			}
+		case pax.STFSReplacesName:
+			// Move header; does not update metadata
+			if err := metadataPersister.MoveHeader(context.Background(), hdr.PAXRecords[pax.STFSReplacesName], hdr.Name); err != nil {
+				return err
+			}
 		default:
 			return pax.ErrUnsupportedAction
 		}
