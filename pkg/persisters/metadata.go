@@ -54,6 +54,23 @@ func (p *MetadataPersister) UpsertHeader(ctx context.Context, dbhdr *models.Head
 	return nil
 }
 
+func (p *MetadataPersister) UpdateHeaderMetadata(ctx context.Context, dbhdr *models.Header) error {
+	currentHdr, err := models.FindHeader(ctx, p.db, dbhdr.Name, models.HeaderColumns.Name, models.HeaderColumns.Record, models.HeaderColumns.Block)
+	if err != nil {
+		return err
+	}
+
+	// Update everything but the record & block
+	dbhdr.Record = currentHdr.Record
+	dbhdr.Block = currentHdr.Block
+
+	if _, err := dbhdr.Update(ctx, p.db, boil.Infer()); err != nil {
+		return err
+	}
+
+	return nil
+}
+
 func (p *MetadataPersister) GetHeaders(ctx context.Context) (models.HeaderSlice, error) {
 	return models.Headers().All(ctx, p.db)
 }

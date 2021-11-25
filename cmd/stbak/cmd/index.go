@@ -270,6 +270,22 @@ func indexHeader(record, block int64, hdr *tar.Header, metadataPersister *persis
 			if _, err := metadataPersister.DeleteHeader(context.Background(), hdr.Name, true); err != nil {
 				return err
 			}
+		case pax.STFSReplacesContent:
+			if hdr.PAXRecords[pax.STFSReplacesContent] == pax.STFSReplacesContentTrue {
+				// Metadata & content update
+				// TODO: Add implementation
+				return pax.ErrUnsupportedAction
+			} else {
+				// Metadata-only update
+				dbhdr, err := converters.TarHeaderToDBHeader(record, block, hdr)
+				if err != nil {
+					return err
+				}
+
+				if err := metadataPersister.UpdateHeaderMetadata(context.Background(), dbhdr); err != nil {
+					return err
+				}
+			}
 		default:
 			return pax.ErrUnsupportedAction
 		}

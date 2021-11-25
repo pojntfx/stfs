@@ -9,6 +9,10 @@ const (
 	STFSRecordAction       = "STFS.Action"
 	STFSRecordActionCreate = "CREATE"
 	STFSRecordActionDelete = "DELETE"
+
+	STFSReplacesContent      = "STFS.ReplacesContent"
+	STFSReplacesContentTrue  = "true"
+	STFSReplacesContentFalse = "false"
 )
 
 var (
