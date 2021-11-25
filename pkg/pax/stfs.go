@@ -13,6 +13,8 @@ const (
 	STFSReplacesContent      = "STFS.ReplacesContent"
 	STFSReplacesContentTrue  = "true"
 	STFSReplacesContentFalse = "false"
+
+	STFSReplacesName = "STFS.ReplacesName"
 )
 
 var (

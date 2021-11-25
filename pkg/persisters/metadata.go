@@ -56,17 +56,43 @@ func (p *MetadataPersister) UpsertHeader(ctx context.Context, dbhdr *models.Head
 
 func (p *MetadataPersister) UpdateHeaderMetadata(ctx context.Context, dbhdr *models.Header) error {
 	currentHdr, err := models.FindHeader(ctx, p.db, dbhdr.Name, models.HeaderColumns.Name, models.HeaderColumns.Record, models.HeaderColumns.Block)
+	if err == sql.ErrNoRows {
+		return nil // We may have renamed the header in a later, but indexed record/block, so we can skip this
+	}
+
 	if err != nil {
 		return err
 	}
 
-	// Update everything but the record & block
+	// Update everything but the name, record & block
 	dbhdr.Record = currentHdr.Record
 	dbhdr.Block = currentHdr.Block
 
 	if _, err := dbhdr.Update(ctx, p.db, boil.Infer()); err != nil {
 		return err
 	}
+
+	return nil
+}
+
+func (p *MetadataPersister) MoveHeader(ctx context.Context, oldName string, newName string) error {
+	dbhdr, err := models.FindHeader(ctx, p.db, oldName, models.HeaderColumns.Name)
+	if err == sql.ErrNoRows {
+		return nil // We may have renamed the header in a later, but indexed record/block, so we can skip this
+	}
+
+	if err != nil {
+		return err
+	}
+
+	// Update the name
+	dbhdr.Name = newName
+
+	if _, err := dbhdr.Update(ctx, p.db, boil.Infer()); err != nil {
+		return err
+	}
+
+	// TODO: Update children's names too
 
 	return nil
 }
