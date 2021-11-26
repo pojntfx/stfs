@@ -257,11 +257,16 @@ func indexHeader(record, block int64, hdr *tar.Header, metadataPersister *persis
 			if _, err := metadataPersister.DeleteHeader(context.Background(), hdr.Name, true); err != nil {
 				return err
 			}
-		case pax.STFSReplacesContent:
-			if hdr.PAXRecords[pax.STFSReplacesContent] == pax.STFSReplacesContentTrue {
+		case pax.STFSRecordActionUpdate:
+			if hdr.PAXRecords[pax.STFSRecordReplacesContent] == pax.STFSRecordReplacesContentTrue {
 				// Metadata & content update
 				// TODO: Add implementation
 				return pax.ErrUnsupportedAction
+			} else if _, ok := hdr.PAXRecords[pax.STFSRecordReplacesName]; ok {
+				// Move header; do not update metadata
+				if err := metadataPersister.MoveHeader(context.Background(), hdr.PAXRecords[pax.STFSRecordReplacesName], hdr.Name); err != nil {
+					return err
+				}
 			} else {
 				// Metadata-only update
 				dbhdr, err := converters.TarHeaderToDBHeader(record, block, hdr)
@@ -272,11 +277,6 @@ func indexHeader(record, block int64, hdr *tar.Header, metadataPersister *persis
 				if err := metadataPersister.UpdateHeaderMetadata(context.Background(), dbhdr); err != nil {
 					return err
 				}
-			}
-		case pax.STFSReplacesName:
-			// Move header; does not update metadata
-			if err := metadataPersister.MoveHeader(context.Background(), hdr.PAXRecords[pax.STFSReplacesName], hdr.Name); err != nil {
-				return err
 			}
 		default:
 			return pax.ErrUnsupportedAction
