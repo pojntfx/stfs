@@ -79,6 +79,31 @@ func archive(
 	if err != nil {
 		return err
 	}
+
+	if overwrite && isRegular {
+		if err := cleanup(false); err != nil {
+			return err
+		}
+
+		f, err := os.OpenFile(tape, os.O_WRONLY|os.O_CREATE, 0600)
+		if err != nil {
+			return err
+		}
+
+		if err := f.Truncate(0); err != nil {
+			return err
+		}
+
+		if err := f.Close(); err != nil {
+			return err
+		}
+
+		tw, isRegular, cleanup, err = openTapeWriter(viper.GetString(tapeFlag))
+		if err != nil {
+			return err
+		}
+	}
+
 	defer cleanup(dirty)
 
 	first := true
