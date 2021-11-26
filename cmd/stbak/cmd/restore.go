@@ -29,27 +29,14 @@ var restoreCmd = &cobra.Command{
 			return err
 		}
 
-		fileDescription, err := os.Stat(viper.GetString(tapeFlag))
+		f, isRegular, err := openTapeReadOnly(viper.GetString(tapeFlag))
 		if err != nil {
 			return err
-		}
-
-		var f *os.File
-		if fileDescription.Mode().IsRegular() {
-			f, err = os.Open(viper.GetString(tapeFlag))
-			if err != nil {
-				return err
-			}
-		} else {
-			f, err = os.OpenFile(viper.GetString(tapeFlag), os.O_RDONLY, os.ModeCharDevice)
-			if err != nil {
-				return err
-			}
 		}
 		defer f.Close()
 
 		var tr *tar.Reader
-		if fileDescription.Mode().IsRegular() {
+		if isRegular {
 			// Seek to record and block
 			if _, err := f.Seek(int64((viper.GetInt(recordSizeFlag)*controllers.BlockSize*viper.GetInt(recordFlag))+viper.GetInt(blockFlag)*controllers.BlockSize), io.SeekStart); err != nil {
 				return err

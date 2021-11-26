@@ -94,8 +94,8 @@ var removeCmd = &cobra.Command{
 	},
 }
 
-func openTapeWriter(path string) (tw *tar.Writer, isRegular bool, cleanup func(dirty bool) error, err error) {
-	stat, err := os.Stat(path)
+func openTapeWriter(tape string) (tw *tar.Writer, isRegular bool, cleanup func(dirty bool) error, err error) {
+	stat, err := os.Stat(tape)
 	if err == nil {
 		isRegular = stat.Mode().IsRegular()
 	} else {
@@ -108,14 +108,14 @@ func openTapeWriter(path string) (tw *tar.Writer, isRegular bool, cleanup func(d
 
 	var f *os.File
 	if isRegular {
-		f, err = os.OpenFile(path, os.O_APPEND|os.O_WRONLY|os.O_CREATE, 0600)
+		f, err = os.OpenFile(tape, os.O_APPEND|os.O_WRONLY|os.O_CREATE, 0600)
 		if err != nil {
 			return nil, false, nil, err
 		}
 
 		// No need to go to end manually due to `os.O_APPEND`
 	} else {
-		f, err = os.OpenFile(path, os.O_APPEND|os.O_WRONLY, os.ModeCharDevice)
+		f, err = os.OpenFile(tape, os.O_APPEND|os.O_WRONLY, os.ModeCharDevice)
 		if err != nil {
 			return nil, false, nil, err
 		}
