@@ -75,13 +75,13 @@ func archive(
 	overwrite bool,
 ) error {
 	dirty := false
-	tw, isRegular, cleanup, err := openTapeWriter(viper.GetString(tapeFlag))
+	tw, isRegular, cleanup, err := openTapeWriter(tape)
 	if err != nil {
 		return err
 	}
 
 	if overwrite && isRegular {
-		if err := cleanup(false); err != nil {
+		if err := cleanup(&dirty); err != nil { // dirty will always be false here
 			return err
 		}
 
@@ -98,13 +98,13 @@ func archive(
 			return err
 		}
 
-		tw, isRegular, cleanup, err = openTapeWriter(viper.GetString(tapeFlag))
+		tw, isRegular, cleanup, err = openTapeWriter(tape)
 		if err != nil {
 			return err
 		}
 	}
 
-	defer cleanup(dirty)
+	defer cleanup(&dirty)
 
 	first := true
 	return filepath.Walk(src, func(path string, info fs.FileInfo, err error) error {

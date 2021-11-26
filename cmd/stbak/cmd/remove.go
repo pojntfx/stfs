@@ -35,7 +35,7 @@ var removeCmd = &cobra.Command{
 		if err != nil {
 			return err
 		}
-		defer cleanup(dirty)
+		defer cleanup(&dirty)
 
 		metadataPersister := persisters.NewMetadataPersister(viper.GetString(metadataFlag))
 		if err := metadataPersister.Open(); err != nil {
@@ -94,7 +94,7 @@ var removeCmd = &cobra.Command{
 	},
 }
 
-func openTapeWriter(tape string) (tw *tar.Writer, isRegular bool, cleanup func(dirty bool) error, err error) {
+func openTapeWriter(tape string) (tw *tar.Writer, isRegular bool, cleanup func(dirty *bool) error, err error) {
 	stat, err := os.Stat(tape)
 	if err == nil {
 		isRegular = stat.Mode().IsRegular()
@@ -136,9 +136,9 @@ func openTapeWriter(tape string) (tw *tar.Writer, isRegular bool, cleanup func(d
 		tw = tar.NewWriter(counter)
 	}
 
-	return tw, isRegular, func(dirty bool) error {
+	return tw, isRegular, func(dirty *bool) error {
 		// Only write the trailer if we wrote to the archive
-		if dirty {
+		if *dirty {
 			if err := tw.Close(); err != nil {
 				return err
 			}
