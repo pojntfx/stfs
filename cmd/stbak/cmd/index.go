@@ -11,6 +11,7 @@ import (
 	"github.com/pojntfx/stfs/pkg/controllers"
 	"github.com/pojntfx/stfs/pkg/converters"
 	"github.com/pojntfx/stfs/pkg/counters"
+	models "github.com/pojntfx/stfs/pkg/db/sqlite/models/metadata"
 	"github.com/pojntfx/stfs/pkg/formatting"
 	"github.com/pojntfx/stfs/pkg/pax"
 	"github.com/pojntfx/stfs/pkg/persisters"
@@ -263,26 +264,50 @@ func indexHeader(record, block int64, hdr *tar.Header, metadataPersister *persis
 				return err
 			}
 		case pax.STFSRecordActionUpdate:
-			if hdr.PAXRecords[pax.STFSRecordReplacesContent] == pax.STFSRecordReplacesContentTrue {
-				// Metadata & content update
-				// TODO: Add implementation
-				return pax.ErrUnsupportedAction
-			} else if _, ok := hdr.PAXRecords[pax.STFSRecordReplacesName]; ok {
-				// Move header; do not update metadata
-				if err := metadataPersister.MoveHeader(context.Background(), hdr.PAXRecords[pax.STFSRecordReplacesName], hdr.Name); err != nil {
-					return err
-				}
-			} else {
-				// Metadata-only update
-				dbhdr, err := converters.TarHeaderToDBHeader(record, block, hdr)
-				if err != nil {
-					return err
+			moveAfterEdits := false
+			oldName := hdr.Name
+			if _, ok := hdr.PAXRecords[pax.STFSRecordReplacesName]; ok {
+				moveAfterEdits = true
+				oldName = hdr.PAXRecords[pax.STFSRecordReplacesName]
+			}
+
+			if _, ok := hdr.PAXRecords[pax.STFSRecordReplacesContent]; ok {
+				var newHdr *models.Header
+				if hdr.PAXRecords[pax.STFSRecordReplacesContent] == pax.STFSRecordReplacesContentTrue {
+					// Content & metadata update; use the new record & block
+					h, err := converters.TarHeaderToDBHeader(record, block, hdr)
+					if err != nil {
+						return err
+					}
+
+					newHdr = h
+				} else {
+					// Metadata-only update; use the old record & block
+					oldHdr, err := metadataPersister.GetHeader(context.Background(), oldName)
+					if err != nil {
+						return err
+					}
+
+					h, err := converters.TarHeaderToDBHeader(oldHdr.Record, oldHdr.Block, hdr)
+					if err != nil {
+						return err
+					}
+
+					newHdr = h
 				}
 
-				if err := metadataPersister.UpdateHeaderMetadata(context.Background(), dbhdr); err != nil {
+				if err := metadataPersister.UpdateHeaderMetadata(context.Background(), newHdr); err != nil {
 					return err
 				}
 			}
+
+			if moveAfterEdits {
+				// Move header
+				if err := metadataPersister.MoveHeader(context.Background(), oldName, hdr.Name); err != nil {
+					return err
+				}
+			}
+
 		default:
 			return pax.ErrUnsupportedAction
 		}
