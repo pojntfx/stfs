@@ -77,7 +77,7 @@ var moveCmd = &cobra.Command{
 			hdr.Name = strings.TrimSuffix(viper.GetString(dstFlag), "/") + strings.TrimPrefix(hdr.Name, strings.TrimSuffix(viper.GetString(srcFlag), "/"))
 			hdr.PAXRecords[pax.STFSRecordVersion] = pax.STFSRecordVersion1
 			hdr.PAXRecords[pax.STFSRecordAction] = pax.STFSRecordActionUpdate
-			hdr.PAXRecords[pax.STFSRecordReplacesName] = viper.GetString(srcFlag)
+			hdr.PAXRecords[pax.STFSRecordReplacesName] = dbhdr.Name
 
 			if err := tw.WriteHeader(hdr); err != nil {
 				return err
