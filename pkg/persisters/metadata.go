@@ -1,7 +1,7 @@
 package persisters
 
-//go:generate sqlboiler sqlite3 -o ../db/sqlite/models/metadata -c ../../../configs/sqlboiler/metadata.yaml
-//go:generate go-bindata -pkg metadata -o ../db/sqlite/migrations/metadata/migrations.go ../../../db/sqlite/migrations/metadata
+//go:generate sqlboiler sqlite3 -o ../db/sqlite/models/metadata -c ../../configs/sqlboiler/metadata.yaml
+//go:generate go-bindata -pkg metadata -o ../db/sqlite/migrations/metadata/migrations.go ../../db/sqlite/migrations/metadata
 
 import (
 	"context"
@@ -28,7 +28,7 @@ func NewMetadataPersister(dbPath string) *MetadataPersister {
 			Migrations: migrate.AssetMigrationSource{
 				Asset:    metadata.Asset,
 				AssetDir: metadata.AssetDir,
-				Dir:      "../../../db/sqlite/migrations/metadata",
+				Dir:      "../../db/sqlite/migrations/metadata",
 			},
 		},
 	}
@@ -75,26 +75,41 @@ func (p *MetadataPersister) UpdateHeaderMetadata(ctx context.Context, dbhdr *mod
 	return nil
 }
 
-func (p *MetadataPersister) MoveHeader(ctx context.Context, oldName string, newName string) error {
-	dbhdr, err := models.FindHeader(ctx, p.db, oldName, models.HeaderColumns.Name)
-	if err == sql.ErrNoRows {
-		return nil // We may have renamed the header in a later, but indexed record/block, so we can skip this
+func (p *MetadataPersister) moveHeader(ctx context.Context, tx boil.ContextExecutor, oldName string, newName string) error {
+	// We can't do this with `dbhdr.Update` because we are renaming the primary key
+	if _, err := queries.Raw(
+		fmt.Sprintf(
+			` update %v set %v = ? where %v = ?;`,
+			models.TableNames.Headers,
+			models.HeaderColumns.Name,
+			models.HeaderColumns.Name,
+		),
+		newName,
+		oldName,
+	).ExecContext(ctx, tx); err != nil {
+		return err
 	}
 
+	return nil
+}
+
+func (p *MetadataPersister) MoveHeader(ctx context.Context, oldName string, newName string) error {
+	return p.moveHeader(ctx, p.db, oldName, newName)
+}
+
+func (p *MetadataPersister) MoveHeaders(ctx context.Context, hdrs models.HeaderSlice, oldName string, newName string) error {
+	tx, err := p.db.BeginTx(ctx, nil)
 	if err != nil {
 		return err
 	}
 
-	// Update the name
-	dbhdr.Name = newName
-
-	if _, err := dbhdr.Update(ctx, p.db, boil.Infer()); err != nil {
-		return err
+	for _, hdr := range hdrs {
+		if err := p.moveHeader(ctx, tx, hdr.Name, strings.TrimSuffix(newName, "/")+strings.TrimPrefix(hdr.Name, strings.TrimSuffix(oldName, "/"))); err != nil {
+			return err
+		}
 	}
 
-	// TODO: Update children's names too
-
-	return nil
+	return tx.Commit()
 }
 
 func (p *MetadataPersister) GetHeaders(ctx context.Context) (models.HeaderSlice, error) {

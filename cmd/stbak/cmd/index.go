@@ -16,6 +16,7 @@ import (
 	"github.com/pojntfx/stfs/pkg/persisters"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
+	"github.com/volatiletech/sqlboiler/v4/boil"
 )
 
 var indexCmd = &cobra.Command{
@@ -25,6 +26,10 @@ var indexCmd = &cobra.Command{
 	RunE: func(cmd *cobra.Command, args []string) error {
 		if err := viper.BindPFlags(cmd.PersistentFlags()); err != nil {
 			return err
+		}
+
+		if viper.GetBool(verboseFlag) {
+			boil.DebugMode = true
 		}
 
 		return index(

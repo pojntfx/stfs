@@ -30,7 +30,7 @@ var _db_sqlite_migrations_metadata_1637447083_sql = []byte("\x1f\x8b\x08\x00\x00
 func db_sqlite_migrations_metadata_1637447083_sql() ([]byte, error) {
 	return bindata_read(
 		_db_sqlite_migrations_metadata_1637447083_sql,
-		"../../../db/sqlite/migrations/metadata/1637447083.sql",
+		"../../db/sqlite/migrations/metadata/1637447083.sql",
 	)
 }
 
@@ -56,7 +56,7 @@ func AssetNames() []string {
 
 // _bindata is a table, holding each asset generator, mapped to its name.
 var _bindata = map[string]func() ([]byte, error){
-	"../../../db/sqlite/migrations/metadata/1637447083.sql": db_sqlite_migrations_metadata_1637447083_sql,
+	"../../db/sqlite/migrations/metadata/1637447083.sql": db_sqlite_migrations_metadata_1637447083_sql,
 }
 // AssetDir returns the file names below a certain
 // directory embedded in the file by go-bindata.
@@ -100,13 +100,11 @@ type _bintree_t struct {
 var _bintree = &_bintree_t{nil, map[string]*_bintree_t{
 	"..": &_bintree_t{nil, map[string]*_bintree_t{
 		"..": &_bintree_t{nil, map[string]*_bintree_t{
-			"..": &_bintree_t{nil, map[string]*_bintree_t{
-				"db": &_bintree_t{nil, map[string]*_bintree_t{
-					"sqlite": &_bintree_t{nil, map[string]*_bintree_t{
-						"migrations": &_bintree_t{nil, map[string]*_bintree_t{
-							"metadata": &_bintree_t{nil, map[string]*_bintree_t{
-								"1637447083.sql": &_bintree_t{db_sqlite_migrations_metadata_1637447083_sql, map[string]*_bintree_t{
-								}},
+			"db": &_bintree_t{nil, map[string]*_bintree_t{
+				"sqlite": &_bintree_t{nil, map[string]*_bintree_t{
+					"migrations": &_bintree_t{nil, map[string]*_bintree_t{
+						"metadata": &_bintree_t{nil, map[string]*_bintree_t{
+							"1637447083.sql": &_bintree_t{db_sqlite_migrations_metadata_1637447083_sql, map[string]*_bintree_t{
 							}},
 						}},
 					}},
