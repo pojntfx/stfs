@@ -12,6 +12,7 @@ import (
 const (
 	tapeFlag     = "tape"
 	metadataFlag = "metadata"
+	verboseFlag  = "verbose"
 )
 
 var rootCmd = &cobra.Command{
@@ -37,6 +38,7 @@ func Execute() {
 
 	rootCmd.PersistentFlags().StringP(tapeFlag, "t", "/dev/nst0", "Tape or tar file to use")
 	rootCmd.PersistentFlags().StringP(metadataFlag, "m", metadataPath, "Metadata database to use")
+	rootCmd.PersistentFlags().BoolP(verboseFlag, "v", false, "Enable verbose logging")
 
 	if err := viper.BindPFlags(rootCmd.PersistentFlags()); err != nil {
 		panic(err)
