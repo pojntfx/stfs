@@ -66,26 +66,13 @@ func index(
 		return err
 	}
 
-	fileDescription, err := os.Stat(tape)
+	f, isRegular, err := openTapeReadOnly(tape)
 	if err != nil {
 		return err
 	}
-
-	var f *os.File
-	if fileDescription.Mode().IsRegular() {
-		f, err = os.Open(tape)
-		if err != nil {
-			return err
-		}
-	} else {
-		f, err = os.OpenFile(tape, os.O_RDONLY, os.ModeCharDevice)
-		if err != nil {
-			return err
-		}
-	}
 	defer f.Close()
 
-	if fileDescription.Mode().IsRegular() {
+	if isRegular {
 		// Seek to record and block
 		if _, err := f.Seek(int64((recordSize*controllers.BlockSize*record)+block*controllers.BlockSize), 0); err != nil {
 			return err
@@ -299,4 +286,28 @@ func indexHeader(record, block int64, hdr *tar.Header, metadataPersister *persis
 	}
 
 	return nil
+}
+
+func openTapeReadOnly(tape string) (f *os.File, isRegular bool, err error) {
+	fileDescription, err := os.Stat(tape)
+	if err != nil {
+		return nil, false, err
+	}
+
+	isRegular = fileDescription.Mode().IsRegular()
+	if isRegular {
+		f, err = os.Open(tape)
+		if err != nil {
+			return f, isRegular, err
+		}
+
+		return f, isRegular, nil
+	}
+
+	f, err = os.OpenFile(tape, os.O_RDONLY, os.ModeCharDevice)
+	if err != nil {
+		return f, isRegular, err
+	}
+
+	return f, isRegular, nil
 }
