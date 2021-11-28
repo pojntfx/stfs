@@ -9,7 +9,7 @@ import (
 	"github.com/volatiletech/sqlboiler/v4/boil"
 )
 
-var ejectCmd = &cobra.Command{
+var driveEjectCmd = &cobra.Command{
 	Use:     "eject",
 	Aliases: []string{"e"},
 	Short:   "Eject the tape (tape only)",
@@ -35,5 +35,5 @@ var ejectCmd = &cobra.Command{
 func init() {
 	viper.AutomaticEnv()
 
-	driveCmd.AddCommand(ejectCmd)
+	driveCmd.AddCommand(driveEjectCmd)
 }

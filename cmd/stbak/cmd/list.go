@@ -11,10 +11,10 @@ import (
 	"github.com/volatiletech/sqlboiler/v4/boil"
 )
 
-var queryCmd = &cobra.Command{
-	Use:     "query",
-	Aliases: []string{"q"},
-	Short:   "Query the contents of an index",
+var listCmd = &cobra.Command{
+	Use:     "list",
+	Aliases: []string{"l"},
+	Short:   "List the contents of a directory in the index",
 	RunE: func(cmd *cobra.Command, args []string) error {
 		if err := viper.BindPFlags(cmd.PersistentFlags()); err != nil {
 			return err
@@ -56,9 +56,9 @@ var queryCmd = &cobra.Command{
 }
 
 func init() {
-	queryCmd.PersistentFlags().StringP(nameFlag, "n", "", "Name of the file or directory to query")
+	listCmd.PersistentFlags().StringP(nameFlag, "n", "", "Directory to list the contents of")
 
 	viper.AutomaticEnv()
 
-	rootCmd.AddCommand(queryCmd)
+	rootCmd.AddCommand(listCmd)
 }

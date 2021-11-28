@@ -114,27 +114,57 @@ func (p *MetadataPersister) GetHeaderChildren(ctx context.Context, name string) 
 }
 
 func (p *MetadataPersister) GetHeaderDirectChildren(ctx context.Context, name string) (models.HeaderSlice, error) {
-	if name == "" || name == "." || name == "/" {
-		return p.GetHeaders(ctx)
+	prefix := strings.TrimSuffix(name, "/") + "/"
+
+	// Root node
+	if name == "" || name == "." || name == "/" || name == "./" {
+		prefix = ""
 	}
 
-	prefixWithoutTrailingSlash := strings.TrimSuffix(name, "/")
-	prefixWithTrailingSlash := prefixWithoutTrailingSlash + "/%"
-
 	headers := models.HeaderSlice{}
+
 	if err := queries.Raw(
 		fmt.Sprintf(
-			`select * from %v where %v = ? or %v = ? or (%v like ? and %v not like ?)`,
+			`select %v, %v, %v, %v, %v, %v, %v, %v, %v, %v, %v, %v, %v, %v, %v, %v, %v, %v,
+    length(replace(%v, ?, '')) - length(replace(replace(%v, ?, ''), '/', '')) as depth
+from %v
+where %v like ?
+    and (
+        depth = 0
+        or (
+            %v like '%%/'
+            and depth = 1
+        )
+    )
+    and not %v in ('', '.', '/', './');`,
+			models.HeaderColumns.Record,
+			models.HeaderColumns.Block,
+			models.HeaderColumns.Typeflag,
+			models.HeaderColumns.Name,
+			models.HeaderColumns.Linkname,
+			models.HeaderColumns.Size,
+			models.HeaderColumns.Mode,
+			models.HeaderColumns.UID,
+			models.HeaderColumns.Gid,
+			models.HeaderColumns.Uname,
+			models.HeaderColumns.Gname,
+			models.HeaderColumns.Modtime,
+			models.HeaderColumns.Accesstime,
+			models.HeaderColumns.Changetime,
+			models.HeaderColumns.Devmajor,
+			models.HeaderColumns.Devminor,
+			models.HeaderColumns.Paxrecords,
+			models.HeaderColumns.Format,
+			models.HeaderColumns.Name,
+			models.HeaderColumns.Name,
 			models.TableNames.Headers,
 			models.HeaderColumns.Name,
 			models.HeaderColumns.Name,
 			models.HeaderColumns.Name,
-			models.HeaderColumns.Name,
 		),
-		prefixWithoutTrailingSlash,
-		prefixWithTrailingSlash,
-		prefixWithTrailingSlash,
-		prefixWithTrailingSlash+"/%",
+		prefix,
+		prefix,
+		prefix+"%",
 	).Bind(ctx, p.db, &headers); err != nil {
 		if err == sql.ErrNoRows {
 			return headers, nil
