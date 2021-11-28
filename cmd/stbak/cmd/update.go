@@ -8,6 +8,7 @@ import (
 	"github.com/pojntfx/stfs/pkg/adapters"
 	"github.com/pojntfx/stfs/pkg/converters"
 	"github.com/pojntfx/stfs/pkg/formatting"
+	"github.com/pojntfx/stfs/pkg/pax"
 	"github.com/pojntfx/stfs/pkg/persisters"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
@@ -31,19 +32,19 @@ var updateCmd = &cobra.Command{
 			boil.DebugMode = true
 		}
 
-		// dirty := false
-		// tw, _, cleanup, err := openTapeWriter(viper.GetString(tapeFlag))
-		// if err != nil {
-		// 	return err
-		// }
-		// defer cleanup(&dirty)
+		dirty := false
+		tw, _, cleanup, err := openTapeWriter(viper.GetString(tapeFlag))
+		if err != nil {
+			return err
+		}
+		defer cleanup(&dirty)
 
 		metadataPersister := persisters.NewMetadataPersister(viper.GetString(metadataFlag))
 		if err := metadataPersister.Open(); err != nil {
 			return err
 		}
 
-		stat, err := os.Stat(viper.GetString(contentFlag))
+		stat, err := os.Stat(viper.GetString(srcFlag))
 		if err != nil {
 			return err
 		}
@@ -68,52 +69,44 @@ var updateCmd = &cobra.Command{
 		hdr.Format = tar.FormatPAX
 
 		if !viper.GetBool(contentFlag) {
+			// Metadata-only update; use the old record & block
 			oldhdr, err := metadataPersister.GetHeader(context.Background(), viper.GetString(srcFlag))
 			if err != nil {
 				return err
 			}
 
-			newHdr, err := converters.TarHeaderToDBHeader(-1, -1, hdr)
+			newHdr, err := converters.TarHeaderToDBHeader(oldhdr.Record, oldhdr.Block, hdr)
 			if err != nil {
 				return err
 			}
-
-			// Metadata-only update; use the old record & block
-			newHdr.Record = oldhdr.Record
-			newHdr.Block = oldhdr.Block
 
 			// Add the update header to the index
 			if err := metadataPersister.UpdateHeaderMetadata(context.Background(), newHdr); err != nil {
 				return nil
 			}
 
+			// Append update headers to the tape/tar file
+			if hdr.PAXRecords == nil {
+				hdr.PAXRecords = map[string]string{}
+			}
+			hdr.Size = 0 // Don't try to seek after the record
+			hdr.PAXRecords[pax.STFSRecordVersion] = pax.STFSRecordVersion1
+			hdr.PAXRecords[pax.STFSRecordAction] = pax.STFSRecordActionUpdate
+
+			if err := tw.WriteHeader(hdr); err != nil {
+				return err
+			}
+
+			dirty = true
+
 			if err := formatting.PrintCSV(formatting.TARHeaderCSV); err != nil {
 				return err
 			}
+
+			if err := formatting.PrintCSV(formatting.GetTARHeaderAsCSV(-1, -1, hdr)); err != nil {
+				return err
+			}
 		}
-
-		// TODO: Append the headers to the tape
-		// Append update headers to the tape/tar file
-		// hdr, err := converters.DBHeaderToTarHeader(dbhdr)
-		// if err != nil {
-		// 	return err
-		// }
-
-		// hdr.Size = 0 // Don't try to seek after the record
-		// hdr.Name = strings.TrimSuffix(viper.GetString(dstFlag), "/") + strings.TrimPrefix(hdr.Name, strings.TrimSuffix(viper.GetString(srcFlag), "/"))
-		// hdr.PAXRecords[pax.STFSRecordVersion] = pax.STFSRecordVersion1
-		// hdr.PAXRecords[pax.STFSRecordAction] = pax.STFSRecordActionUpdate
-		// hdr.PAXRecords[pax.STFSRecordReplacesName] = dbhdr.Name
-
-		// if err := tw.WriteHeader(hdr); err != nil {
-		// 	return err
-		// }
-
-		// dirty = true
-
-		// if err := formatting.PrintCSV(formatting.GetTARHeaderAsCSV(-1, -1, hdr)); err != nil {
-		// 	return err
-		// }
 
 		return nil
 	},

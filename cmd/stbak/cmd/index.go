@@ -271,34 +271,32 @@ func indexHeader(record, block int64, hdr *tar.Header, metadataPersister *persis
 				oldName = hdr.PAXRecords[pax.STFSRecordReplacesName]
 			}
 
-			if _, ok := hdr.PAXRecords[pax.STFSRecordReplacesContent]; ok {
-				var newHdr *models.Header
-				if hdr.PAXRecords[pax.STFSRecordReplacesContent] == pax.STFSRecordReplacesContentTrue {
-					// Content & metadata update; use the new record & block
-					h, err := converters.TarHeaderToDBHeader(record, block, hdr)
-					if err != nil {
-						return err
-					}
-
-					newHdr = h
-				} else {
-					// Metadata-only update; use the old record & block
-					oldHdr, err := metadataPersister.GetHeader(context.Background(), oldName)
-					if err != nil {
-						return err
-					}
-
-					h, err := converters.TarHeaderToDBHeader(oldHdr.Record, oldHdr.Block, hdr)
-					if err != nil {
-						return err
-					}
-
-					newHdr = h
-				}
-
-				if err := metadataPersister.UpdateHeaderMetadata(context.Background(), newHdr); err != nil {
+			var newHdr *models.Header
+			if replacesContent, ok := hdr.PAXRecords[pax.STFSRecordReplacesContent]; ok && replacesContent == pax.STFSRecordReplacesContentTrue {
+				// Content & metadata update; use the new record & block
+				h, err := converters.TarHeaderToDBHeader(record, block, hdr)
+				if err != nil {
 					return err
 				}
+
+				newHdr = h
+			} else {
+				// Metadata-only update; use the old record & block
+				oldHdr, err := metadataPersister.GetHeader(context.Background(), oldName)
+				if err != nil {
+					return err
+				}
+
+				h, err := converters.TarHeaderToDBHeader(oldHdr.Record, oldHdr.Block, hdr)
+				if err != nil {
+					return err
+				}
+
+				newHdr = h
+			}
+
+			if err := metadataPersister.UpdateHeaderMetadata(context.Background(), newHdr); err != nil {
+				return err
 			}
 
 			if moveAfterEdits {
