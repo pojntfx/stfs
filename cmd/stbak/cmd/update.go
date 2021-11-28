@@ -40,16 +40,9 @@ var updateCmd = &cobra.Command{
 			return err
 		}
 
-		lastIndexedRecord := int64(0)
-		lastIndexedBlock := int64(0)
-		if !viper.GetBool(overwriteFlag) {
-			r, b, err := metadataPersister.GetLastIndexedRecordAndBlock(context.Background(), viper.GetInt(recordSizeFlag))
-			if err != nil {
-				return err
-			}
-
-			lastIndexedRecord = r
-			lastIndexedBlock = b
+		lastIndexedRecord, lastIndexedBlock, err := metadataPersister.GetLastIndexedRecordAndBlock(context.Background(), viper.GetInt(recordSizeFlag))
+		if err != nil {
+			return err
 		}
 
 		if err := update(
