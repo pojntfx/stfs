@@ -82,6 +82,10 @@ var restoreCmd = &cobra.Command{
 				dst = filepath.Base(hdr.Name)
 			}
 
+			if hdr.Typeflag == tar.TypeDir {
+				return os.MkdirAll(dst, hdr.FileInfo().Mode())
+			}
+
 			dstFile, err := os.OpenFile(dst, os.O_WRONLY|os.O_CREATE, hdr.FileInfo().Mode())
 			if err != nil {
 				return err
