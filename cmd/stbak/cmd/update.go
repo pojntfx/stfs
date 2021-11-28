@@ -3,10 +3,13 @@ package cmd
 import (
 	"archive/tar"
 	"context"
+	"io"
+	"io/fs"
 	"os"
+	"path/filepath"
 
 	"github.com/pojntfx/stfs/pkg/adapters"
-	"github.com/pojntfx/stfs/pkg/converters"
+	"github.com/pojntfx/stfs/pkg/controllers"
 	"github.com/pojntfx/stfs/pkg/formatting"
 	"github.com/pojntfx/stfs/pkg/pax"
 	"github.com/pojntfx/stfs/pkg/persisters"
@@ -32,84 +35,141 @@ var updateCmd = &cobra.Command{
 			boil.DebugMode = true
 		}
 
-		dirty := false
-		tw, _, cleanup, err := openTapeWriter(viper.GetString(tapeFlag))
-		if err != nil {
-			return err
-		}
-		defer cleanup(&dirty)
-
 		metadataPersister := persisters.NewMetadataPersister(viper.GetString(metadataFlag))
 		if err := metadataPersister.Open(); err != nil {
 			return err
 		}
 
-		stat, err := os.Stat(viper.GetString(srcFlag))
+		lastIndexedRecord := int64(0)
+		lastIndexedBlock := int64(0)
+		if !viper.GetBool(overwriteFlag) {
+			r, b, err := metadataPersister.GetLastIndexedRecordAndBlock(context.Background(), viper.GetInt(recordSizeFlag))
+			if err != nil {
+				return err
+			}
+
+			lastIndexedRecord = r
+			lastIndexedBlock = b
+		}
+
+		if err := update(
+			viper.GetString(tapeFlag),
+			viper.GetInt(recordSizeFlag),
+			viper.GetString(srcFlag),
+			viper.GetBool(contentFlag),
+		); err != nil {
+			return err
+		}
+
+		return index(
+			viper.GetString(tapeFlag),
+			viper.GetString(metadataFlag),
+			viper.GetInt(recordSizeFlag),
+			int(lastIndexedRecord),
+			int(lastIndexedBlock),
+			false,
+		)
+	},
+}
+
+func update(
+	tape string,
+	recordSize int,
+	src string,
+	replacesContent bool,
+) error {
+	dirty := false
+	tw, isRegular, cleanup, err := openTapeWriter(tape)
+	if err != nil {
+		return err
+	}
+	defer cleanup(&dirty)
+
+	first := true
+	return filepath.Walk(src, func(path string, info fs.FileInfo, err error) error {
 		if err != nil {
 			return err
 		}
 
 		link := ""
-		if stat.Mode()&os.ModeSymlink == os.ModeSymlink {
-			if link, err = os.Readlink(viper.GetString(srcFlag)); err != nil {
+		if info.Mode()&os.ModeSymlink == os.ModeSymlink {
+			if link, err = os.Readlink(path); err != nil {
 				return err
 			}
 		}
 
-		hdr, err := tar.FileInfoHeader(stat, link)
+		hdr, err := tar.FileInfoHeader(info, link)
 		if err != nil {
 			return err
 		}
 
-		if err := adapters.EnhanceHeader(viper.GetString(srcFlag), hdr); err != nil {
+		if err := adapters.EnhanceHeader(path, hdr); err != nil {
 			return err
 		}
 
-		hdr.Name = viper.GetString(srcFlag)
+		hdr.Name = path
 		hdr.Format = tar.FormatPAX
+		if hdr.PAXRecords == nil {
+			hdr.PAXRecords = map[string]string{}
+		}
+		hdr.PAXRecords[pax.STFSRecordVersion] = pax.STFSRecordVersion1
+		hdr.PAXRecords[pax.STFSRecordAction] = pax.STFSRecordActionUpdate
 
-		if !viper.GetBool(contentFlag) {
-			// Metadata-only update; use the old record & block
-			oldhdr, err := metadataPersister.GetHeader(context.Background(), viper.GetString(srcFlag))
-			if err != nil {
+		if first {
+			if err := formatting.PrintCSV(formatting.TARHeaderCSV); err != nil {
 				return err
 			}
 
-			newHdr, err := converters.TarHeaderToDBHeader(oldhdr.Record, oldhdr.Block, hdr)
-			if err != nil {
+			first = false
+		}
+
+		if replacesContent {
+			hdr.PAXRecords[pax.STFSRecordReplacesContent] = pax.STFSRecordReplacesContentTrue
+
+			if err := formatting.PrintCSV(formatting.GetTARHeaderAsCSV(-1, -1, hdr)); err != nil {
 				return err
 			}
-
-			// Add the update header to the index
-			if err := metadataPersister.UpdateHeaderMetadata(context.Background(), newHdr); err != nil {
-				return nil
-			}
-
-			// Append update headers to the tape/tar file
-			if hdr.PAXRecords == nil {
-				hdr.PAXRecords = map[string]string{}
-			}
-			hdr.Size = 0 // Don't try to seek after the record
-			hdr.PAXRecords[pax.STFSRecordVersion] = pax.STFSRecordVersion1
-			hdr.PAXRecords[pax.STFSRecordAction] = pax.STFSRecordActionUpdate
 
 			if err := tw.WriteHeader(hdr); err != nil {
 				return err
 			}
 
-			dirty = true
+			if !info.Mode().IsRegular() {
+				return nil
+			}
 
-			if err := formatting.PrintCSV(formatting.TARHeaderCSV); err != nil {
+			file, err := os.Open(path)
+			if err != nil {
 				return err
 			}
+			defer file.Close()
+
+			if isRegular {
+				if _, err := io.Copy(tw, file); err != nil {
+					return err
+				}
+			} else {
+				buf := make([]byte, controllers.BlockSize*recordSize)
+				if _, err := io.CopyBuffer(tw, file, buf); err != nil {
+					return err
+				}
+			}
+		} else {
+			hdr.Size = 0 // Don't try to seek after the record
 
 			if err := formatting.PrintCSV(formatting.GetTARHeaderAsCSV(-1, -1, hdr)); err != nil {
 				return err
 			}
+
+			if err := tw.WriteHeader(hdr); err != nil {
+				return err
+			}
 		}
 
+		dirty = true
+
 		return nil
-	},
+	})
 }
 
 func init() {
