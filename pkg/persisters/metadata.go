@@ -17,6 +17,10 @@ import (
 	"github.com/volatiletech/sqlboiler/v4/queries/qm"
 )
 
+type depth struct {
+	Depth int64 `boil:"depth" json:"depth" toml:"depth" yaml:"depth"`
+}
+
 type MetadataPersister struct {
 	*SQLite
 }
@@ -115,13 +119,31 @@ func (p *MetadataPersister) GetHeaderChildren(ctx context.Context, name string) 
 
 func (p *MetadataPersister) GetHeaderDirectChildren(ctx context.Context, name string) (models.HeaderSlice, error) {
 	prefix := strings.TrimSuffix(name, "/") + "/"
+	rootDepth := 0
+	headers := models.HeaderSlice{}
 
 	// Root node
 	if name == "" || name == "." || name == "/" || name == "./" {
 		prefix = ""
-	}
+		depth := depth{}
 
-	headers := models.HeaderSlice{}
+		if err := queries.Raw(
+			fmt.Sprintf(
+				`select min(length(%v) - length(replace(%v, "/", ""))) as depth from %v`,
+				models.HeaderColumns.Name,
+				models.HeaderColumns.Name,
+				models.TableNames.Headers,
+			),
+		).Bind(ctx, p.db, &depth); err != nil {
+			if err == sql.ErrNoRows {
+				return headers, nil
+			}
+
+			return nil, err
+		}
+
+		rootDepth = int(depth.Depth)
+	}
 
 	if err := queries.Raw(
 		fmt.Sprintf(
@@ -130,13 +152,13 @@ func (p *MetadataPersister) GetHeaderDirectChildren(ctx context.Context, name st
 from %v
 where %v like ?
     and (
-        depth = 0
+        depth = ?
         or (
             %v like '%%/'
-            and depth = 1
+            and depth = ?
         )
     )
-    and not %v in ('', '.', '/', './');`,
+    and not %v in ('', '.', '/', './')`,
 			models.HeaderColumns.Record,
 			models.HeaderColumns.Block,
 			models.HeaderColumns.Typeflag,
@@ -165,6 +187,8 @@ where %v like ?
 		prefix,
 		prefix,
 		prefix+"%",
+		rootDepth,
+		rootDepth+1,
 	).Bind(ctx, p.db, &headers); err != nil {
 		if err == sql.ErrNoRows {
 			return headers, nil
