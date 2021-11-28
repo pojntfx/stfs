@@ -87,6 +87,10 @@ var restoreCmd = &cobra.Command{
 				return err
 			}
 
+			if err := dstFile.Truncate(0); err != nil {
+				return err
+			}
+
 			if _, err := io.Copy(dstFile, tr); err != nil {
 				return err
 			}
