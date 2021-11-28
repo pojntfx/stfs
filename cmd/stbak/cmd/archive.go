@@ -208,7 +208,7 @@ func archive(
 func init() {
 	archiveCmd.PersistentFlags().IntP(recordSizeFlag, "e", 20, "Amount of 512-bit blocks per record")
 	archiveCmd.PersistentFlags().StringP(srcFlag, "s", ".", "File or directory to archive")
-	archiveCmd.PersistentFlags().BoolP(overwriteFlag, "o", false, "Start writing from the start instead of from the end of the tape/file")
+	archiveCmd.PersistentFlags().BoolP(overwriteFlag, "o", false, "Start writing from the start instead of from the end of the tape or tar file")
 
 	viper.AutomaticEnv()
 

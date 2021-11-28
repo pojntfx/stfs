@@ -113,5 +113,5 @@ func init() {
 
 	viper.AutomaticEnv()
 
-	rootCmd.AddCommand(restoreCmd)
+	recoveryCmd.AddCommand(restoreCmd)
 }

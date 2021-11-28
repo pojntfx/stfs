@@ -219,11 +219,11 @@ func init() {
 	indexCmd.PersistentFlags().IntP(recordSizeFlag, "e", 20, "Amount of 512-bit blocks per record")
 	indexCmd.PersistentFlags().IntP(recordFlag, "r", 0, "Record to seek too before counting")
 	indexCmd.PersistentFlags().IntP(blockFlag, "b", 0, "Block in record to seek too before counting")
-	indexCmd.PersistentFlags().BoolP(overwriteFlag, "o", false, "Start writing from the current position instead of from the end of the tape/file")
+	indexCmd.PersistentFlags().BoolP(overwriteFlag, "o", false, "Remove the old index before starting to index")
 
 	viper.AutomaticEnv()
 
-	rootCmd.AddCommand(indexCmd)
+	recoveryCmd.AddCommand(indexCmd)
 }
 
 func indexHeader(record, block int64, hdr *tar.Header, metadataPersister *persisters.MetadataPersister) error {
