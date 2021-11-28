@@ -26,7 +26,7 @@ const (
 var archiveCmd = &cobra.Command{
 	Use:     "archive",
 	Aliases: []string{"a"},
-	Short:   "Archive a directory",
+	Short:   "Archive a file or directory",
 	RunE: func(cmd *cobra.Command, args []string) error {
 		if err := viper.BindPFlags(cmd.PersistentFlags()); err != nil {
 			return err
@@ -85,27 +85,53 @@ func archive(
 		return err
 	}
 
-	if overwrite && isRegular {
-		if err := cleanup(&dirty); err != nil { // dirty will always be false here
-			return err
-		}
+	if overwrite {
+		if isRegular {
+			if err := cleanup(&dirty); err != nil { // dirty will always be false here
+				return err
+			}
 
-		f, err := os.OpenFile(tape, os.O_WRONLY|os.O_CREATE, 0600)
-		if err != nil {
-			return err
-		}
+			f, err := os.OpenFile(tape, os.O_WRONLY|os.O_CREATE, 0600)
+			if err != nil {
+				return err
+			}
 
-		if err := f.Truncate(0); err != nil {
-			return err
-		}
+			// Clear the file's content
+			if err := f.Truncate(0); err != nil {
+				return err
+			}
 
-		if err := f.Close(); err != nil {
-			return err
-		}
+			if err := f.Close(); err != nil {
+				return err
+			}
 
-		tw, isRegular, cleanup, err = openTapeWriter(tape)
-		if err != nil {
-			return err
+			tw, isRegular, cleanup, err = openTapeWriter(tape)
+			if err != nil {
+				return err
+			}
+		} else {
+			if err := cleanup(&dirty); err != nil { // dirty will always be false here
+				return err
+			}
+
+			f, err := os.OpenFile(tape, os.O_WRONLY, os.ModeCharDevice)
+			if err != nil {
+				return err
+			}
+
+			// Seek to the start of the tape
+			if err := controllers.SeekToRecordOnTape(f, 0); err != nil {
+				return err
+			}
+
+			if err := f.Close(); err != nil {
+				return err
+			}
+
+			tw, isRegular, cleanup, err = openTapeWriter(tape)
+			if err != nil {
+				return err
+			}
 		}
 	}
 
@@ -181,8 +207,8 @@ func archive(
 
 func init() {
 	archiveCmd.PersistentFlags().IntP(recordSizeFlag, "e", 20, "Amount of 512-bit blocks per record")
-	archiveCmd.PersistentFlags().StringP(srcFlag, "s", ".", "Directory to archive")
-	archiveCmd.PersistentFlags().BoolP(overwriteFlag, "o", false, "Start writing from the current position instead of from the end of the tape/file")
+	archiveCmd.PersistentFlags().StringP(srcFlag, "s", ".", "File or directory to archive")
+	archiveCmd.PersistentFlags().BoolP(overwriteFlag, "o", false, "Start writing from the start instead of from the end of the tape/file")
 
 	viper.AutomaticEnv()
 
