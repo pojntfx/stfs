@@ -168,7 +168,7 @@ func update(
 func init() {
 	updateCmd.PersistentFlags().IntP(recordSizeFlag, "e", 20, "Amount of 512-bit blocks per record")
 	updateCmd.PersistentFlags().StringP(srcFlag, "s", "", "Path of the file or directory to update")
-	updateCmd.PersistentFlags().BoolP(contentFlag, "c", false, "Replace the content on the tape/tar file")
+	updateCmd.PersistentFlags().BoolP(contentFlag, "c", false, "Replace the content on the tape or tar file")
 
 	viper.AutomaticEnv()
 

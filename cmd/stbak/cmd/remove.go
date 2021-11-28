@@ -73,7 +73,7 @@ var removeCmd = &cobra.Command{
 			return err
 		}
 
-		// Append deletion headers to the tape/tar file
+		// Append deletion headers to the tape or tar file
 		for _, dbhdr := range headersToDelete {
 			hdr, err := converters.DBHeaderToTarHeader(dbhdr)
 			if err != nil {

@@ -66,7 +66,7 @@ var moveCmd = &cobra.Command{
 			return err
 		}
 
-		// Append move headers to the tape/tar file
+		// Append move headers to the tape or tar file
 		for _, dbhdr := range headersToMove {
 			hdr, err := converters.DBHeaderToTarHeader(dbhdr)
 			if err != nil {
