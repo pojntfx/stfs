@@ -13,7 +13,7 @@ const (
 
 	STFSRecordReplacesContent      = "STFS.ReplacesContent"
 	STFSRecordReplacesContentTrue  = "true"
-	kTFSRecordReplacesContentFalse = "false"
+	STFSRecordReplacesContentFalse = "false"
 
 	STFSRecordReplacesName = "STFS.ReplacesName"
 )
