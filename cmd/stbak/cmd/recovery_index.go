@@ -20,7 +20,7 @@ import (
 	"github.com/volatiletech/sqlboiler/v4/boil"
 )
 
-var indexCmd = &cobra.Command{
+var recoveryIndexCmd = &cobra.Command{
 	Use:     "index",
 	Aliases: []string{"i"},
 	Short:   "Index contents of tape or tar file",
@@ -216,14 +216,14 @@ func index(
 }
 
 func init() {
-	indexCmd.PersistentFlags().IntP(recordSizeFlag, "e", 20, "Amount of 512-bit blocks per record")
-	indexCmd.PersistentFlags().IntP(recordFlag, "r", 0, "Record to seek too before counting")
-	indexCmd.PersistentFlags().IntP(blockFlag, "b", 0, "Block in record to seek too before counting")
-	indexCmd.PersistentFlags().BoolP(overwriteFlag, "o", false, "Remove the old index before starting to index")
+	recoveryIndexCmd.PersistentFlags().IntP(recordSizeFlag, "e", 20, "Amount of 512-bit blocks per record")
+	recoveryIndexCmd.PersistentFlags().IntP(recordFlag, "r", 0, "Record to seek too before counting")
+	recoveryIndexCmd.PersistentFlags().IntP(blockFlag, "b", 0, "Block in record to seek too before counting")
+	recoveryIndexCmd.PersistentFlags().BoolP(overwriteFlag, "o", false, "Remove the old index before starting to index")
 
 	viper.AutomaticEnv()
 
-	recoveryCmd.AddCommand(indexCmd)
+	recoveryCmd.AddCommand(recoveryIndexCmd)
 }
 
 func indexHeader(record, block int64, hdr *tar.Header, metadataPersister *persisters.MetadataPersister) error {

@@ -21,7 +21,7 @@ const (
 	previewFlag = "preview"
 )
 
-var restoreCmd = &cobra.Command{
+var recoveryRestoreCmd = &cobra.Command{
 	Use:     "restore",
 	Aliases: []string{"r"},
 	Short:   "Restore a file",
@@ -105,13 +105,13 @@ var restoreCmd = &cobra.Command{
 }
 
 func init() {
-	restoreCmd.PersistentFlags().IntP(recordSizeFlag, "e", 20, "Amount of 512-bit blocks per record")
-	restoreCmd.PersistentFlags().IntP(recordFlag, "r", 0, "Record to seek too")
-	restoreCmd.PersistentFlags().IntP(blockFlag, "b", 0, "Block in record to seek too")
-	restoreCmd.PersistentFlags().StringP(dstFlag, "d", "", "File to restore to (archived name by default)")
-	restoreCmd.PersistentFlags().BoolP(previewFlag, "p", false, "Only read the header")
+	recoveryRestoreCmd.PersistentFlags().IntP(recordSizeFlag, "e", 20, "Amount of 512-bit blocks per record")
+	recoveryRestoreCmd.PersistentFlags().IntP(recordFlag, "r", 0, "Record to seek too")
+	recoveryRestoreCmd.PersistentFlags().IntP(blockFlag, "b", 0, "Block in record to seek too")
+	recoveryRestoreCmd.PersistentFlags().StringP(dstFlag, "d", "", "File to restore to (archived name by default)")
+	recoveryRestoreCmd.PersistentFlags().BoolP(previewFlag, "p", false, "Only read the header")
 
 	viper.AutomaticEnv()
 
-	recoveryCmd.AddCommand(restoreCmd)
+	recoveryCmd.AddCommand(recoveryRestoreCmd)
 }

@@ -10,7 +10,7 @@ import (
 	"github.com/volatiletech/sqlboiler/v4/boil"
 )
 
-var tellCmd = &cobra.Command{
+var driveTellCmd = &cobra.Command{
 	Use:     "tell",
 	Aliases: []string{"t"},
 	Short:   "Get the current record (tape only)",
@@ -43,5 +43,5 @@ var tellCmd = &cobra.Command{
 func init() {
 	viper.AutomaticEnv()
 
-	driveCmd.AddCommand(tellCmd)
+	driveCmd.AddCommand(driveTellCmd)
 }
