@@ -14,10 +14,9 @@ import (
 	"github.com/volatiletech/sqlboiler/v4/boil"
 )
 
-var recoveryListCmd = &cobra.Command{
-	Use:     "list",
-	Aliases: []string{"l"},
-	Short:   "List contents of tape or tar file without the index",
+var recoveryQueryCmd = &cobra.Command{
+	Use:   "query",
+	Short: "Query contents of tape or tar file without the index",
 	RunE: func(cmd *cobra.Command, args []string) error {
 		if err := viper.BindPFlags(cmd.PersistentFlags()); err != nil {
 			return err
@@ -184,11 +183,11 @@ var recoveryListCmd = &cobra.Command{
 }
 
 func init() {
-	recoveryListCmd.PersistentFlags().IntP(recordSizeFlag, "e", 20, "Amount of 512-bit blocks per record")
-	recoveryListCmd.PersistentFlags().IntP(recordFlag, "r", 0, "Record to seek too before counting")
-	recoveryListCmd.PersistentFlags().IntP(blockFlag, "b", 0, "Block in record to seek too before counting")
+	recoveryQueryCmd.PersistentFlags().IntP(recordSizeFlag, "e", 20, "Amount of 512-bit blocks per record")
+	recoveryQueryCmd.PersistentFlags().IntP(recordFlag, "r", 0, "Record to seek too before counting")
+	recoveryQueryCmd.PersistentFlags().IntP(blockFlag, "b", 0, "Block in record to seek too before counting")
 
 	viper.AutomaticEnv()
 
-	recoveryCmd.AddCommand(recoveryListCmd)
+	recoveryCmd.AddCommand(recoveryQueryCmd)
 }

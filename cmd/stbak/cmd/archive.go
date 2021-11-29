@@ -25,7 +25,7 @@ const (
 
 var archiveCmd = &cobra.Command{
 	Use:     "archive",
-	Aliases: []string{"a"},
+	Aliases: []string{"arc", "a", "c"},
 	Short:   "Archive a file or directory to tape or tar file",
 	RunE: func(cmd *cobra.Command, args []string) error {
 		if err := viper.BindPFlags(cmd.PersistentFlags()); err != nil {

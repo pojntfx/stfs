@@ -21,9 +21,8 @@ import (
 )
 
 var recoveryIndexCmd = &cobra.Command{
-	Use:     "index",
-	Aliases: []string{"i"},
-	Short:   "Index contents of tape or tar file",
+	Use:   "index",
+	Short: "Index contents of tape or tar file",
 	RunE: func(cmd *cobra.Command, args []string) error {
 		if err := viper.BindPFlags(cmd.PersistentFlags()); err != nil {
 			return err

@@ -21,10 +21,9 @@ const (
 	previewFlag = "preview"
 )
 
-var recoveryRestoreCmd = &cobra.Command{
-	Use:     "restore",
-	Aliases: []string{"r"},
-	Short:   "Restore a file or directory from tape or tar file by record and block",
+var recoveryFetchCmd = &cobra.Command{
+	Use:   "fetch",
+	Short: "Fetch a file or directory from tape or tar file by record and block",
 	RunE: func(cmd *cobra.Command, args []string) error {
 		if err := viper.BindPFlags(cmd.PersistentFlags()); err != nil {
 			return err
@@ -126,13 +125,13 @@ func restoreFromRecordAndBlock(
 }
 
 func init() {
-	recoveryRestoreCmd.PersistentFlags().IntP(recordSizeFlag, "e", 20, "Amount of 512-bit blocks per record")
-	recoveryRestoreCmd.PersistentFlags().IntP(recordFlag, "r", 0, "Record to seek too")
-	recoveryRestoreCmd.PersistentFlags().IntP(blockFlag, "b", 0, "Block in record to seek too")
-	recoveryRestoreCmd.PersistentFlags().StringP(dstFlag, "d", "", "File to restore to (archived name by default)")
-	recoveryRestoreCmd.PersistentFlags().BoolP(previewFlag, "p", false, "Only read the header")
+	recoveryFetchCmd.PersistentFlags().IntP(recordSizeFlag, "e", 20, "Amount of 512-bit blocks per record")
+	recoveryFetchCmd.PersistentFlags().IntP(recordFlag, "r", 0, "Record to seek too")
+	recoveryFetchCmd.PersistentFlags().IntP(blockFlag, "b", 0, "Block in record to seek too")
+	recoveryFetchCmd.PersistentFlags().StringP(dstFlag, "d", "", "File to restore to (archived name by default)")
+	recoveryFetchCmd.PersistentFlags().BoolP(previewFlag, "p", false, "Only read the header")
 
 	viper.AutomaticEnv()
 
-	recoveryCmd.AddCommand(recoveryRestoreCmd)
+	recoveryCmd.AddCommand(recoveryFetchCmd)
 }
