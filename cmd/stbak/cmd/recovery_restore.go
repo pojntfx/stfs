@@ -34,74 +34,95 @@ var recoveryRestoreCmd = &cobra.Command{
 			boil.DebugMode = true
 		}
 
-		f, isRegular, err := openTapeReadOnly(viper.GetString(tapeFlag))
-		if err != nil {
+		return restoreFromRecordAndBlock(
+			viper.GetString(tapeFlag),
+			viper.GetInt(recordSizeFlag),
+			viper.GetInt(recordFlag),
+			viper.GetInt(blockFlag),
+			viper.GetString(dstFlag),
+			viper.GetBool(previewFlag),
+			true,
+		)
+	},
+}
+
+func restoreFromRecordAndBlock(
+	tape string,
+	recordSize int,
+	record int,
+	block int,
+	dst string,
+	preview bool,
+	showHeader bool,
+) error {
+	f, isRegular, err := openTapeReadOnly(tape)
+	if err != nil {
+		return err
+	}
+	defer f.Close()
+
+	var tr *tar.Reader
+	if isRegular {
+		// Seek to record and block
+		if _, err := f.Seek(int64((recordSize*controllers.BlockSize*record)+block*controllers.BlockSize), io.SeekStart); err != nil {
 			return err
 		}
-		defer f.Close()
 
-		var tr *tar.Reader
-		if isRegular {
-			// Seek to record and block
-			if _, err := f.Seek(int64((viper.GetInt(recordSizeFlag)*controllers.BlockSize*viper.GetInt(recordFlag))+viper.GetInt(blockFlag)*controllers.BlockSize), io.SeekStart); err != nil {
-				return err
-			}
-
-			tr = tar.NewReader(f)
-		} else {
-			// Seek to record
-			if err := controllers.SeekToRecordOnTape(f, int32(viper.GetInt(recordFlag))); err != nil {
-				return err
-			}
-
-			// Seek to block
-			br := bufio.NewReaderSize(f, controllers.BlockSize*viper.GetInt(recordSizeFlag))
-			if _, err := br.Read(make([]byte, viper.GetInt(blockFlag)*controllers.BlockSize)); err != nil {
-				return err
-			}
-
-			tr = tar.NewReader(br)
-		}
-
-		hdr, err := tr.Next()
-		if err != nil {
+		tr = tar.NewReader(f)
+	} else {
+		// Seek to record
+		if err := controllers.SeekToRecordOnTape(f, int32(record)); err != nil {
 			return err
 		}
 
+		// Seek to block
+		br := bufio.NewReaderSize(f, controllers.BlockSize*recordSize)
+		if _, err := br.Read(make([]byte, block*controllers.BlockSize)); err != nil {
+			return err
+		}
+
+		tr = tar.NewReader(br)
+	}
+
+	hdr, err := tr.Next()
+	if err != nil {
+		return err
+	}
+
+	if showHeader {
 		if err := formatting.PrintCSV(formatting.TARHeaderCSV); err != nil {
 			return err
 		}
 
-		if err := formatting.PrintCSV(formatting.GetTARHeaderAsCSV(int64(viper.GetInt(recordFlag)), int64(viper.GetInt(blockFlag)), hdr)); err != nil {
+		if err := formatting.PrintCSV(formatting.GetTARHeaderAsCSV(int64(record), int64(block), hdr)); err != nil {
+			return err
+		}
+	}
+
+	if !preview {
+		if dst == "" {
+			dst = filepath.Base(hdr.Name)
+		}
+
+		if hdr.Typeflag == tar.TypeDir {
+			return os.MkdirAll(dst, hdr.FileInfo().Mode())
+		}
+
+		dstFile, err := os.OpenFile(dst, os.O_WRONLY|os.O_CREATE, hdr.FileInfo().Mode())
+		if err != nil {
 			return err
 		}
 
-		if !viper.GetBool(previewFlag) {
-			dst := viper.GetString(dstFlag)
-			if dst == "" {
-				dst = filepath.Base(hdr.Name)
-			}
-
-			if hdr.Typeflag == tar.TypeDir {
-				return os.MkdirAll(dst, hdr.FileInfo().Mode())
-			}
-
-			dstFile, err := os.OpenFile(dst, os.O_WRONLY|os.O_CREATE, hdr.FileInfo().Mode())
-			if err != nil {
-				return err
-			}
-
-			if err := dstFile.Truncate(0); err != nil {
-				return err
-			}
-
-			if _, err := io.Copy(dstFile, tr); err != nil {
-				return err
-			}
+		if err := dstFile.Truncate(0); err != nil {
+			return err
 		}
 
-		return nil
-	},
+		if _, err := io.Copy(dstFile, tr); err != nil {
+			return err
+		}
+	}
+
+	return nil
 }
 
 func init() {
