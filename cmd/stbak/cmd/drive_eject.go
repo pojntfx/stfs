@@ -10,9 +10,8 @@ import (
 )
 
 var driveEjectCmd = &cobra.Command{
-	Use:     "eject",
-	Aliases: []string{"e"},
-	Short:   "Eject tape from drive",
+	Use:   "eject",
+	Short: "Eject tape from drive",
 	RunE: func(cmd *cobra.Command, args []string) error {
 		if err := viper.BindPFlags(cmd.PersistentFlags()); err != nil {
 			return err

@@ -24,7 +24,7 @@ const (
 
 var updateCmd = &cobra.Command{
 	Use:     "update",
-	Aliases: []string{"u"},
+	Aliases: []string{"upd", "u"},
 	Short:   "Update a file or directory's content and metadata on tape or tar file",
 	RunE: func(cmd *cobra.Command, args []string) error {
 		if err := viper.BindPFlags(cmd.PersistentFlags()); err != nil {

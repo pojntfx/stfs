@@ -22,10 +22,10 @@ const (
 	nameFlag = "name"
 )
 
-var removeCmd = &cobra.Command{
-	Use:     "remove",
-	Aliases: []string{"r"},
-	Short:   "Remove a file or directory from tape or tar file",
+var deleteCmd = &cobra.Command{
+	Use:     "delete",
+	Aliases: []string{"del", "d", "rm"},
+	Short:   "Delete a file or directory from tape or tar file",
 	RunE: func(cmd *cobra.Command, args []string) error {
 		if err := viper.BindPFlags(cmd.PersistentFlags()); err != nil {
 			return err
@@ -167,10 +167,10 @@ func openTapeWriter(tape string) (tw *tar.Writer, isRegular bool, cleanup func(d
 }
 
 func init() {
-	removeCmd.PersistentFlags().IntP(recordSizeFlag, "e", 20, "Amount of 512-bit blocks per record")
-	removeCmd.PersistentFlags().StringP(nameFlag, "n", "", "Name of the file to remove")
+	deleteCmd.PersistentFlags().IntP(recordSizeFlag, "e", 20, "Amount of 512-bit blocks per record")
+	deleteCmd.PersistentFlags().StringP(nameFlag, "n", "", "Name of the file to remove")
 
 	viper.AutomaticEnv()
 
-	rootCmd.AddCommand(removeCmd)
+	rootCmd.AddCommand(deleteCmd)
 }
