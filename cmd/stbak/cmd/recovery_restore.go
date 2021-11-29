@@ -24,7 +24,7 @@ const (
 var recoveryRestoreCmd = &cobra.Command{
 	Use:     "restore",
 	Aliases: []string{"r"},
-	Short:   "Restore a file",
+	Short:   "Restore a file or directory from tape or tar file by record and block",
 	RunE: func(cmd *cobra.Command, args []string) error {
 		if err := viper.BindPFlags(cmd.PersistentFlags()); err != nil {
 			return err

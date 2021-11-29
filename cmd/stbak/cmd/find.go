@@ -19,7 +19,7 @@ const (
 var findCmd = &cobra.Command{
 	Use:     "find",
 	Aliases: []string{"f"},
-	Short:   "Find a file or directory by matching against a regex",
+	Short:   "Find a file or directory on tape or tar file by matching against a regex",
 	RunE: func(cmd *cobra.Command, args []string) error {
 		if err := viper.BindPFlags(cmd.PersistentFlags()); err != nil {
 			return err

@@ -17,7 +17,7 @@ import (
 var recoveryListCmd = &cobra.Command{
 	Use:     "list",
 	Aliases: []string{"l"},
-	Short:   "List contents of tape or tar file",
+	Short:   "List contents of tape or tar file without the index",
 	RunE: func(cmd *cobra.Command, args []string) error {
 		if err := viper.BindPFlags(cmd.PersistentFlags()); err != nil {
 			return err

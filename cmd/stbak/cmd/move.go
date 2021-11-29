@@ -18,7 +18,7 @@ import (
 var moveCmd = &cobra.Command{
 	Use:     "move",
 	Aliases: []string{"m"},
-	Short:   "Move a file from tape or tar file and index",
+	Short:   "Move a file or directory on tape or tar file",
 	RunE: func(cmd *cobra.Command, args []string) error {
 		if err := viper.BindPFlags(cmd.PersistentFlags()); err != nil {
 			return err

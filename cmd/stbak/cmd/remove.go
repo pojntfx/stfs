@@ -25,7 +25,7 @@ const (
 var removeCmd = &cobra.Command{
 	Use:     "remove",
 	Aliases: []string{"r"},
-	Short:   "Remove a file from tape or tar file and index",
+	Short:   "Remove a file or directory from tape or tar file",
 	RunE: func(cmd *cobra.Command, args []string) error {
 		if err := viper.BindPFlags(cmd.PersistentFlags()); err != nil {
 			return err
