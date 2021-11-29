@@ -13,7 +13,7 @@ import (
 var driveTellCmd = &cobra.Command{
 	Use:     "tell",
 	Aliases: []string{"t"},
-	Short:   "Get the current record (tape only)",
+	Short:   "Get the current record on the tape",
 	RunE: func(cmd *cobra.Command, args []string) error {
 		if err := viper.BindPFlags(cmd.PersistentFlags()); err != nil {
 			return err
