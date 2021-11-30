@@ -4,11 +4,13 @@ import (
 	"archive/tar"
 	"bufio"
 	"compress/gzip"
+	"context"
 	"io"
 	"os"
 	"path/filepath"
 
 	"github.com/andybalholm/brotli"
+	"github.com/cosnicolaou/pbzip2"
 	"github.com/dsnet/compress/bzip2"
 	"github.com/klauspost/compress/zstd"
 	"github.com/klauspost/pgzip"
@@ -183,6 +185,12 @@ func restoreFromRecordAndBlock(
 			if err != nil {
 				return err
 			}
+
+			if _, err := io.Copy(dstFile, bz); err != nil {
+				return err
+			}
+		case compressionFormatBzip2ParallelKey:
+			bz := pbzip2.NewReader(context.Background(), tr)
 
 			if _, err := io.Copy(dstFile, bz); err != nil {
 				return err

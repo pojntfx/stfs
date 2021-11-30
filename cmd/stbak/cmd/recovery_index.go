@@ -280,6 +280,8 @@ func indexHeader(
 		case compressionFormatBrotliKey:
 			hdr.Name = strings.TrimSuffix(hdr.Name, compressionFormatBrotliSuffix)
 		case compressionFormatBzip2Key:
+			fallthrough
+		case compressionFormatBzip2ParallelKey:
 			hdr.Name = strings.TrimSuffix(hdr.Name, compressionFormatBzip2Suffix)
 		case compressionFormatNoneKey:
 		default:
