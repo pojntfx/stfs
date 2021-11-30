@@ -5,6 +5,7 @@ import (
 	"bufio"
 	"context"
 	"io"
+	"io/ioutil"
 	"math"
 	"os"
 
@@ -139,7 +140,16 @@ func index(
 				return err
 			}
 
-			nextTotalBlocks := math.Ceil(float64((curr + hdr.Size)) / float64(controllers.BlockSize))
+			if _, err := io.Copy(ioutil.Discard, tr); err != nil {
+				return err
+			}
+
+			currAndSize, err := f.Seek(0, io.SeekCurrent)
+			if err != nil {
+				return err
+			}
+
+			nextTotalBlocks := math.Ceil(float64(curr+(currAndSize-curr)) / float64(controllers.BlockSize))
 			record = int64(nextTotalBlocks) / int64(recordSize)
 			block = int64(nextTotalBlocks) - (record * int64(recordSize))
 
@@ -200,7 +210,13 @@ func index(
 
 			curr = int64(counter.BytesRead)
 
-			nextTotalBlocks := math.Ceil(float64((curr + hdr.Size)) / float64(controllers.BlockSize))
+			if _, err := io.Copy(ioutil.Discard, tr); err != nil {
+				return err
+			}
+
+			currAndSize := int64(counter.BytesRead)
+
+			nextTotalBlocks := math.Ceil(float64(curr+(currAndSize-curr)) / float64(controllers.BlockSize))
 			record = int64(nextTotalBlocks) / int64(recordSize)
 			block = int64(nextTotalBlocks) - (record * int64(recordSize))
 
