@@ -29,10 +29,13 @@ const (
 
 	compressionFormatZStandardKey    = "zstandard"
 	compressionFormatZStandardSuffix = ".zst"
+
+	compressionFormatBrotliKey    = "brotli"
+	compressionFormatBrotliSuffix = ".br"
 )
 
 var (
-	knownCompressionFormats = []string{compressionFormatNoneKey, compressionFormatGZipKey, compressionFormatParallelGZipKey, compressionFormatLZ4Key, compressionFormatZStandardKey}
+	knownCompressionFormats = []string{compressionFormatNoneKey, compressionFormatGZipKey, compressionFormatParallelGZipKey, compressionFormatLZ4Key, compressionFormatZStandardKey, compressionFormatBrotliKey}
 
 	errUnknownCompressionFormat     = errors.New("unknown compression format")
 	errUnsupportedCompressionFormat = errors.New("unsupported compression format")
