@@ -128,6 +128,7 @@ func update(
 				return nil
 			}
 
+			// TODO: Implement compression
 			file, err := os.Open(path)
 			if err != nil {
 				return err

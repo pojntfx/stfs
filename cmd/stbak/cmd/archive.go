@@ -4,6 +4,8 @@ import (
 	"archive/tar"
 	"compress/gzip"
 	"context"
+	"errors"
+	"fmt"
 	"io"
 	"io/fs"
 	"os"
@@ -27,9 +29,20 @@ import (
 )
 
 const (
-	recordSizeFlag = "record-size"
-	srcFlag        = "src"
-	overwriteFlag  = "overwrite"
+	recordSizeFlag       = "record-size"
+	srcFlag              = "src"
+	overwriteFlag        = "overwrite"
+	compressionLevelFlag = "compression-level"
+
+	compressionLevelFastest  = "fastest"
+	compressionLevelBalanced = "balanced"
+	compressionLevelSmallest = "smallest"
+)
+
+var (
+	knownCompressionLevels = []string{compressionLevelFastest, compressionLevelBalanced, compressionLevelSmallest}
+
+	errUnknownCompressionLevel = errors.New("unknown compression level")
 )
 
 type flusher interface {
@@ -42,11 +55,27 @@ var archiveCmd = &cobra.Command{
 	Use:     "archive",
 	Aliases: []string{"arc", "a", "c"},
 	Short:   "Archive a file or directory to tape or tar file",
-	RunE: func(cmd *cobra.Command, args []string) error {
+	PersistentPreRunE: func(cmd *cobra.Command, args []string) error {
 		if err := viper.BindPFlags(cmd.PersistentFlags()); err != nil {
 			return err
 		}
 
+		compressionLevelIsKnown := false
+		compressionLevel := viper.GetString(compressionLevelFlag)
+
+		for _, candidate := range knownCompressionLevels {
+			if compressionLevel == candidate {
+				compressionLevelIsKnown = true
+			}
+		}
+
+		if !compressionLevelIsKnown {
+			return errUnknownCompressionLevel
+		}
+
+		return nil
+	},
+	RunE: func(cmd *cobra.Command, args []string) error {
 		if viper.GetBool(verboseFlag) {
 			boil.DebugMode = true
 		}
@@ -74,6 +103,7 @@ var archiveCmd = &cobra.Command{
 			viper.GetString(srcFlag),
 			viper.GetBool(overwriteFlag),
 			viper.GetString(compressionFlag),
+			viper.GetString(compressionLevelFlag),
 		); err != nil {
 			return err
 		}
@@ -96,6 +126,7 @@ func archive(
 	src string,
 	overwrite bool,
 	compressionFormat string,
+	compressionLevel string,
 ) error {
 	dirty := false
 	tw, isRegular, cleanup, err := openTapeWriter(tape)
@@ -197,9 +228,35 @@ func archive(
 
 				var gz flusher
 				if compressionFormat == compressionFormatGZipKey {
-					gz = gzip.NewWriter(&fileSizeCounter)
+					l := gzip.DefaultCompression
+					switch compressionLevel {
+					case compressionLevelFastest:
+						l = gzip.BestSpeed
+					case compressionLevelBalanced:
+						l = gzip.DefaultCompression
+					case compressionLevelSmallest:
+						l = gzip.BestCompression
+					}
+
+					gz, err = gzip.NewWriterLevel(&fileSizeCounter, l)
+					if err != nil {
+						return err
+					}
 				} else {
-					gz = pgzip.NewWriter(&fileSizeCounter)
+					l := pgzip.DefaultCompression
+					switch compressionLevel {
+					case compressionLevelFastest:
+						l = pgzip.BestSpeed
+					case compressionLevelBalanced:
+						l = pgzip.DefaultCompression
+					case compressionLevelSmallest:
+						l = pgzip.BestCompression
+					}
+
+					gz, err = pgzip.NewWriterLevel(&fileSizeCounter, l)
+					if err != nil {
+						return err
+					}
 				}
 				if _, err := io.Copy(gz, file); err != nil {
 					return err
@@ -233,8 +290,18 @@ func archive(
 					Writer: io.Discard,
 				}
 
+				l := lz4.Level5
+				switch compressionLevel {
+				case compressionLevelFastest:
+					l = lz4.Level1
+				case compressionLevelBalanced:
+					l = lz4.Level5
+				case compressionLevelSmallest:
+					l = lz4.Level9
+				}
+
 				lz := lz4.NewWriter(&fileSizeCounter)
-				if err := lz.Apply(lz4.ConcurrencyOption(-1)); err != nil {
+				if err := lz.Apply(lz4.ConcurrencyOption(-1), lz4.CompressionLevelOption(l)); err != nil {
 					return err
 				}
 
@@ -267,7 +334,17 @@ func archive(
 					Writer: io.Discard,
 				}
 
-				zz, err := zstd.NewWriter(&fileSizeCounter)
+				l := zstd.SpeedDefault
+				switch compressionLevel {
+				case compressionLevelFastest:
+					l = zstd.SpeedFastest
+				case compressionLevelBalanced:
+					l = zstd.SpeedDefault
+				case compressionLevelSmallest:
+					l = zstd.SpeedBestCompression
+				}
+
+				zz, err := zstd.NewWriter(&fileSizeCounter, zstd.WithEncoderLevel(l))
 				if err != nil {
 					return err
 				}
@@ -304,7 +381,17 @@ func archive(
 					Writer: io.Discard,
 				}
 
-				br := brotli.NewWriter(&fileSizeCounter)
+				l := brotli.DefaultCompression
+				switch compressionLevel {
+				case compressionLevelFastest:
+					l = brotli.BestSpeed
+				case compressionLevelBalanced:
+					l = brotli.DefaultCompression
+				case compressionLevelSmallest:
+					l = brotli.BestCompression
+				}
+
+				br := brotli.NewWriterLevel(&fileSizeCounter, l)
 
 				if _, err := io.Copy(br, file); err != nil {
 					return err
@@ -340,7 +427,19 @@ func archive(
 					Writer: io.Discard,
 				}
 
-				bz, err := bzip2.NewWriter(&fileSizeCounter, nil)
+				l := bzip2.DefaultCompression
+				switch compressionLevel {
+				case compressionLevelFastest:
+					l = bzip2.BestSpeed
+				case compressionLevelBalanced:
+					l = bzip2.DefaultCompression
+				case compressionLevelSmallest:
+					l = bzip2.BestCompression
+				}
+
+				bz, err := bzip2.NewWriter(&fileSizeCounter, &bzip2.WriterConfig{
+					Level: l,
+				})
 				if err != nil {
 					return err
 				}
@@ -401,10 +500,37 @@ func archive(
 
 			var gz flusher
 			if compressionFormat == compressionFormatGZipKey {
-				gz = gzip.NewWriter(tw)
+				l := gzip.DefaultCompression
+				switch compressionLevel {
+				case compressionLevelFastest:
+					l = gzip.BestSpeed
+				case compressionLevelBalanced:
+					l = gzip.DefaultCompression
+				case compressionLevelSmallest:
+					l = gzip.BestCompression
+				}
+
+				gz, err = gzip.NewWriterLevel(tw, l)
+				if err != nil {
+					return err
+				}
 			} else {
-				gz = pgzip.NewWriter(tw)
+				l := pgzip.DefaultCompression
+				switch compressionLevel {
+				case compressionLevelFastest:
+					l = pgzip.BestSpeed
+				case compressionLevelBalanced:
+					l = pgzip.DefaultCompression
+				case compressionLevelSmallest:
+					l = pgzip.BestCompression
+				}
+
+				gz, err = pgzip.NewWriterLevel(tw, l)
+				if err != nil {
+					return err
+				}
 			}
+
 			if _, err := io.Copy(gz, file); err != nil {
 				return err
 			}
@@ -436,8 +562,18 @@ func archive(
 				return err
 			}
 
+			l := lz4.Level5
+			switch compressionLevel {
+			case compressionLevelFastest:
+				l = lz4.Level1
+			case compressionLevelBalanced:
+				l = lz4.Level5
+			case compressionLevelSmallest:
+				l = lz4.Level9
+			}
+
 			lz := lz4.NewWriter(tw)
-			if err := lz.Apply(lz4.ConcurrencyOption(-1)); err != nil {
+			if err := lz.Apply(lz4.ConcurrencyOption(-1), lz4.CompressionLevelOption(l)); err != nil {
 				return err
 			}
 
@@ -469,7 +605,17 @@ func archive(
 				return err
 			}
 
-			zz, err := zstd.NewWriter(tw)
+			l := zstd.SpeedDefault
+			switch compressionLevel {
+			case compressionLevelFastest:
+				l = zstd.SpeedFastest
+			case compressionLevelBalanced:
+				l = zstd.SpeedDefault
+			case compressionLevelSmallest:
+				l = zstd.SpeedBestCompression
+			}
+
+			zz, err := zstd.NewWriter(tw, zstd.WithEncoderLevel(l))
 			if err != nil {
 				return err
 			}
@@ -505,7 +651,17 @@ func archive(
 				return err
 			}
 
-			br := brotli.NewWriter(tw)
+			l := brotli.DefaultCompression
+			switch compressionLevel {
+			case compressionLevelFastest:
+				l = brotli.BestSpeed
+			case compressionLevelBalanced:
+				l = brotli.DefaultCompression
+			case compressionLevelSmallest:
+				l = brotli.BestCompression
+			}
+
+			br := brotli.NewWriterLevel(tw, l)
 
 			if _, err := io.Copy(br, file); err != nil {
 				return err
@@ -540,27 +696,39 @@ func archive(
 				return err
 			}
 
-			lz, err := bzip2.NewWriter(tw, nil)
+			l := bzip2.DefaultCompression
+			switch compressionLevel {
+			case compressionLevelFastest:
+				l = bzip2.BestSpeed
+			case compressionLevelBalanced:
+				l = bzip2.DefaultCompression
+			case compressionLevelSmallest:
+				l = bzip2.BestCompression
+			}
+
+			bz, err := bzip2.NewWriter(tw, &bzip2.WriterConfig{
+				Level: l,
+			})
 			if err != nil {
 				return err
 			}
 
-			if _, err := io.Copy(lz, file); err != nil {
+			if _, err := io.Copy(bz, file); err != nil {
 				return err
 			}
 
 			if isRegular {
-				if _, err := io.Copy(lz, file); err != nil {
+				if _, err := io.Copy(bz, file); err != nil {
 					return err
 				}
 			} else {
 				buf := make([]byte, controllers.BlockSize*recordSize)
-				if _, err := io.CopyBuffer(lz, file, buf); err != nil {
+				if _, err := io.CopyBuffer(bz, file, buf); err != nil {
 					return err
 				}
 			}
 
-			if err := lz.Close(); err != nil {
+			if err := bz.Close(); err != nil {
 				return err
 			}
 			if err := file.Close(); err != nil {
@@ -601,6 +769,7 @@ func init() {
 	archiveCmd.PersistentFlags().IntP(recordSizeFlag, "e", 20, "Amount of 512-bit blocks per record")
 	archiveCmd.PersistentFlags().StringP(srcFlag, "s", ".", "File or directory to archive")
 	archiveCmd.PersistentFlags().BoolP(overwriteFlag, "o", false, "Start writing from the start instead of from the end of the tape or tar file")
+	archiveCmd.PersistentFlags().StringP(compressionLevelFlag, "l", compressionLevelBalanced, fmt.Sprintf("Compression level to use (default %v, available are %v)", compressionLevelBalanced, knownCompressionLevels))
 
 	viper.AutomaticEnv()
 

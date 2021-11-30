@@ -57,16 +57,16 @@ https://github.com/pojntfx/stfs`,
 		viper.SetEnvPrefix("stbak")
 		viper.SetEnvKeyReplacer(strings.NewReplacer("-", "_", ".", "_"))
 
-		compressionIsKnown := false
-		chosenCompression := viper.GetString(compressionFlag)
+		compressionFormatIsKnown := false
+		compressionFormat := viper.GetString(compressionFlag)
 
 		for _, candidate := range knownCompressionFormats {
-			if chosenCompression == candidate {
-				compressionIsKnown = true
+			if compressionFormat == candidate {
+				compressionFormatIsKnown = true
 			}
 		}
 
-		if !compressionIsKnown {
+		if !compressionFormatIsKnown {
 			return errUnknownCompressionFormat
 		}
 
@@ -85,7 +85,7 @@ func Execute() {
 	rootCmd.PersistentFlags().StringP(tapeFlag, "t", "/dev/nst0", "Tape or tar file to use")
 	rootCmd.PersistentFlags().StringP(metadataFlag, "m", metadataPath, "Metadata database to use")
 	rootCmd.PersistentFlags().BoolP(verboseFlag, "v", false, "Enable verbose logging")
-	rootCmd.PersistentFlags().StringP(compressionFlag, "c", compressionFormatNoneKey, fmt.Sprintf("Compression format to use (default none, available are %v)", knownCompressionFormats))
+	rootCmd.PersistentFlags().StringP(compressionFlag, "c", compressionFormatNoneKey, fmt.Sprintf("Compression format to use (default %v, available are %v)", compressionFormatNoneKey, knownCompressionFormats))
 
 	if err := viper.BindPFlags(rootCmd.PersistentFlags()); err != nil {
 		panic(err)
