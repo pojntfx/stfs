@@ -328,6 +328,8 @@ func archive(
 
 				hdr.Name += compressionFormatBrotliSuffix
 			case compressionFormatBzip2Key:
+				fallthrough
+			case compressionFormatBzip2ParallelKey:
 				// Get the compressed size for the header
 				file, err := os.Open(path)
 				if err != nil {
@@ -530,6 +532,8 @@ func archive(
 				return err
 			}
 		case compressionFormatBzip2Key:
+			fallthrough
+		case compressionFormatBzip2ParallelKey:
 			// Compress and write the file
 			file, err := os.Open(path)
 			if err != nil {
