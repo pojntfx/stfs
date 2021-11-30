@@ -32,10 +32,13 @@ const (
 
 	compressionFormatBrotliKey    = "brotli"
 	compressionFormatBrotliSuffix = ".br"
+
+	compressionFormatBzip2Key    = "bzip2"
+	compressionFormatBzip2Suffix = ".bz2"
 )
 
 var (
-	knownCompressionFormats = []string{compressionFormatNoneKey, compressionFormatGZipKey, compressionFormatParallelGZipKey, compressionFormatLZ4Key, compressionFormatZStandardKey, compressionFormatBrotliKey}
+	knownCompressionFormats = []string{compressionFormatNoneKey, compressionFormatGZipKey, compressionFormatParallelGZipKey, compressionFormatLZ4Key, compressionFormatZStandardKey, compressionFormatBrotliKey, compressionFormatBzip2Key}
 
 	errUnknownCompressionFormat     = errors.New("unknown compression format")
 	errUnsupportedCompressionFormat = errors.New("unsupported compression format")

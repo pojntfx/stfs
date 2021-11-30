@@ -279,6 +279,8 @@ func indexHeader(
 			hdr.Name = strings.TrimSuffix(hdr.Name, compressionFormatZStandardSuffix)
 		case compressionFormatBrotliKey:
 			hdr.Name = strings.TrimSuffix(hdr.Name, compressionFormatBrotliSuffix)
+		case compressionFormatBzip2Key:
+			hdr.Name = strings.TrimSuffix(hdr.Name, compressionFormatBzip2Suffix)
 		case compressionFormatNoneKey:
 		default:
 			return errUnsupportedCompressionFormat

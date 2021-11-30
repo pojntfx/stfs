@@ -11,6 +11,7 @@ import (
 	"strconv"
 
 	"github.com/andybalholm/brotli"
+	"github.com/dsnet/compress/bzip2"
 	"github.com/klauspost/compress/zstd"
 	"github.com/klauspost/pgzip"
 	"github.com/pierrec/lz4/v4"
@@ -326,6 +327,40 @@ func archive(
 				hdr.Size = int64(fileSizeCounter.BytesRead)
 
 				hdr.Name += compressionFormatBrotliSuffix
+			case compressionFormatBzip2Key:
+				// Get the compressed size for the header
+				file, err := os.Open(path)
+				if err != nil {
+					return err
+				}
+
+				fileSizeCounter := counters.CounterWriter{
+					Writer: io.Discard,
+				}
+
+				bz, err := bzip2.NewWriter(&fileSizeCounter, nil)
+				if err != nil {
+					return err
+				}
+
+				if _, err := io.Copy(bz, file); err != nil {
+					return err
+				}
+
+				if err := bz.Close(); err != nil {
+					return err
+				}
+				if err := file.Close(); err != nil {
+					return err
+				}
+
+				if hdr.PAXRecords == nil {
+					hdr.PAXRecords = map[string]string{}
+				}
+				hdr.PAXRecords[pax.STFSRecordUncompressedSize] = strconv.Itoa(int(hdr.Size))
+				hdr.Size = int64(fileSizeCounter.BytesRead)
+
+				hdr.Name += compressionFormatBzip2Suffix
 			case compressionFormatNoneKey:
 			default:
 				return errUnsupportedCompressionFormat
@@ -489,6 +524,39 @@ func archive(
 				return err
 			}
 			if err := br.Close(); err != nil {
+				return err
+			}
+			if err := file.Close(); err != nil {
+				return err
+			}
+		case compressionFormatBzip2Key:
+			// Compress and write the file
+			file, err := os.Open(path)
+			if err != nil {
+				return err
+			}
+
+			lz, err := bzip2.NewWriter(tw, nil)
+			if err != nil {
+				return err
+			}
+
+			if _, err := io.Copy(lz, file); err != nil {
+				return err
+			}
+
+			if isRegular {
+				if _, err := io.Copy(lz, file); err != nil {
+					return err
+				}
+			} else {
+				buf := make([]byte, controllers.BlockSize*recordSize)
+				if _, err := io.CopyBuffer(lz, file, buf); err != nil {
+					return err
+				}
+			}
+
+			if err := lz.Close(); err != nil {
 				return err
 			}
 			if err := file.Close(); err != nil {
