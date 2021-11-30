@@ -42,7 +42,8 @@ const (
 var (
 	knownCompressionLevels = []string{compressionLevelFastest, compressionLevelBalanced, compressionLevelSmallest}
 
-	errUnknownCompressionLevel = errors.New("unknown compression level")
+	errUnknownCompressionLevel     = errors.New("unknown compression level")
+	errUnsupportedCompressionLevel = errors.New("unsupported compression level")
 )
 
 type flusher interface {
@@ -212,255 +213,51 @@ func archive(
 		hdr.Format = tar.FormatPAX
 
 		if info.Mode().IsRegular() {
+			// Get the compressed size for the header
+			file, err := os.Open(path)
+			if err != nil {
+				return err
+			}
+
+			fileSizeCounter := counters.CounterWriter{
+				Writer: io.Discard,
+			}
+
+			if err := compress(
+				file,
+				&fileSizeCounter,
+				compressionFormat,
+				compressionLevel,
+				isRegular,
+				recordSize,
+			); err != nil {
+				return err
+			}
+
+			if err := file.Close(); err != nil {
+				return err
+			}
+
+			if hdr.PAXRecords == nil {
+				hdr.PAXRecords = map[string]string{}
+			}
+			hdr.PAXRecords[pax.STFSRecordUncompressedSize] = strconv.Itoa(int(hdr.Size))
+			hdr.Size = int64(fileSizeCounter.BytesRead)
+
 			switch compressionFormat {
 			case compressionFormatGZipKey:
 				fallthrough
 			case compressionFormatParallelGZipKey:
-				// Get the compressed size for the header
-				file, err := os.Open(path)
-				if err != nil {
-					return err
-				}
-
-				fileSizeCounter := counters.CounterWriter{
-					Writer: io.Discard,
-				}
-
-				var gz flusher
-				if compressionFormat == compressionFormatGZipKey {
-					l := gzip.DefaultCompression
-					switch compressionLevel {
-					case compressionLevelFastest:
-						l = gzip.BestSpeed
-					case compressionLevelBalanced:
-						l = gzip.DefaultCompression
-					case compressionLevelSmallest:
-						l = gzip.BestCompression
-					}
-
-					gz, err = gzip.NewWriterLevel(&fileSizeCounter, l)
-					if err != nil {
-						return err
-					}
-				} else {
-					l := pgzip.DefaultCompression
-					switch compressionLevel {
-					case compressionLevelFastest:
-						l = pgzip.BestSpeed
-					case compressionLevelBalanced:
-						l = pgzip.DefaultCompression
-					case compressionLevelSmallest:
-						l = pgzip.BestCompression
-					}
-
-					gz, err = pgzip.NewWriterLevel(&fileSizeCounter, l)
-					if err != nil {
-						return err
-					}
-				}
-				if _, err := io.Copy(gz, file); err != nil {
-					return err
-				}
-
-				if err := gz.Flush(); err != nil {
-					return err
-				}
-				if err := gz.Close(); err != nil {
-					return err
-				}
-				if err := file.Close(); err != nil {
-					return err
-				}
-
-				if hdr.PAXRecords == nil {
-					hdr.PAXRecords = map[string]string{}
-				}
-				hdr.PAXRecords[pax.STFSRecordUncompressedSize] = strconv.Itoa(int(hdr.Size))
-				hdr.Size = int64(fileSizeCounter.BytesRead)
-
 				hdr.Name += compressionFormatGZipSuffix
 			case compressionFormatLZ4Key:
-				// Get the compressed size for the header
-				file, err := os.Open(path)
-				if err != nil {
-					return err
-				}
-
-				fileSizeCounter := counters.CounterWriter{
-					Writer: io.Discard,
-				}
-
-				l := lz4.Level5
-				switch compressionLevel {
-				case compressionLevelFastest:
-					l = lz4.Level1
-				case compressionLevelBalanced:
-					l = lz4.Level5
-				case compressionLevelSmallest:
-					l = lz4.Level9
-				}
-
-				lz := lz4.NewWriter(&fileSizeCounter)
-				if err := lz.Apply(lz4.ConcurrencyOption(-1), lz4.CompressionLevelOption(l)); err != nil {
-					return err
-				}
-
-				if _, err := io.Copy(lz, file); err != nil {
-					return err
-				}
-
-				if err := lz.Close(); err != nil {
-					return err
-				}
-				if err := file.Close(); err != nil {
-					return err
-				}
-
-				if hdr.PAXRecords == nil {
-					hdr.PAXRecords = map[string]string{}
-				}
-				hdr.PAXRecords[pax.STFSRecordUncompressedSize] = strconv.Itoa(int(hdr.Size))
-				hdr.Size = int64(fileSizeCounter.BytesRead)
-
 				hdr.Name += compressionFormatLZ4Suffix
 			case compressionFormatZStandardKey:
-				// Get the compressed size for the header
-				file, err := os.Open(path)
-				if err != nil {
-					return err
-				}
-
-				fileSizeCounter := counters.CounterWriter{
-					Writer: io.Discard,
-				}
-
-				l := zstd.SpeedDefault
-				switch compressionLevel {
-				case compressionLevelFastest:
-					l = zstd.SpeedFastest
-				case compressionLevelBalanced:
-					l = zstd.SpeedDefault
-				case compressionLevelSmallest:
-					l = zstd.SpeedBestCompression
-				}
-
-				zz, err := zstd.NewWriter(&fileSizeCounter, zstd.WithEncoderLevel(l))
-				if err != nil {
-					return err
-				}
-
-				if _, err := io.Copy(zz, file); err != nil {
-					return err
-				}
-
-				if err := zz.Flush(); err != nil {
-					return err
-				}
-				if err := zz.Close(); err != nil {
-					return err
-				}
-				if err := file.Close(); err != nil {
-					return err
-				}
-
-				if hdr.PAXRecords == nil {
-					hdr.PAXRecords = map[string]string{}
-				}
-				hdr.PAXRecords[pax.STFSRecordUncompressedSize] = strconv.Itoa(int(hdr.Size))
-				hdr.Size = int64(fileSizeCounter.BytesRead)
-
 				hdr.Name += compressionFormatZStandardSuffix
 			case compressionFormatBrotliKey:
-				// Get the compressed size for the header
-				file, err := os.Open(path)
-				if err != nil {
-					return err
-				}
-
-				fileSizeCounter := counters.CounterWriter{
-					Writer: io.Discard,
-				}
-
-				l := brotli.DefaultCompression
-				switch compressionLevel {
-				case compressionLevelFastest:
-					l = brotli.BestSpeed
-				case compressionLevelBalanced:
-					l = brotli.DefaultCompression
-				case compressionLevelSmallest:
-					l = brotli.BestCompression
-				}
-
-				br := brotli.NewWriterLevel(&fileSizeCounter, l)
-
-				if _, err := io.Copy(br, file); err != nil {
-					return err
-				}
-
-				if err := br.Flush(); err != nil {
-					return err
-				}
-				if err := br.Close(); err != nil {
-					return err
-				}
-				if err := file.Close(); err != nil {
-					return err
-				}
-
-				if hdr.PAXRecords == nil {
-					hdr.PAXRecords = map[string]string{}
-				}
-				hdr.PAXRecords[pax.STFSRecordUncompressedSize] = strconv.Itoa(int(hdr.Size))
-				hdr.Size = int64(fileSizeCounter.BytesRead)
-
 				hdr.Name += compressionFormatBrotliSuffix
 			case compressionFormatBzip2Key:
 				fallthrough
 			case compressionFormatBzip2ParallelKey:
-				// Get the compressed size for the header
-				file, err := os.Open(path)
-				if err != nil {
-					return err
-				}
-
-				fileSizeCounter := counters.CounterWriter{
-					Writer: io.Discard,
-				}
-
-				l := bzip2.DefaultCompression
-				switch compressionLevel {
-				case compressionLevelFastest:
-					l = bzip2.BestSpeed
-				case compressionLevelBalanced:
-					l = bzip2.DefaultCompression
-				case compressionLevelSmallest:
-					l = bzip2.BestCompression
-				}
-
-				bz, err := bzip2.NewWriter(&fileSizeCounter, &bzip2.WriterConfig{
-					Level: l,
-				})
-				if err != nil {
-					return err
-				}
-
-				if _, err := io.Copy(bz, file); err != nil {
-					return err
-				}
-
-				if err := bz.Close(); err != nil {
-					return err
-				}
-				if err := file.Close(); err != nil {
-					return err
-				}
-
-				if hdr.PAXRecords == nil {
-					hdr.PAXRecords = map[string]string{}
-				}
-				hdr.PAXRecords[pax.STFSRecordUncompressedSize] = strconv.Itoa(int(hdr.Size))
-				hdr.Size = int64(fileSizeCounter.BytesRead)
-
 				hdr.Name += compressionFormatBzip2Suffix
 			case compressionFormatNoneKey:
 			default:
@@ -488,281 +285,272 @@ func archive(
 			return nil
 		}
 
-		switch compressionFormat {
-		case compressionFormatGZipKey:
-			fallthrough
-		case compressionFormatParallelGZipKey:
-			// Compress and write the file
-			file, err := os.Open(path)
-			if err != nil {
-				return err
-			}
+		// Compress and write the file
+		file, err := os.Open(path)
+		if err != nil {
+			return err
+		}
 
-			var gz flusher
-			if compressionFormat == compressionFormatGZipKey {
-				l := gzip.DefaultCompression
-				switch compressionLevel {
-				case compressionLevelFastest:
-					l = gzip.BestSpeed
-				case compressionLevelBalanced:
-					l = gzip.DefaultCompression
-				case compressionLevelSmallest:
-					l = gzip.BestCompression
-				}
+		if err := compress(
+			file,
+			tw,
+			compressionFormat,
+			compressionLevel,
+			isRegular,
+			recordSize,
+		); err != nil {
+			return err
+		}
 
-				gz, err = gzip.NewWriterLevel(tw, l)
-				if err != nil {
-					return err
-				}
-			} else {
-				l := pgzip.DefaultCompression
-				switch compressionLevel {
-				case compressionLevelFastest:
-					l = pgzip.BestSpeed
-				case compressionLevelBalanced:
-					l = pgzip.DefaultCompression
-				case compressionLevelSmallest:
-					l = pgzip.BestCompression
-				}
-
-				gz, err = pgzip.NewWriterLevel(tw, l)
-				if err != nil {
-					return err
-				}
-			}
-
-			if _, err := io.Copy(gz, file); err != nil {
-				return err
-			}
-
-			if isRegular {
-				if _, err := io.Copy(gz, file); err != nil {
-					return err
-				}
-			} else {
-				buf := make([]byte, controllers.BlockSize*recordSize)
-				if _, err := io.CopyBuffer(gz, file, buf); err != nil {
-					return err
-				}
-			}
-
-			if err := gz.Flush(); err != nil {
-				return err
-			}
-			if err := gz.Close(); err != nil {
-				return err
-			}
-			if err := file.Close(); err != nil {
-				return err
-			}
-		case compressionFormatLZ4Key:
-			// Compress and write the file
-			file, err := os.Open(path)
-			if err != nil {
-				return err
-			}
-
-			l := lz4.Level5
-			switch compressionLevel {
-			case compressionLevelFastest:
-				l = lz4.Level1
-			case compressionLevelBalanced:
-				l = lz4.Level5
-			case compressionLevelSmallest:
-				l = lz4.Level9
-			}
-
-			lz := lz4.NewWriter(tw)
-			if err := lz.Apply(lz4.ConcurrencyOption(-1), lz4.CompressionLevelOption(l)); err != nil {
-				return err
-			}
-
-			if _, err := io.Copy(lz, file); err != nil {
-				return err
-			}
-
-			if isRegular {
-				if _, err := io.Copy(lz, file); err != nil {
-					return err
-				}
-			} else {
-				buf := make([]byte, controllers.BlockSize*recordSize)
-				if _, err := io.CopyBuffer(lz, file, buf); err != nil {
-					return err
-				}
-			}
-
-			if err := lz.Close(); err != nil {
-				return err
-			}
-			if err := file.Close(); err != nil {
-				return err
-			}
-		case compressionFormatZStandardKey:
-			// Compress and write the file
-			file, err := os.Open(path)
-			if err != nil {
-				return err
-			}
-
-			l := zstd.SpeedDefault
-			switch compressionLevel {
-			case compressionLevelFastest:
-				l = zstd.SpeedFastest
-			case compressionLevelBalanced:
-				l = zstd.SpeedDefault
-			case compressionLevelSmallest:
-				l = zstd.SpeedBestCompression
-			}
-
-			zz, err := zstd.NewWriter(tw, zstd.WithEncoderLevel(l))
-			if err != nil {
-				return err
-			}
-
-			if _, err := io.Copy(zz, file); err != nil {
-				return err
-			}
-
-			if isRegular {
-				if _, err := io.Copy(zz, file); err != nil {
-					return err
-				}
-			} else {
-				buf := make([]byte, controllers.BlockSize*recordSize)
-				if _, err := io.CopyBuffer(zz, file, buf); err != nil {
-					return err
-				}
-			}
-
-			if err := zz.Flush(); err != nil {
-				return err
-			}
-			if err := zz.Close(); err != nil {
-				return err
-			}
-			if err := file.Close(); err != nil {
-				return err
-			}
-		case compressionFormatBrotliKey:
-			// Compress and write the file
-			file, err := os.Open(path)
-			if err != nil {
-				return err
-			}
-
-			l := brotli.DefaultCompression
-			switch compressionLevel {
-			case compressionLevelFastest:
-				l = brotli.BestSpeed
-			case compressionLevelBalanced:
-				l = brotli.DefaultCompression
-			case compressionLevelSmallest:
-				l = brotli.BestCompression
-			}
-
-			br := brotli.NewWriterLevel(tw, l)
-
-			if _, err := io.Copy(br, file); err != nil {
-				return err
-			}
-
-			if isRegular {
-				if _, err := io.Copy(br, file); err != nil {
-					return err
-				}
-			} else {
-				buf := make([]byte, controllers.BlockSize*recordSize)
-				if _, err := io.CopyBuffer(br, file, buf); err != nil {
-					return err
-				}
-			}
-
-			if err := br.Flush(); err != nil {
-				return err
-			}
-			if err := br.Close(); err != nil {
-				return err
-			}
-			if err := file.Close(); err != nil {
-				return err
-			}
-		case compressionFormatBzip2Key:
-			fallthrough
-		case compressionFormatBzip2ParallelKey:
-			// Compress and write the file
-			file, err := os.Open(path)
-			if err != nil {
-				return err
-			}
-
-			l := bzip2.DefaultCompression
-			switch compressionLevel {
-			case compressionLevelFastest:
-				l = bzip2.BestSpeed
-			case compressionLevelBalanced:
-				l = bzip2.DefaultCompression
-			case compressionLevelSmallest:
-				l = bzip2.BestCompression
-			}
-
-			bz, err := bzip2.NewWriter(tw, &bzip2.WriterConfig{
-				Level: l,
-			})
-			if err != nil {
-				return err
-			}
-
-			if _, err := io.Copy(bz, file); err != nil {
-				return err
-			}
-
-			if isRegular {
-				if _, err := io.Copy(bz, file); err != nil {
-					return err
-				}
-			} else {
-				buf := make([]byte, controllers.BlockSize*recordSize)
-				if _, err := io.CopyBuffer(bz, file, buf); err != nil {
-					return err
-				}
-			}
-
-			if err := bz.Close(); err != nil {
-				return err
-			}
-			if err := file.Close(); err != nil {
-				return err
-			}
-		case compressionFormatNoneKey:
-			// Write the file
-			file, err := os.Open(path)
-			if err != nil {
-				return err
-			}
-
-			if isRegular {
-				if _, err := io.Copy(tw, file); err != nil {
-					return err
-				}
-			} else {
-				buf := make([]byte, controllers.BlockSize*recordSize)
-				if _, err := io.CopyBuffer(tw, file, buf); err != nil {
-					return err
-				}
-			}
-
-			if err := file.Close(); err != nil {
-				return err
-			}
-		default:
-			return errUnsupportedCompressionFormat
+		if err := file.Close(); err != nil {
+			return err
 		}
 
 		dirty = true
 
 		return nil
 	})
+}
+
+func compress(
+	file io.Reader,
+	tw io.Writer,
+	compressionFormat string,
+	compressionLevel string,
+	isRegular bool,
+	recordSize int,
+) error {
+	switch compressionFormat {
+	case compressionFormatGZipKey:
+		fallthrough
+	case compressionFormatParallelGZipKey:
+		var gz flusher
+		if compressionFormat == compressionFormatGZipKey {
+			l := gzip.DefaultCompression
+			switch compressionLevel {
+			case compressionLevelFastest:
+				l = gzip.BestSpeed
+			case compressionLevelBalanced:
+				l = gzip.DefaultCompression
+			case compressionLevelSmallest:
+				l = gzip.BestCompression
+			default:
+				return errUnsupportedCompressionLevel
+			}
+
+			g, err := gzip.NewWriterLevel(tw, l)
+			if err != nil {
+				return err
+			}
+			gz = g
+		} else {
+			l := pgzip.DefaultCompression
+			switch compressionLevel {
+			case compressionLevelFastest:
+				l = pgzip.BestSpeed
+			case compressionLevelBalanced:
+				l = pgzip.DefaultCompression
+			case compressionLevelSmallest:
+				l = pgzip.BestCompression
+			default:
+				return errUnsupportedCompressionLevel
+			}
+
+			g, err := pgzip.NewWriterLevel(tw, l)
+			if err != nil {
+				return err
+			}
+			gz = g
+		}
+
+		if _, err := io.Copy(gz, file); err != nil {
+			return err
+		}
+
+		if isRegular {
+			if _, err := io.Copy(gz, file); err != nil {
+				return err
+			}
+		} else {
+			buf := make([]byte, controllers.BlockSize*recordSize)
+			if _, err := io.CopyBuffer(gz, file, buf); err != nil {
+				return err
+			}
+		}
+
+		if err := gz.Flush(); err != nil {
+			return err
+		}
+		if err := gz.Close(); err != nil {
+			return err
+		}
+	case compressionFormatLZ4Key:
+		l := lz4.Level5
+		switch compressionLevel {
+		case compressionLevelFastest:
+			l = lz4.Level1
+		case compressionLevelBalanced:
+			l = lz4.Level5
+		case compressionLevelSmallest:
+			l = lz4.Level9
+		default:
+			return errUnsupportedCompressionLevel
+		}
+
+		lz := lz4.NewWriter(tw)
+		if err := lz.Apply(lz4.ConcurrencyOption(-1), lz4.CompressionLevelOption(l)); err != nil {
+			return err
+		}
+
+		if _, err := io.Copy(lz, file); err != nil {
+			return err
+		}
+
+		if isRegular {
+			if _, err := io.Copy(lz, file); err != nil {
+				return err
+			}
+		} else {
+			buf := make([]byte, controllers.BlockSize*recordSize)
+			if _, err := io.CopyBuffer(lz, file, buf); err != nil {
+				return err
+			}
+		}
+
+		if err := lz.Close(); err != nil {
+			return err
+		}
+	case compressionFormatZStandardKey:
+		l := zstd.SpeedDefault
+		switch compressionLevel {
+		case compressionLevelFastest:
+			l = zstd.SpeedFastest
+		case compressionLevelBalanced:
+			l = zstd.SpeedDefault
+		case compressionLevelSmallest:
+			l = zstd.SpeedBestCompression
+		default:
+			return errUnsupportedCompressionLevel
+		}
+
+		zz, err := zstd.NewWriter(tw, zstd.WithEncoderLevel(l))
+		if err != nil {
+			return err
+		}
+
+		if _, err := io.Copy(zz, file); err != nil {
+			return err
+		}
+
+		if isRegular {
+			if _, err := io.Copy(zz, file); err != nil {
+				return err
+			}
+		} else {
+			buf := make([]byte, controllers.BlockSize*recordSize)
+			if _, err := io.CopyBuffer(zz, file, buf); err != nil {
+				return err
+			}
+		}
+
+		if err := zz.Flush(); err != nil {
+			return err
+		}
+		if err := zz.Close(); err != nil {
+			return err
+		}
+	case compressionFormatBrotliKey:
+		l := brotli.DefaultCompression
+		switch compressionLevel {
+		case compressionLevelFastest:
+			l = brotli.BestSpeed
+		case compressionLevelBalanced:
+			l = brotli.DefaultCompression
+		case compressionLevelSmallest:
+			l = brotli.BestCompression
+		default:
+			return errUnsupportedCompressionLevel
+		}
+
+		br := brotli.NewWriterLevel(tw, l)
+
+		if _, err := io.Copy(br, file); err != nil {
+			return err
+		}
+
+		if isRegular {
+			if _, err := io.Copy(br, file); err != nil {
+				return err
+			}
+		} else {
+			buf := make([]byte, controllers.BlockSize*recordSize)
+			if _, err := io.CopyBuffer(br, file, buf); err != nil {
+				return err
+			}
+		}
+
+		if err := br.Flush(); err != nil {
+			return err
+		}
+		if err := br.Close(); err != nil {
+			return err
+		}
+	case compressionFormatBzip2Key:
+		fallthrough
+	case compressionFormatBzip2ParallelKey:
+		l := bzip2.DefaultCompression
+		switch compressionLevel {
+		case compressionLevelFastest:
+			l = bzip2.BestSpeed
+		case compressionLevelBalanced:
+			l = bzip2.DefaultCompression
+		case compressionLevelSmallest:
+			l = bzip2.BestCompression
+		default:
+			return errUnsupportedCompressionLevel
+		}
+
+		bz, err := bzip2.NewWriter(tw, &bzip2.WriterConfig{
+			Level: l,
+		})
+		if err != nil {
+			return err
+		}
+
+		if _, err := io.Copy(bz, file); err != nil {
+			return err
+		}
+
+		if isRegular {
+			if _, err := io.Copy(bz, file); err != nil {
+				return err
+			}
+		} else {
+			buf := make([]byte, controllers.BlockSize*recordSize)
+			if _, err := io.CopyBuffer(bz, file, buf); err != nil {
+				return err
+			}
+		}
+
+		if err := bz.Close(); err != nil {
+			return err
+		}
+	case compressionFormatNoneKey:
+		if isRegular {
+			if _, err := io.Copy(tw, file); err != nil {
+				return err
+			}
+		} else {
+			buf := make([]byte, controllers.BlockSize*recordSize)
+			if _, err := io.CopyBuffer(tw, file, buf); err != nil {
+				return err
+			}
+		}
+	default:
+		return errUnsupportedCompressionFormat
+	}
+
+	return nil
 }
 
 func init() {
