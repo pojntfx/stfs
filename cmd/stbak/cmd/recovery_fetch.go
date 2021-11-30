@@ -8,6 +8,7 @@ import (
 	"os"
 	"path/filepath"
 
+	"github.com/andybalholm/brotli"
 	"github.com/klauspost/compress/zstd"
 	"github.com/klauspost/pgzip"
 	"github.com/pierrec/lz4/v4"
@@ -168,6 +169,12 @@ func restoreFromRecordAndBlock(
 			}
 
 			if _, err := io.Copy(dstFile, zz); err != nil {
+				return err
+			}
+		case compressionFormatBrotliKey:
+			br := brotli.NewReader(tr)
+
+			if _, err := io.Copy(dstFile, br); err != nil {
 				return err
 			}
 		case compressionFormatNoneKey:
