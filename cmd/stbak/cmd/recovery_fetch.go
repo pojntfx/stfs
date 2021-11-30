@@ -9,6 +9,7 @@ import (
 	"path/filepath"
 
 	"github.com/klauspost/pgzip"
+	"github.com/pierrec/lz4/v4"
 	"github.com/pojntfx/stfs/pkg/controllers"
 	"github.com/pojntfx/stfs/pkg/formatting"
 	"github.com/spf13/cobra"
@@ -148,6 +149,15 @@ func restoreFromRecordAndBlock(
 			defer gz.Close()
 
 			if _, err := io.Copy(dstFile, gz); err != nil {
+				return err
+			}
+		case compressionFormatLZ4Key:
+			lz := lz4.NewReader(tr)
+			if err := lz.Apply(lz4.ConcurrencyOption(-1)); err != nil {
+				return err
+			}
+
+			if _, err := io.Copy(dstFile, lz); err != nil {
 				return err
 			}
 		case compressionFormatNoneKey:

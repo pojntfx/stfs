@@ -23,10 +23,13 @@ const (
 	compressionFormatGZipSuffix = ".gz"
 
 	compressionFormatParallelGZipKey = "parallelgzip"
+
+	compressionFormatLZ4Key    = "lz4"
+	compressionFormatLZ4Suffix = ".lz4"
 )
 
 var (
-	knownCompressionFormats = []string{compressionFormatNoneKey, compressionFormatGZipKey, compressionFormatParallelGZipKey}
+	knownCompressionFormats = []string{compressionFormatNoneKey, compressionFormatGZipKey, compressionFormatParallelGZipKey, compressionFormatLZ4Key}
 
 	errUnknownCompressionFormat     = errors.New("unknown compression format")
 	errUnsupportedCompressionFormat = errors.New("unsupported compression format")

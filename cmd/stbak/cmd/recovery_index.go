@@ -274,6 +274,10 @@ func indexHeader(
 		if hdr.FileInfo().Mode().IsRegular() {
 			hdr.Name = strings.TrimSuffix(hdr.Name, compressionFormatGZipSuffix)
 		}
+	case compressionFormatLZ4Key:
+		if hdr.FileInfo().Mode().IsRegular() {
+			hdr.Name = strings.TrimSuffix(hdr.Name, compressionFormatLZ4Suffix)
+		}
 	case compressionFormatNoneKey:
 	default:
 		return errUnsupportedCompressionFormat
