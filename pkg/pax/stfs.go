@@ -16,6 +16,8 @@ const (
 	STFSRecordReplacesContentFalse = "false"
 
 	STFSRecordReplacesName = "STFS.ReplacesName"
+
+	STFSRecordUncompressedSize = "STFS.UncompressedSize"
 )
 
 var (

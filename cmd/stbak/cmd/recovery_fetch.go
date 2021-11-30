@@ -3,6 +3,7 @@ package cmd
 import (
 	"archive/tar"
 	"bufio"
+	"compress/gzip"
 	"io"
 	"os"
 	"path/filepath"
@@ -41,6 +42,7 @@ var recoveryFetchCmd = &cobra.Command{
 			viper.GetString(dstFlag),
 			viper.GetBool(previewFlag),
 			true,
+			viper.GetString(compressionFlag),
 		)
 	},
 }
@@ -53,6 +55,7 @@ func restoreFromRecordAndBlock(
 	dst string,
 	preview bool,
 	showHeader bool,
+	compressionFormat string,
 ) error {
 	f, isRegular, err := openTapeReadOnly(tape)
 	if err != nil {
@@ -116,8 +119,32 @@ func restoreFromRecordAndBlock(
 			return err
 		}
 
-		if _, err := io.Copy(dstFile, tr); err != nil {
-			return err
+		// Don't decompress non-regular files
+		if !hdr.FileInfo().Mode().IsRegular() {
+			if _, err := io.Copy(dstFile, tr); err != nil {
+				return err
+			}
+
+			return nil
+		}
+
+		switch compressionFormat {
+		case compressionFormatGZipKey:
+			gz, err := gzip.NewReader(tr)
+			if err != nil {
+				return err
+			}
+			defer gz.Close()
+
+			if _, err := io.Copy(dstFile, gz); err != nil {
+				return err
+			}
+		case compressionFormatNoneKey:
+			if _, err := io.Copy(dstFile, tr); err != nil {
+				return err
+			}
+		default:
+			return errUnsupportedCompressionFormat
 		}
 	}
 

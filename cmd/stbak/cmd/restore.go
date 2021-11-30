@@ -103,6 +103,7 @@ var restoreCmd = &cobra.Command{
 				dst,
 				false,
 				false,
+				viper.GetString(compressionFlag),
 			); err != nil {
 				return err
 			}

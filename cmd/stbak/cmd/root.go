@@ -1,6 +1,7 @@
 package cmd
 
 import (
+	"errors"
 	"os"
 	"path/filepath"
 	"strings"
@@ -10,9 +11,21 @@ import (
 )
 
 const (
-	tapeFlag     = "tape"
-	metadataFlag = "metadata"
-	verboseFlag  = "verbose"
+	tapeFlag        = "tape"
+	metadataFlag    = "metadata"
+	verboseFlag     = "verbose"
+	compressionFlag = "compression"
+
+	compressionFormatNoneKey    = ""
+	compressionFormatGZipKey    = "gzip"
+	compressionFormatGZipSuffix = ".gz"
+)
+
+var (
+	knownCompressionFormats = []string{compressionFormatNoneKey, compressionFormatGZipKey}
+
+	errUnknownCompressionFormat     = errors.New("unknown compression format")
+	errUnsupportedCompressionFormat = errors.New("unsupported compression format")
 )
 
 var rootCmd = &cobra.Command{
@@ -22,9 +35,24 @@ var rootCmd = &cobra.Command{
 
 Find more information at:
 https://github.com/pojntfx/stfs`,
-	PersistentPreRun: func(cmd *cobra.Command, args []string) {
+	PersistentPreRunE: func(cmd *cobra.Command, args []string) error {
 		viper.SetEnvPrefix("stbak")
 		viper.SetEnvKeyReplacer(strings.NewReplacer("-", "_", ".", "_"))
+
+		compressionIsKnown := false
+		chosenCompression := viper.GetString(compressionFlag)
+
+		for _, candidate := range knownCompressionFormats {
+			if chosenCompression == candidate {
+				compressionIsKnown = true
+			}
+		}
+
+		if !compressionIsKnown {
+			return errUnknownCompressionFormat
+		}
+
+		return nil
 	},
 }
 
@@ -39,6 +67,7 @@ func Execute() {
 	rootCmd.PersistentFlags().StringP(tapeFlag, "t", "/dev/nst0", "Tape or tar file to use")
 	rootCmd.PersistentFlags().StringP(metadataFlag, "m", metadataPath, "Metadata database to use")
 	rootCmd.PersistentFlags().BoolP(verboseFlag, "v", false, "Enable verbose logging")
+	rootCmd.PersistentFlags().StringP(compressionFlag, "c", "", "Compression format to use (default none, available are none, gzip)")
 
 	if err := viper.BindPFlags(rootCmd.PersistentFlags()); err != nil {
 		panic(err)
