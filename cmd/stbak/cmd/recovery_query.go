@@ -47,8 +47,7 @@ var recoveryQueryCmd = &cobra.Command{
 			for {
 				hdr, err := tr.Next()
 				if err != nil {
-					// Seek right after the next two blocks to skip the trailer
-					if _, err := f.Seek((controllers.BlockSize * 2), io.SeekCurrent); err == nil {
+					for {
 						curr, err := f.Seek(0, io.SeekCurrent)
 						if err != nil {
 							return err
@@ -56,7 +55,7 @@ var recoveryQueryCmd = &cobra.Command{
 
 						nextTotalBlocks := math.Ceil(float64((curr)) / float64(controllers.BlockSize))
 						record = int64(nextTotalBlocks) / int64(viper.GetInt(recordSizeFlag))
-						block = int64(nextTotalBlocks) - (record * int64(viper.GetInt(recordSizeFlag))) - 2
+						block = int64(nextTotalBlocks) - (record * int64(viper.GetInt(recordSizeFlag)))
 
 						if block < 0 {
 							record--
@@ -76,14 +75,22 @@ var recoveryQueryCmd = &cobra.Command{
 						hdr, err = tr.Next()
 						if err != nil {
 							if err == io.EOF {
+								// EOF
+
 								break
 							}
 
-							return err
+							continue
 						}
-					} else {
-						return err
+
+						break
 					}
+				}
+
+				if hdr == nil {
+					// EOF
+
+					break
 				}
 
 				if record == 0 && block == 0 {

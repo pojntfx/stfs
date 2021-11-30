@@ -96,27 +96,26 @@ func index(
 		for {
 			hdr, err := tr.Next()
 			if err != nil {
-				// Seek right after the next two blocks to skip the trailer
-				if _, err := f.Seek((controllers.BlockSize * 2), io.SeekCurrent); err == nil {
+				for {
 					curr, err := f.Seek(0, io.SeekCurrent)
 					if err != nil {
 						return err
 					}
 
 					nextTotalBlocks := math.Ceil(float64((curr)) / float64(controllers.BlockSize))
-					record = int64(nextTotalBlocks) / int64(recordSize)
-					block = int64(nextTotalBlocks) - (record * int64(recordSize)) - 2
+					record = int64(nextTotalBlocks) / int64(viper.GetInt(recordSizeFlag))
+					block = int64(nextTotalBlocks) - (record * int64(viper.GetInt(recordSizeFlag)))
 
 					if block < 0 {
 						record--
-						block = int64(recordSize) - 1
-					} else if block >= int64(recordSize) {
+						block = int64(viper.GetInt(recordSizeFlag)) - 1
+					} else if block >= int64(viper.GetInt(recordSizeFlag)) {
 						record++
 						block = 0
 					}
 
 					// Seek to record and block
-					if _, err := f.Seek(int64((recordSize*controllers.BlockSize*int(record))+int(block)*controllers.BlockSize), io.SeekStart); err != nil {
+					if _, err := f.Seek(int64((viper.GetInt(recordSizeFlag)*controllers.BlockSize*int(record))+int(block)*controllers.BlockSize), io.SeekStart); err != nil {
 						return err
 					}
 
@@ -125,14 +124,22 @@ func index(
 					hdr, err = tr.Next()
 					if err != nil {
 						if err == io.EOF {
+							// EOF
+
 							break
 						}
 
-						return err
+						continue
 					}
-				} else {
-					return err
+
+					break
 				}
+			}
+
+			if hdr == nil {
+				// EOF
+
+				break
 			}
 
 			if err := indexHeader(record, block, hdr, metadataPersister, compressionFormat); err != nil {
