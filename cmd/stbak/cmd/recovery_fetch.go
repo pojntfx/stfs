@@ -8,6 +8,7 @@ import (
 	"os"
 	"path/filepath"
 
+	"github.com/klauspost/compress/zstd"
 	"github.com/klauspost/pgzip"
 	"github.com/pierrec/lz4/v4"
 	"github.com/pojntfx/stfs/pkg/controllers"
@@ -158,6 +159,15 @@ func restoreFromRecordAndBlock(
 			}
 
 			if _, err := io.Copy(dstFile, lz); err != nil {
+				return err
+			}
+		case compressionFormatZStandardKey:
+			zz, err := zstd.NewReader(tr)
+			if err != nil {
+				return err
+			}
+
+			if _, err := io.Copy(dstFile, zz); err != nil {
 				return err
 			}
 		case compressionFormatNoneKey:

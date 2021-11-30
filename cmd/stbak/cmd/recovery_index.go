@@ -267,20 +267,20 @@ func indexHeader(
 		hdr.Size = int64(size)
 	}
 
-	switch compressionFormat {
-	case compressionFormatGZipKey:
-		fallthrough
-	case compressionFormatParallelGZipKey:
-		if hdr.FileInfo().Mode().IsRegular() {
+	if hdr.FileInfo().Mode().IsRegular() {
+		switch compressionFormat {
+		case compressionFormatGZipKey:
+			fallthrough
+		case compressionFormatParallelGZipKey:
 			hdr.Name = strings.TrimSuffix(hdr.Name, compressionFormatGZipSuffix)
-		}
-	case compressionFormatLZ4Key:
-		if hdr.FileInfo().Mode().IsRegular() {
+		case compressionFormatLZ4Key:
 			hdr.Name = strings.TrimSuffix(hdr.Name, compressionFormatLZ4Suffix)
+		case compressionFormatZStandardKey:
+			hdr.Name = strings.TrimSuffix(hdr.Name, compressionFormatZStandardSuffix)
+		case compressionFormatNoneKey:
+		default:
+			return errUnsupportedCompressionFormat
 		}
-	case compressionFormatNoneKey:
-	default:
-		return errUnsupportedCompressionFormat
 	}
 
 	if err := formatting.PrintCSV(formatting.GetTARHeaderAsCSV(record, block, hdr)); err != nil {

@@ -10,6 +10,7 @@ import (
 	"path/filepath"
 	"strconv"
 
+	"github.com/klauspost/compress/zstd"
 	"github.com/klauspost/pgzip"
 	"github.com/pierrec/lz4/v4"
 	"github.com/pojntfx/stfs/pkg/adapters"
@@ -253,6 +254,43 @@ func archive(
 				hdr.Size = int64(fileSizeCounter.BytesRead)
 
 				hdr.Name += compressionFormatLZ4Suffix
+			case compressionFormatZStandardKey:
+				// Get the compressed size for the header
+				file, err := os.Open(path)
+				if err != nil {
+					return err
+				}
+
+				fileSizeCounter := counters.CounterWriter{
+					Writer: io.Discard,
+				}
+
+				zz, err := zstd.NewWriter(&fileSizeCounter)
+				if err != nil {
+					return err
+				}
+
+				if _, err := io.Copy(zz, file); err != nil {
+					return err
+				}
+
+				if err := zz.Flush(); err != nil {
+					return err
+				}
+				if err := zz.Close(); err != nil {
+					return err
+				}
+				if err := file.Close(); err != nil {
+					return err
+				}
+
+				if hdr.PAXRecords == nil {
+					hdr.PAXRecords = map[string]string{}
+				}
+				hdr.PAXRecords[pax.STFSRecordUncompressedSize] = strconv.Itoa(int(hdr.Size))
+				hdr.Size = int64(fileSizeCounter.BytesRead)
+
+				hdr.Name += compressionFormatZStandardSuffix
 			case compressionFormatNoneKey:
 			default:
 				return errUnsupportedCompressionFormat
@@ -347,6 +385,42 @@ func archive(
 			}
 
 			if err := lz.Close(); err != nil {
+				return err
+			}
+			if err := file.Close(); err != nil {
+				return err
+			}
+		case compressionFormatZStandardKey:
+			// Compress and write the file
+			file, err := os.Open(path)
+			if err != nil {
+				return err
+			}
+
+			zz, err := zstd.NewWriter(tw)
+			if err != nil {
+				return err
+			}
+
+			if _, err := io.Copy(zz, file); err != nil {
+				return err
+			}
+
+			if isRegular {
+				if _, err := io.Copy(zz, file); err != nil {
+					return err
+				}
+			} else {
+				buf := make([]byte, controllers.BlockSize*recordSize)
+				if _, err := io.CopyBuffer(zz, file, buf); err != nil {
+					return err
+				}
+			}
+
+			if err := zz.Flush(); err != nil {
+				return err
+			}
+			if err := zz.Close(); err != nil {
 				return err
 			}
 			if err := file.Close(); err != nil {
