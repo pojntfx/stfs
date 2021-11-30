@@ -3,13 +3,15 @@ package cmd
 import (
 	"archive/tar"
 	"context"
+	"fmt"
 	"io"
 	"io/fs"
 	"os"
 	"path/filepath"
+	"strconv"
 
 	"github.com/pojntfx/stfs/pkg/adapters"
-	"github.com/pojntfx/stfs/pkg/controllers"
+	"github.com/pojntfx/stfs/pkg/counters"
 	"github.com/pojntfx/stfs/pkg/formatting"
 	"github.com/pojntfx/stfs/pkg/pax"
 	"github.com/pojntfx/stfs/pkg/persisters"
@@ -22,6 +24,13 @@ var updateCmd = &cobra.Command{
 	Use:     "update",
 	Aliases: []string{"upd", "u"},
 	Short:   "Update a file or directory's content and metadata on tape or tar file",
+	PersistentPreRunE: func(cmd *cobra.Command, args []string) error {
+		if err := viper.BindPFlags(cmd.PersistentFlags()); err != nil {
+			return err
+		}
+
+		return checkCompressionLevel(viper.GetString(compressionLevelFlag))
+	},
 	RunE: func(cmd *cobra.Command, args []string) error {
 		if err := viper.BindPFlags(cmd.PersistentFlags()); err != nil {
 			return err
@@ -46,6 +55,8 @@ var updateCmd = &cobra.Command{
 			viper.GetInt(recordSizeFlag),
 			viper.GetString(srcFlag),
 			viper.GetBool(overwriteFlag),
+			viper.GetString(compressionFlag),
+			viper.GetString(compressionLevelFlag),
 		); err != nil {
 			return err
 		}
@@ -67,6 +78,8 @@ func update(
 	recordSize int,
 	src string,
 	replacesContent bool,
+	compressionFormat string,
+	compressionLevel string,
 ) error {
 	dirty := false
 	tw, isRegular, cleanup, err := openTapeWriter(tape)
@@ -105,6 +118,55 @@ func update(
 		hdr.PAXRecords[pax.STFSRecordVersion] = pax.STFSRecordVersion1
 		hdr.PAXRecords[pax.STFSRecordAction] = pax.STFSRecordActionUpdate
 
+		if info.Mode().IsRegular() && replacesContent {
+			// Get the compressed size for the header
+			file, err := os.Open(path)
+			if err != nil {
+				return err
+			}
+
+			fileSizeCounter := counters.CounterWriter{
+				Writer: io.Discard,
+			}
+
+			if err := compress(
+				file,
+				&fileSizeCounter,
+				compressionFormat,
+				compressionLevel,
+				isRegular,
+				recordSize,
+			); err != nil {
+				return err
+			}
+
+			if hdr.PAXRecords == nil {
+				hdr.PAXRecords = map[string]string{}
+			}
+			hdr.PAXRecords[pax.STFSRecordUncompressedSize] = strconv.Itoa(int(hdr.Size))
+			hdr.Size = int64(fileSizeCounter.BytesRead)
+
+			switch compressionFormat {
+			case compressionFormatGZipKey:
+				fallthrough
+			case compressionFormatParallelGZipKey:
+				hdr.Name += compressionFormatGZipSuffix
+			case compressionFormatLZ4Key:
+				hdr.Name += compressionFormatLZ4Suffix
+			case compressionFormatZStandardKey:
+				hdr.Name += compressionFormatZStandardSuffix
+			case compressionFormatBrotliKey:
+				hdr.Name += compressionFormatBrotliSuffix
+			case compressionFormatBzip2Key:
+				fallthrough
+			case compressionFormatBzip2ParallelKey:
+				hdr.Name += compressionFormatBzip2Suffix
+			case compressionFormatNoneKey:
+			default:
+				return errUnsupportedCompressionFormat
+			}
+		}
+
 		if first {
 			if err := formatting.PrintCSV(formatting.TARHeaderCSV); err != nil {
 				return err
@@ -128,22 +190,21 @@ func update(
 				return nil
 			}
 
-			// TODO: Implement compression
+			// Compress and write the file
 			file, err := os.Open(path)
 			if err != nil {
 				return err
 			}
-			defer file.Close()
 
-			if isRegular {
-				if _, err := io.Copy(tw, file); err != nil {
-					return err
-				}
-			} else {
-				buf := make([]byte, controllers.BlockSize*recordSize)
-				if _, err := io.CopyBuffer(tw, file, buf); err != nil {
-					return err
-				}
+			if err := compress(
+				file,
+				tw,
+				compressionFormat,
+				compressionLevel,
+				isRegular,
+				recordSize,
+			); err != nil {
+				return err
 			}
 		} else {
 			hdr.Size = 0 // Don't try to seek after the record
@@ -167,6 +228,7 @@ func init() {
 	updateCmd.PersistentFlags().IntP(recordSizeFlag, "e", 20, "Amount of 512-bit blocks per record")
 	updateCmd.PersistentFlags().StringP(srcFlag, "s", "", "Path of the file or directory to update")
 	updateCmd.PersistentFlags().BoolP(overwriteFlag, "o", false, "Replace the content on the tape or tar file")
+	updateCmd.PersistentFlags().StringP(compressionLevelFlag, "l", compressionLevelBalanced, fmt.Sprintf("Compression level to use (default %v, available are %v)", compressionLevelBalanced, knownCompressionLevels))
 
 	viper.AutomaticEnv()
 
