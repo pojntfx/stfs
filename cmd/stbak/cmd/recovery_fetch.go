@@ -8,6 +8,7 @@ import (
 	"os"
 	"path/filepath"
 
+	"github.com/klauspost/pgzip"
 	"github.com/pojntfx/stfs/pkg/controllers"
 	"github.com/pojntfx/stfs/pkg/formatting"
 	"github.com/spf13/cobra"
@@ -130,9 +131,19 @@ func restoreFromRecordAndBlock(
 
 		switch compressionFormat {
 		case compressionFormatGZipKey:
-			gz, err := gzip.NewReader(tr)
-			if err != nil {
-				return err
+			fallthrough
+		case compressionFormatParallelGZipKey:
+			var gz io.ReadCloser
+			if compressionFormat == compressionFormatGZipKey {
+				gz, err = gzip.NewReader(tr)
+				if err != nil {
+					return err
+				}
+			} else {
+				gz, err = pgzip.NewReader(tr)
+				if err != nil {
+					return err
+				}
 			}
 			defer gz.Close()
 

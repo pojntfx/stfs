@@ -2,6 +2,7 @@ package cmd
 
 import (
 	"errors"
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
@@ -16,13 +17,16 @@ const (
 	verboseFlag     = "verbose"
 	compressionFlag = "compression"
 
-	compressionFormatNoneKey    = ""
+	compressionFormatNoneKey = "none"
+
 	compressionFormatGZipKey    = "gzip"
 	compressionFormatGZipSuffix = ".gz"
+
+	compressionFormatParallelGZipKey = "parallelgzip"
 )
 
 var (
-	knownCompressionFormats = []string{compressionFormatNoneKey, compressionFormatGZipKey}
+	knownCompressionFormats = []string{compressionFormatNoneKey, compressionFormatGZipKey, compressionFormatParallelGZipKey}
 
 	errUnknownCompressionFormat     = errors.New("unknown compression format")
 	errUnsupportedCompressionFormat = errors.New("unsupported compression format")
@@ -67,7 +71,7 @@ func Execute() {
 	rootCmd.PersistentFlags().StringP(tapeFlag, "t", "/dev/nst0", "Tape or tar file to use")
 	rootCmd.PersistentFlags().StringP(metadataFlag, "m", metadataPath, "Metadata database to use")
 	rootCmd.PersistentFlags().BoolP(verboseFlag, "v", false, "Enable verbose logging")
-	rootCmd.PersistentFlags().StringP(compressionFlag, "c", "", "Compression format to use (default none, available are none, gzip)")
+	rootCmd.PersistentFlags().StringP(compressionFlag, "c", compressionFormatNoneKey, fmt.Sprintf("Compression format to use (default none, available are %v)", knownCompressionFormats))
 
 	if err := viper.BindPFlags(rootCmd.PersistentFlags()); err != nil {
 		panic(err)
