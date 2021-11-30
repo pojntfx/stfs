@@ -11,6 +11,7 @@ import (
 	"strconv"
 
 	"github.com/klauspost/pgzip"
+	"github.com/pierrec/lz4/v4"
 	"github.com/pojntfx/stfs/pkg/adapters"
 	"github.com/pojntfx/stfs/pkg/controllers"
 	"github.com/pojntfx/stfs/pkg/counters"
@@ -218,6 +219,40 @@ func archive(
 				hdr.Size = int64(fileSizeCounter.BytesRead)
 
 				hdr.Name += compressionFormatGZipSuffix
+			case compressionFormatLZ4Key:
+				// Get the compressed size for the header
+				file, err := os.Open(path)
+				if err != nil {
+					return err
+				}
+
+				fileSizeCounter := counters.CounterWriter{
+					Writer: io.Discard,
+				}
+
+				lz := lz4.NewWriter(&fileSizeCounter)
+				if err := lz.Apply(lz4.ConcurrencyOption(-1)); err != nil {
+					return err
+				}
+
+				if _, err := io.Copy(lz, file); err != nil {
+					return err
+				}
+
+				if err := lz.Close(); err != nil {
+					return err
+				}
+				if err := file.Close(); err != nil {
+					return err
+				}
+
+				if hdr.PAXRecords == nil {
+					hdr.PAXRecords = map[string]string{}
+				}
+				hdr.PAXRecords[pax.STFSRecordUncompressedSize] = strconv.Itoa(int(hdr.Size))
+				hdr.Size = int64(fileSizeCounter.BytesRead)
+
+				hdr.Name += compressionFormatLZ4Suffix
 			case compressionFormatNoneKey:
 			default:
 				return errUnsupportedCompressionFormat
@@ -279,6 +314,39 @@ func archive(
 				return err
 			}
 			if err := gz.Close(); err != nil {
+				return err
+			}
+			if err := file.Close(); err != nil {
+				return err
+			}
+		case compressionFormatLZ4Key:
+			// Compress and write the file
+			file, err := os.Open(path)
+			if err != nil {
+				return err
+			}
+
+			lz := lz4.NewWriter(tw)
+			if err := lz.Apply(lz4.ConcurrencyOption(-1)); err != nil {
+				return err
+			}
+
+			if _, err := io.Copy(lz, file); err != nil {
+				return err
+			}
+
+			if isRegular {
+				if _, err := io.Copy(lz, file); err != nil {
+					return err
+				}
+			} else {
+				buf := make([]byte, controllers.BlockSize*recordSize)
+				if _, err := io.CopyBuffer(lz, file, buf); err != nil {
+					return err
+				}
+			}
+
+			if err := lz.Close(); err != nil {
 				return err
 			}
 			if err := file.Close(); err != nil {
