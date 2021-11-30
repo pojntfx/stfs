@@ -269,6 +269,8 @@ func indexHeader(
 
 	switch compressionFormat {
 	case compressionFormatGZipKey:
+		fallthrough
+	case compressionFormatParallelGZipKey:
 		if hdr.FileInfo().Mode().IsRegular() {
 			hdr.Name = strings.TrimSuffix(hdr.Name, compressionFormatGZipSuffix)
 		}

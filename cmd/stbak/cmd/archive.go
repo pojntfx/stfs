@@ -10,6 +10,7 @@ import (
 	"path/filepath"
 	"strconv"
 
+	"github.com/klauspost/pgzip"
 	"github.com/pojntfx/stfs/pkg/adapters"
 	"github.com/pojntfx/stfs/pkg/controllers"
 	"github.com/pojntfx/stfs/pkg/counters"
@@ -26,6 +27,12 @@ const (
 	srcFlag        = "src"
 	overwriteFlag  = "overwrite"
 )
+
+type flusher interface {
+	io.WriteCloser
+
+	Flush() error
+}
 
 var archiveCmd = &cobra.Command{
 	Use:     "archive",
@@ -172,6 +179,8 @@ func archive(
 		if info.Mode().IsRegular() {
 			switch compressionFormat {
 			case compressionFormatGZipKey:
+				fallthrough
+			case compressionFormatParallelGZipKey:
 				// Get the compressed size for the header
 				file, err := os.Open(path)
 				if err != nil {
@@ -182,7 +191,12 @@ func archive(
 					Writer: io.Discard,
 				}
 
-				gz := gzip.NewWriter(&fileSizeCounter)
+				var gz flusher
+				if compressionFormat == compressionFormatGZipKey {
+					gz = gzip.NewWriter(&fileSizeCounter)
+				} else {
+					gz = pgzip.NewWriter(&fileSizeCounter)
+				}
 				if _, err := io.Copy(gz, file); err != nil {
 					return err
 				}
@@ -232,13 +246,23 @@ func archive(
 
 		switch compressionFormat {
 		case compressionFormatGZipKey:
+			fallthrough
+		case compressionFormatParallelGZipKey:
 			// Compress and write the file
 			file, err := os.Open(path)
 			if err != nil {
 				return err
 			}
 
-			gz := gzip.NewWriter(tw)
+			var gz flusher
+			if compressionFormat == compressionFormatGZipKey {
+				gz = gzip.NewWriter(tw)
+			} else {
+				gz = pgzip.NewWriter(tw)
+			}
+			if _, err := io.Copy(gz, file); err != nil {
+				return err
+			}
 
 			if isRegular {
 				if _, err := io.Copy(gz, file); err != nil {
