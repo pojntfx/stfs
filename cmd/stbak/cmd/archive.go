@@ -61,20 +61,7 @@ var archiveCmd = &cobra.Command{
 			return err
 		}
 
-		compressionLevelIsKnown := false
-		compressionLevel := viper.GetString(compressionLevelFlag)
-
-		for _, candidate := range knownCompressionLevels {
-			if compressionLevel == candidate {
-				compressionLevelIsKnown = true
-			}
-		}
-
-		if !compressionLevelIsKnown {
-			return errUnknownCompressionLevel
-		}
-
-		return nil
+		return checkCompressionLevel(viper.GetString(compressionLevelFlag))
 	},
 	RunE: func(cmd *cobra.Command, args []string) error {
 		if viper.GetBool(verboseFlag) {
@@ -234,10 +221,6 @@ func archive(
 				return err
 			}
 
-			if err := file.Close(); err != nil {
-				return err
-			}
-
 			if hdr.PAXRecords == nil {
 				hdr.PAXRecords = map[string]string{}
 			}
@@ -302,18 +285,30 @@ func archive(
 			return err
 		}
 
-		if err := file.Close(); err != nil {
-			return err
-		}
-
 		dirty = true
 
 		return nil
 	})
 }
 
+func checkCompressionLevel(compressionLevel string) error {
+	compressionLevelIsKnown := false
+
+	for _, candidate := range knownCompressionLevels {
+		if compressionLevel == candidate {
+			compressionLevelIsKnown = true
+		}
+	}
+
+	if !compressionLevelIsKnown {
+		return errUnknownCompressionLevel
+	}
+
+	return nil
+}
+
 func compress(
-	file io.Reader,
+	file io.ReadCloser,
 	tw io.Writer,
 	compressionFormat string,
 	compressionLevel string,
@@ -384,6 +379,9 @@ func compress(
 		if err := gz.Close(); err != nil {
 			return err
 		}
+		if err := file.Close(); err != nil {
+			return err
+		}
 	case compressionFormatLZ4Key:
 		l := lz4.Level5
 		switch compressionLevel {
@@ -418,6 +416,9 @@ func compress(
 		}
 
 		if err := lz.Close(); err != nil {
+			return err
+		}
+		if err := file.Close(); err != nil {
 			return err
 		}
 	case compressionFormatZStandardKey:
@@ -459,6 +460,9 @@ func compress(
 		if err := zz.Close(); err != nil {
 			return err
 		}
+		if err := file.Close(); err != nil {
+			return err
+		}
 	case compressionFormatBrotliKey:
 		l := brotli.DefaultCompression
 		switch compressionLevel {
@@ -493,6 +497,9 @@ func compress(
 			return err
 		}
 		if err := br.Close(); err != nil {
+			return err
+		}
+		if err := file.Close(); err != nil {
 			return err
 		}
 	case compressionFormatBzip2Key:
@@ -535,6 +542,9 @@ func compress(
 		if err := bz.Close(); err != nil {
 			return err
 		}
+		if err := file.Close(); err != nil {
+			return err
+		}
 	case compressionFormatNoneKey:
 		if isRegular {
 			if _, err := io.Copy(tw, file); err != nil {
@@ -545,6 +555,10 @@ func compress(
 			if _, err := io.CopyBuffer(tw, file, buf); err != nil {
 				return err
 			}
+		}
+
+		if err := file.Close(); err != nil {
+			return err
 		}
 	default:
 		return errUnsupportedCompressionFormat
