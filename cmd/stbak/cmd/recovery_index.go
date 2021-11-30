@@ -8,6 +8,8 @@ import (
 	"io/ioutil"
 	"math"
 	"os"
+	"strconv"
+	"strings"
 
 	"github.com/pojntfx/stfs/pkg/controllers"
 	"github.com/pojntfx/stfs/pkg/converters"
@@ -40,6 +42,7 @@ var recoveryIndexCmd = &cobra.Command{
 			viper.GetInt(recordFlag),
 			viper.GetInt(blockFlag),
 			viper.GetBool(overwriteFlag),
+			viper.GetString(compressionFlag),
 		)
 	},
 }
@@ -51,6 +54,7 @@ func index(
 	record int,
 	block int,
 	overwrite bool,
+	compressionFormat string,
 ) error {
 	if overwrite {
 		f, err := os.OpenFile(metadata, os.O_WRONLY|os.O_CREATE, 0600)
@@ -131,7 +135,7 @@ func index(
 				}
 			}
 
-			if err := indexHeader(record, block, hdr, metadataPersister); err != nil {
+			if err := indexHeader(record, block, hdr, metadataPersister, compressionFormat); err != nil {
 				return nil
 			}
 
@@ -204,7 +208,7 @@ func index(
 				}
 			}
 
-			if err := indexHeader(record, block, hdr, metadataPersister); err != nil {
+			if err := indexHeader(record, block, hdr, metadataPersister, compressionFormat); err != nil {
 				return nil
 			}
 
@@ -241,11 +245,36 @@ func init() {
 	recoveryCmd.AddCommand(recoveryIndexCmd)
 }
 
-func indexHeader(record, block int64, hdr *tar.Header, metadataPersister *persisters.MetadataPersister) error {
+func indexHeader(
+	record, block int64,
+	hdr *tar.Header,
+	metadataPersister *persisters.MetadataPersister,
+	compressionFormat string,
+) error {
 	if record == 0 && block == 0 {
 		if err := formatting.PrintCSV(formatting.TARHeaderCSV); err != nil {
 			return err
 		}
+	}
+
+	uncompressedSize, ok := hdr.PAXRecords[pax.STFSRecordUncompressedSize]
+	if ok {
+		size, err := strconv.Atoi(uncompressedSize)
+		if err != nil {
+			return err
+		}
+
+		hdr.Size = int64(size)
+	}
+
+	switch compressionFormat {
+	case compressionFormatGZipKey:
+		if hdr.FileInfo().Mode().IsRegular() {
+			hdr.Name = strings.TrimSuffix(hdr.Name, compressionFormatGZipSuffix)
+		}
+	case compressionFormatNoneKey:
+	default:
+		return errUnsupportedCompressionFormat
 	}
 
 	if err := formatting.PrintCSV(formatting.GetTARHeaderAsCSV(record, block, hdr)); err != nil {

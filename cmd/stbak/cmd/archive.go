@@ -2,15 +2,19 @@ package cmd
 
 import (
 	"archive/tar"
+	"compress/gzip"
 	"context"
 	"io"
 	"io/fs"
 	"os"
 	"path/filepath"
+	"strconv"
 
 	"github.com/pojntfx/stfs/pkg/adapters"
 	"github.com/pojntfx/stfs/pkg/controllers"
+	"github.com/pojntfx/stfs/pkg/counters"
 	"github.com/pojntfx/stfs/pkg/formatting"
+	"github.com/pojntfx/stfs/pkg/pax"
 	"github.com/pojntfx/stfs/pkg/persisters"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
@@ -58,6 +62,7 @@ var archiveCmd = &cobra.Command{
 			viper.GetInt(recordSizeFlag),
 			viper.GetString(srcFlag),
 			viper.GetBool(overwriteFlag),
+			viper.GetString(compressionFlag),
 		); err != nil {
 			return err
 		}
@@ -69,6 +74,7 @@ var archiveCmd = &cobra.Command{
 			int(lastIndexedRecord),
 			int(lastIndexedBlock),
 			viper.GetBool(overwriteFlag),
+			viper.GetString(compressionFlag),
 		)
 	},
 }
@@ -78,6 +84,7 @@ func archive(
 	recordSize int,
 	src string,
 	overwrite bool,
+	compressionFormat string,
 ) error {
 	dirty := false
 	tw, isRegular, cleanup, err := openTapeWriter(tape)
@@ -162,6 +169,47 @@ func archive(
 		hdr.Name = path
 		hdr.Format = tar.FormatPAX
 
+		if info.Mode().IsRegular() {
+			switch compressionFormat {
+			case compressionFormatGZipKey:
+				// Get the compressed size for the header
+				file, err := os.Open(path)
+				if err != nil {
+					return err
+				}
+
+				fileSizeCounter := counters.CounterWriter{
+					Writer: io.Discard,
+				}
+
+				gz := gzip.NewWriter(&fileSizeCounter)
+				if _, err := io.Copy(gz, file); err != nil {
+					return err
+				}
+
+				if err := gz.Flush(); err != nil {
+					return err
+				}
+				if err := gz.Close(); err != nil {
+					return err
+				}
+				if err := file.Close(); err != nil {
+					return err
+				}
+
+				if hdr.PAXRecords == nil {
+					hdr.PAXRecords = map[string]string{}
+				}
+				hdr.PAXRecords[pax.STFSRecordUncompressedSize] = strconv.Itoa(int(hdr.Size))
+				hdr.Size = int64(fileSizeCounter.BytesRead)
+
+				hdr.Name += compressionFormatGZipSuffix
+			case compressionFormatNoneKey:
+			default:
+				return errUnsupportedCompressionFormat
+			}
+		}
+
 		if first {
 			if err := formatting.PrintCSV(formatting.TARHeaderCSV); err != nil {
 				return err
@@ -182,21 +230,59 @@ func archive(
 			return nil
 		}
 
-		file, err := os.Open(path)
-		if err != nil {
-			return err
-		}
-		defer file.Close()
+		switch compressionFormat {
+		case compressionFormatGZipKey:
+			// Compress and write the file
+			file, err := os.Open(path)
+			if err != nil {
+				return err
+			}
 
-		if isRegular {
-			if _, err := io.Copy(tw, file); err != nil {
+			gz := gzip.NewWriter(tw)
+
+			if isRegular {
+				if _, err := io.Copy(gz, file); err != nil {
+					return err
+				}
+			} else {
+				buf := make([]byte, controllers.BlockSize*recordSize)
+				if _, err := io.CopyBuffer(gz, file, buf); err != nil {
+					return err
+				}
+			}
+
+			if err := gz.Flush(); err != nil {
 				return err
 			}
-		} else {
-			buf := make([]byte, controllers.BlockSize*recordSize)
-			if _, err := io.CopyBuffer(tw, file, buf); err != nil {
+			if err := gz.Close(); err != nil {
 				return err
 			}
+			if err := file.Close(); err != nil {
+				return err
+			}
+		case compressionFormatNoneKey:
+			// Write the file
+			file, err := os.Open(path)
+			if err != nil {
+				return err
+			}
+
+			if isRegular {
+				if _, err := io.Copy(tw, file); err != nil {
+					return err
+				}
+			} else {
+				buf := make([]byte, controllers.BlockSize*recordSize)
+				if _, err := io.CopyBuffer(tw, file, buf); err != nil {
+					return err
+				}
+			}
+
+			if err := file.Close(); err != nil {
+				return err
+			}
+		default:
+			return errUnsupportedCompressionFormat
 		}
 
 		dirty = true

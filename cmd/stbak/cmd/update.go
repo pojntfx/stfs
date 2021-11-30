@@ -18,10 +18,6 @@ import (
 	"github.com/volatiletech/sqlboiler/v4/boil"
 )
 
-const (
-	contentFlag = "content"
-)
-
 var updateCmd = &cobra.Command{
 	Use:     "update",
 	Aliases: []string{"upd", "u"},
@@ -49,7 +45,7 @@ var updateCmd = &cobra.Command{
 			viper.GetString(tapeFlag),
 			viper.GetInt(recordSizeFlag),
 			viper.GetString(srcFlag),
-			viper.GetBool(contentFlag),
+			viper.GetBool(overwriteFlag),
 		); err != nil {
 			return err
 		}
@@ -61,6 +57,7 @@ var updateCmd = &cobra.Command{
 			int(lastIndexedRecord),
 			int(lastIndexedBlock),
 			false,
+			viper.GetString(compressionFlag),
 		)
 	},
 }
@@ -168,7 +165,7 @@ func update(
 func init() {
 	updateCmd.PersistentFlags().IntP(recordSizeFlag, "e", 20, "Amount of 512-bit blocks per record")
 	updateCmd.PersistentFlags().StringP(srcFlag, "s", "", "Path of the file or directory to update")
-	updateCmd.PersistentFlags().BoolP(contentFlag, "c", false, "Replace the content on the tape or tar file")
+	updateCmd.PersistentFlags().BoolP(overwriteFlag, "o", false, "Replace the content on the tape or tar file")
 
 	viper.AutomaticEnv()
 
