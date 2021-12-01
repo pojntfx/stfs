@@ -4,6 +4,8 @@ import (
 	"archive/tar"
 	"context"
 	"database/sql"
+	"io/ioutil"
+	"os"
 	"path"
 	"path/filepath"
 	"strings"
@@ -25,6 +27,19 @@ var restoreCmd = &cobra.Command{
 	Use:     "restore",
 	Aliases: []string{"res", "r", "x"},
 	Short:   "Restore a file or directory from tape or tar file",
+	PersistentPreRunE: func(cmd *cobra.Command, args []string) error {
+		if err := viper.BindPFlags(cmd.PersistentFlags()); err != nil {
+			return err
+		}
+
+		if viper.GetString(encryptionFlag) != encryptionFormatNoneKey {
+			if _, err := os.Stat(viper.GetString(keyFlag)); err != nil {
+				return errKeyNotAccessible
+			}
+		}
+
+		return nil
+	},
 	RunE: func(cmd *cobra.Command, args []string) error {
 		if err := viper.BindPFlags(cmd.PersistentFlags()); err != nil {
 			return err
@@ -37,6 +52,16 @@ var restoreCmd = &cobra.Command{
 		metadataPersister := persisters.NewMetadataPersister(viper.GetString(metadataFlag))
 		if err := metadataPersister.Open(); err != nil {
 			return err
+		}
+
+		privkey := []byte{}
+		if viper.GetString(encryptionFlag) != encryptionFormatNoneKey {
+			p, err := ioutil.ReadFile(viper.GetString(keyFlag))
+			if err != nil {
+				return err
+			}
+
+			privkey = p
 		}
 
 		headersToRestore := []*models.Header{}
@@ -104,6 +129,8 @@ var restoreCmd = &cobra.Command{
 				false,
 				false,
 				viper.GetString(compressionFlag),
+				viper.GetString(encryptionFlag),
+				privkey,
 			); err != nil {
 				return err
 			}
@@ -118,6 +145,7 @@ func init() {
 	restoreCmd.PersistentFlags().StringP(srcFlag, "s", "", "File or directory to restore")
 	restoreCmd.PersistentFlags().StringP(dstFlag, "d", "", "File or directory restore to (archived name by default)")
 	restoreCmd.PersistentFlags().BoolP(flattenFlag, "f", false, "Ignore the folder hierarchy on the tape or tar file")
+	restoreCmd.PersistentFlags().StringP(keyFlag, "k", "", "Path to private key of recipient that has been encrypted for")
 
 	viper.AutomaticEnv()
 

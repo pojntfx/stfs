@@ -43,6 +43,7 @@ var recoveryIndexCmd = &cobra.Command{
 			viper.GetInt(blockFlag),
 			viper.GetBool(overwriteFlag),
 			viper.GetString(compressionFlag),
+			viper.GetString(encryptionFlag),
 		)
 	},
 }
@@ -55,6 +56,7 @@ func index(
 	block int,
 	overwrite bool,
 	compressionFormat string,
+	encryptionFormat string,
 ) error {
 	if overwrite {
 		f, err := os.OpenFile(metadata, os.O_WRONLY|os.O_CREATE, 0600)
@@ -142,7 +144,7 @@ func index(
 				break
 			}
 
-			if err := indexHeader(record, block, hdr, metadataPersister, compressionFormat); err != nil {
+			if err := indexHeader(record, block, hdr, metadataPersister, compressionFormat, encryptionFormat); err != nil {
 				return nil
 			}
 
@@ -215,7 +217,7 @@ func index(
 				}
 			}
 
-			if err := indexHeader(record, block, hdr, metadataPersister, compressionFormat); err != nil {
+			if err := indexHeader(record, block, hdr, metadataPersister, compressionFormat, encryptionFormat); err != nil {
 				return nil
 			}
 
@@ -257,6 +259,7 @@ func indexHeader(
 	hdr *tar.Header,
 	metadataPersister *persisters.MetadataPersister,
 	compressionFormat string,
+	encryptionFormat string,
 ) error {
 	if record == 0 && block == 0 {
 		if err := formatting.PrintCSV(formatting.TARHeaderCSV); err != nil {
@@ -275,6 +278,14 @@ func indexHeader(
 	}
 
 	if hdr.FileInfo().Mode().IsRegular() {
+		switch encryptionFormat {
+		case encryptionFormatAgeKey:
+			hdr.Name = strings.TrimSuffix(hdr.Name, encryptionFormatAgeSuffix)
+		case encryptionFormatNoneKey:
+		default:
+			return errUnsupportedEncryptionFormat
+		}
+
 		switch compressionFormat {
 		case compressionFormatGZipKey:
 			fallthrough

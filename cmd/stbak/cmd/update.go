@@ -6,11 +6,13 @@ import (
 	"fmt"
 	"io"
 	"io/fs"
+	"io/ioutil"
 	"os"
 	"path/filepath"
 	"strconv"
 
 	"github.com/pojntfx/stfs/pkg/adapters"
+	"github.com/pojntfx/stfs/pkg/controllers"
 	"github.com/pojntfx/stfs/pkg/counters"
 	"github.com/pojntfx/stfs/pkg/formatting"
 	"github.com/pojntfx/stfs/pkg/pax"
@@ -29,7 +31,17 @@ var updateCmd = &cobra.Command{
 			return err
 		}
 
-		return checkCompressionLevel(viper.GetString(compressionLevelFlag))
+		if err := checkCompressionLevel(viper.GetString(compressionLevelFlag)); err != nil {
+			return err
+		}
+
+		if viper.GetString(encryptionFlag) != encryptionFormatNoneKey {
+			if _, err := os.Stat(viper.GetString(keyFlag)); err != nil {
+				return errKeyNotAccessible
+			}
+		}
+
+		return nil
 	},
 	RunE: func(cmd *cobra.Command, args []string) error {
 		if err := viper.BindPFlags(cmd.PersistentFlags()); err != nil {
@@ -50,6 +62,16 @@ var updateCmd = &cobra.Command{
 			return err
 		}
 
+		pubkey := []byte{}
+		if viper.GetString(encryptionFlag) != encryptionFormatNoneKey {
+			p, err := ioutil.ReadFile(viper.GetString(keyFlag))
+			if err != nil {
+				return err
+			}
+
+			pubkey = p
+		}
+
 		if err := update(
 			viper.GetString(tapeFlag),
 			viper.GetInt(recordSizeFlag),
@@ -57,6 +79,8 @@ var updateCmd = &cobra.Command{
 			viper.GetBool(overwriteFlag),
 			viper.GetString(compressionFlag),
 			viper.GetString(compressionLevelFlag),
+			viper.GetString(encryptionFlag),
+			pubkey,
 		); err != nil {
 			return err
 		}
@@ -69,6 +93,7 @@ var updateCmd = &cobra.Command{
 			int(lastIndexedBlock),
 			false,
 			viper.GetString(compressionFlag),
+			viper.GetString(encryptionFlag),
 		)
 	},
 }
@@ -80,6 +105,8 @@ func update(
 	replacesContent bool,
 	compressionFormat string,
 	compressionLevel string,
+	encryptionFormat string,
+	pubkey []byte,
 ) error {
 	dirty := false
 	tw, isRegular, cleanup, err := openTapeWriter(tape)
@@ -120,23 +147,55 @@ func update(
 
 		if info.Mode().IsRegular() && replacesContent {
 			// Get the compressed size for the header
+			fileSizeCounter := &counters.CounterWriter{
+				Writer: io.Discard,
+			}
+
+			encryptor, err := encrypt(fileSizeCounter, encryptionFormat, pubkey)
+			if err != nil {
+				return err
+			}
+
+			compressor, err := compress(
+				encryptor,
+				compressionFormat,
+				compressionLevel,
+				isRegular,
+				recordSize,
+			)
+			if err != nil {
+				return err
+			}
+
 			file, err := os.Open(path)
 			if err != nil {
 				return err
 			}
 
-			fileSizeCounter := counters.CounterWriter{
-				Writer: io.Discard,
+			if isRegular {
+				if _, err := io.Copy(compressor, file); err != nil {
+					return err
+				}
+			} else {
+				buf := make([]byte, controllers.BlockSize*recordSize)
+				if _, err := io.CopyBuffer(compressor, file, buf); err != nil {
+					return err
+				}
 			}
 
-			if err := compress(
-				file,
-				&fileSizeCounter,
-				compressionFormat,
-				compressionLevel,
-				isRegular,
-				recordSize,
-			); err != nil {
+			if err := file.Close(); err != nil {
+				return err
+			}
+
+			if err := compressor.Flush(); err != nil {
+				return err
+			}
+
+			if err := compressor.Close(); err != nil {
+				return err
+			}
+
+			if err := encryptor.Close(); err != nil {
 				return err
 			}
 
@@ -165,6 +224,14 @@ func update(
 			default:
 				return errUnsupportedCompressionFormat
 			}
+
+			switch encryptionFormat {
+			case encryptionFormatAgeKey:
+				hdr.Name += encryptionFormatAgeSuffix
+			case compressionFormatNoneKey:
+			default:
+				return errUnsupportedEncryptionFormat
+			}
 		}
 
 		if first {
@@ -191,19 +258,51 @@ func update(
 			}
 
 			// Compress and write the file
+			encryptor, err := encrypt(tw, encryptionFormat, pubkey)
+			if err != nil {
+				return err
+			}
+
+			compressor, err := compress(
+				encryptor,
+				compressionFormat,
+				compressionLevel,
+				isRegular,
+				recordSize,
+			)
+			if err != nil {
+				return err
+			}
+
 			file, err := os.Open(path)
 			if err != nil {
 				return err
 			}
 
-			if err := compress(
-				file,
-				tw,
-				compressionFormat,
-				compressionLevel,
-				isRegular,
-				recordSize,
-			); err != nil {
+			if isRegular {
+				if _, err := io.Copy(compressor, file); err != nil {
+					return err
+				}
+			} else {
+				buf := make([]byte, controllers.BlockSize*recordSize)
+				if _, err := io.CopyBuffer(compressor, file, buf); err != nil {
+					return err
+				}
+			}
+
+			if err := file.Close(); err != nil {
+				return err
+			}
+
+			if err := compressor.Flush(); err != nil {
+				return err
+			}
+
+			if err := compressor.Close(); err != nil {
+				return err
+			}
+
+			if err := encryptor.Close(); err != nil {
 				return err
 			}
 		} else {
@@ -229,6 +328,7 @@ func init() {
 	updateCmd.PersistentFlags().StringP(srcFlag, "s", "", "Path of the file or directory to update")
 	updateCmd.PersistentFlags().BoolP(overwriteFlag, "o", false, "Replace the content on the tape or tar file")
 	updateCmd.PersistentFlags().StringP(compressionLevelFlag, "l", compressionLevelBalanced, fmt.Sprintf("Compression level to use (default %v, available are %v)", compressionLevelBalanced, knownCompressionLevels))
+	updateCmd.PersistentFlags().StringP(keyFlag, "k", "", "Path to public key of recipient to encrypt for")
 
 	viper.AutomaticEnv()
 
