@@ -135,73 +135,117 @@ func restoreFromRecordAndBlock(
 			return nil
 		}
 
-		switch compressionFormat {
-		case compressionFormatGZipKey:
-			fallthrough
-		case compressionFormatParallelGZipKey:
-			var gz io.ReadCloser
-			if compressionFormat == compressionFormatGZipKey {
-				gz, err = gzip.NewReader(tr)
-				if err != nil {
-					return err
-				}
-			} else {
-				gz, err = pgzip.NewReader(tr)
-				if err != nil {
-					return err
-				}
-			}
-			defer gz.Close()
+		return decompress(
+			tr,
+			dstFile,
+			compressionFormat,
+		)
+	}
 
-			if _, err := io.Copy(dstFile, gz); err != nil {
-				return err
-			}
-		case compressionFormatLZ4Key:
-			lz := lz4.NewReader(tr)
-			if err := lz.Apply(lz4.ConcurrencyOption(-1)); err != nil {
-				return err
-			}
+	return nil
+}
 
-			if _, err := io.Copy(dstFile, lz); err != nil {
-				return err
-			}
-		case compressionFormatZStandardKey:
-			zz, err := zstd.NewReader(tr)
+func decompress(
+	src io.Reader,
+	dst io.WriteCloser,
+	compressionFormat string,
+) error {
+	switch compressionFormat {
+	case compressionFormatGZipKey:
+		fallthrough
+	case compressionFormatParallelGZipKey:
+		var gz io.ReadCloser
+		if compressionFormat == compressionFormatGZipKey {
+			g, err := gzip.NewReader(src)
 			if err != nil {
 				return err
 			}
-
-			if _, err := io.Copy(dstFile, zz); err != nil {
-				return err
-			}
-		case compressionFormatBrotliKey:
-			br := brotli.NewReader(tr)
-
-			if _, err := io.Copy(dstFile, br); err != nil {
-				return err
-			}
-		case compressionFormatBzip2Key:
-			bz, err := bzip2.NewReader(tr, nil)
+			gz = g
+		} else {
+			g, err := pgzip.NewReader(src)
 			if err != nil {
 				return err
 			}
-
-			if _, err := io.Copy(dstFile, bz); err != nil {
-				return err
-			}
-		case compressionFormatBzip2ParallelKey:
-			bz := pbzip2.NewReader(context.Background(), tr)
-
-			if _, err := io.Copy(dstFile, bz); err != nil {
-				return err
-			}
-		case compressionFormatNoneKey:
-			if _, err := io.Copy(dstFile, tr); err != nil {
-				return err
-			}
-		default:
-			return errUnsupportedCompressionFormat
+			gz = g
 		}
+		defer gz.Close()
+
+		if _, err := io.Copy(dst, gz); err != nil {
+			return err
+		}
+
+		if err := dst.Close(); err != nil {
+			return err
+		}
+	case compressionFormatLZ4Key:
+		lz := lz4.NewReader(src)
+		if err := lz.Apply(lz4.ConcurrencyOption(-1)); err != nil {
+			return err
+		}
+
+		if _, err := io.Copy(dst, lz); err != nil {
+			return err
+		}
+
+		if err := dst.Close(); err != nil {
+			return err
+		}
+	case compressionFormatZStandardKey:
+		zz, err := zstd.NewReader(src)
+		if err != nil {
+			return err
+		}
+
+		if _, err := io.Copy(dst, zz); err != nil {
+			return err
+		}
+
+		if err := dst.Close(); err != nil {
+			return err
+		}
+	case compressionFormatBrotliKey:
+		br := brotli.NewReader(src)
+
+		if _, err := io.Copy(dst, br); err != nil {
+			return err
+		}
+
+		if err := dst.Close(); err != nil {
+			return err
+		}
+	case compressionFormatBzip2Key:
+		bz, err := bzip2.NewReader(src, nil)
+		if err != nil {
+			return err
+		}
+
+		if _, err := io.Copy(dst, bz); err != nil {
+			return err
+		}
+
+		if err := dst.Close(); err != nil {
+			return err
+		}
+	case compressionFormatBzip2ParallelKey:
+		bz := pbzip2.NewReader(context.Background(), src)
+
+		if _, err := io.Copy(dst, bz); err != nil {
+			return err
+		}
+
+		if err := dst.Close(); err != nil {
+			return err
+		}
+	case compressionFormatNoneKey:
+		if _, err := io.Copy(dst, src); err != nil {
+			return err
+		}
+
+		if err := dst.Close(); err != nil {
+			return err
+		}
+	default:
+		return errUnsupportedCompressionFormat
 	}
 
 	return nil

@@ -308,8 +308,8 @@ func checkCompressionLevel(compressionLevel string) error {
 }
 
 func compress(
-	file io.ReadCloser,
-	tw io.Writer,
+	src io.ReadCloser,
+	dst io.Writer,
 	compressionFormat string,
 	compressionLevel string,
 	isRegular bool,
@@ -333,7 +333,7 @@ func compress(
 				return errUnsupportedCompressionLevel
 			}
 
-			g, err := gzip.NewWriterLevel(tw, l)
+			g, err := gzip.NewWriterLevel(dst, l)
 			if err != nil {
 				return err
 			}
@@ -351,24 +351,24 @@ func compress(
 				return errUnsupportedCompressionLevel
 			}
 
-			g, err := pgzip.NewWriterLevel(tw, l)
+			g, err := pgzip.NewWriterLevel(dst, l)
 			if err != nil {
 				return err
 			}
 			gz = g
 		}
 
-		if _, err := io.Copy(gz, file); err != nil {
+		if _, err := io.Copy(gz, src); err != nil {
 			return err
 		}
 
 		if isRegular {
-			if _, err := io.Copy(gz, file); err != nil {
+			if _, err := io.Copy(gz, src); err != nil {
 				return err
 			}
 		} else {
 			buf := make([]byte, controllers.BlockSize*recordSize)
-			if _, err := io.CopyBuffer(gz, file, buf); err != nil {
+			if _, err := io.CopyBuffer(gz, src, buf); err != nil {
 				return err
 			}
 		}
@@ -379,7 +379,7 @@ func compress(
 		if err := gz.Close(); err != nil {
 			return err
 		}
-		if err := file.Close(); err != nil {
+		if err := src.Close(); err != nil {
 			return err
 		}
 	case compressionFormatLZ4Key:
@@ -395,22 +395,22 @@ func compress(
 			return errUnsupportedCompressionLevel
 		}
 
-		lz := lz4.NewWriter(tw)
+		lz := lz4.NewWriter(dst)
 		if err := lz.Apply(lz4.ConcurrencyOption(-1), lz4.CompressionLevelOption(l)); err != nil {
 			return err
 		}
 
-		if _, err := io.Copy(lz, file); err != nil {
+		if _, err := io.Copy(lz, src); err != nil {
 			return err
 		}
 
 		if isRegular {
-			if _, err := io.Copy(lz, file); err != nil {
+			if _, err := io.Copy(lz, src); err != nil {
 				return err
 			}
 		} else {
 			buf := make([]byte, controllers.BlockSize*recordSize)
-			if _, err := io.CopyBuffer(lz, file, buf); err != nil {
+			if _, err := io.CopyBuffer(lz, src, buf); err != nil {
 				return err
 			}
 		}
@@ -418,7 +418,7 @@ func compress(
 		if err := lz.Close(); err != nil {
 			return err
 		}
-		if err := file.Close(); err != nil {
+		if err := src.Close(); err != nil {
 			return err
 		}
 	case compressionFormatZStandardKey:
@@ -434,22 +434,22 @@ func compress(
 			return errUnsupportedCompressionLevel
 		}
 
-		zz, err := zstd.NewWriter(tw, zstd.WithEncoderLevel(l))
+		zz, err := zstd.NewWriter(dst, zstd.WithEncoderLevel(l))
 		if err != nil {
 			return err
 		}
 
-		if _, err := io.Copy(zz, file); err != nil {
+		if _, err := io.Copy(zz, src); err != nil {
 			return err
 		}
 
 		if isRegular {
-			if _, err := io.Copy(zz, file); err != nil {
+			if _, err := io.Copy(zz, src); err != nil {
 				return err
 			}
 		} else {
 			buf := make([]byte, controllers.BlockSize*recordSize)
-			if _, err := io.CopyBuffer(zz, file, buf); err != nil {
+			if _, err := io.CopyBuffer(zz, src, buf); err != nil {
 				return err
 			}
 		}
@@ -460,7 +460,7 @@ func compress(
 		if err := zz.Close(); err != nil {
 			return err
 		}
-		if err := file.Close(); err != nil {
+		if err := src.Close(); err != nil {
 			return err
 		}
 	case compressionFormatBrotliKey:
@@ -476,19 +476,19 @@ func compress(
 			return errUnsupportedCompressionLevel
 		}
 
-		br := brotli.NewWriterLevel(tw, l)
+		br := brotli.NewWriterLevel(dst, l)
 
-		if _, err := io.Copy(br, file); err != nil {
+		if _, err := io.Copy(br, src); err != nil {
 			return err
 		}
 
 		if isRegular {
-			if _, err := io.Copy(br, file); err != nil {
+			if _, err := io.Copy(br, src); err != nil {
 				return err
 			}
 		} else {
 			buf := make([]byte, controllers.BlockSize*recordSize)
-			if _, err := io.CopyBuffer(br, file, buf); err != nil {
+			if _, err := io.CopyBuffer(br, src, buf); err != nil {
 				return err
 			}
 		}
@@ -499,7 +499,7 @@ func compress(
 		if err := br.Close(); err != nil {
 			return err
 		}
-		if err := file.Close(); err != nil {
+		if err := src.Close(); err != nil {
 			return err
 		}
 	case compressionFormatBzip2Key:
@@ -517,24 +517,24 @@ func compress(
 			return errUnsupportedCompressionLevel
 		}
 
-		bz, err := bzip2.NewWriter(tw, &bzip2.WriterConfig{
+		bz, err := bzip2.NewWriter(dst, &bzip2.WriterConfig{
 			Level: l,
 		})
 		if err != nil {
 			return err
 		}
 
-		if _, err := io.Copy(bz, file); err != nil {
+		if _, err := io.Copy(bz, src); err != nil {
 			return err
 		}
 
 		if isRegular {
-			if _, err := io.Copy(bz, file); err != nil {
+			if _, err := io.Copy(bz, src); err != nil {
 				return err
 			}
 		} else {
 			buf := make([]byte, controllers.BlockSize*recordSize)
-			if _, err := io.CopyBuffer(bz, file, buf); err != nil {
+			if _, err := io.CopyBuffer(bz, src, buf); err != nil {
 				return err
 			}
 		}
@@ -542,22 +542,22 @@ func compress(
 		if err := bz.Close(); err != nil {
 			return err
 		}
-		if err := file.Close(); err != nil {
+		if err := src.Close(); err != nil {
 			return err
 		}
 	case compressionFormatNoneKey:
 		if isRegular {
-			if _, err := io.Copy(tw, file); err != nil {
+			if _, err := io.Copy(dst, src); err != nil {
 				return err
 			}
 		} else {
 			buf := make([]byte, controllers.BlockSize*recordSize)
-			if _, err := io.CopyBuffer(tw, file, buf); err != nil {
+			if _, err := io.CopyBuffer(dst, src, buf); err != nil {
 				return err
 			}
 		}
 
-		if err := file.Close(); err != nil {
+		if err := src.Close(); err != nil {
 			return err
 		}
 	default:
