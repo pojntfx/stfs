@@ -278,33 +278,11 @@ func indexHeader(
 	}
 
 	if hdr.FileInfo().Mode().IsRegular() {
-		switch encryptionFormat {
-		case encryptionFormatAgeKey:
-			hdr.Name = strings.TrimSuffix(hdr.Name, encryptionFormatAgeSuffix)
-		case encryptionFormatNoneKey:
-		default:
-			return errUnsupportedEncryptionFormat
+		newName, err := removeSuffix(hdr.Name, compressionFormat, encryptionFormat)
+		if err != nil {
+			return err
 		}
-
-		switch compressionFormat {
-		case compressionFormatGZipKey:
-			fallthrough
-		case compressionFormatParallelGZipKey:
-			hdr.Name = strings.TrimSuffix(hdr.Name, compressionFormatGZipSuffix)
-		case compressionFormatLZ4Key:
-			hdr.Name = strings.TrimSuffix(hdr.Name, compressionFormatLZ4Suffix)
-		case compressionFormatZStandardKey:
-			hdr.Name = strings.TrimSuffix(hdr.Name, compressionFormatZStandardSuffix)
-		case compressionFormatBrotliKey:
-			hdr.Name = strings.TrimSuffix(hdr.Name, compressionFormatBrotliSuffix)
-		case compressionFormatBzip2Key:
-			fallthrough
-		case compressionFormatBzip2ParallelKey:
-			hdr.Name = strings.TrimSuffix(hdr.Name, compressionFormatBzip2Suffix)
-		case compressionFormatNoneKey:
-		default:
-			return errUnsupportedCompressionFormat
-		}
+		hdr.Name = newName
 	}
 
 	if err := formatting.PrintCSV(formatting.GetTARHeaderAsCSV(record, block, hdr)); err != nil {
@@ -388,6 +366,38 @@ func indexHeader(
 	}
 
 	return nil
+}
+
+func removeSuffix(name string, compressionFormat string, encryptionFormat string) (string, error) {
+	switch encryptionFormat {
+	case encryptionFormatAgeKey:
+		name = strings.TrimSuffix(name, encryptionFormatAgeSuffix)
+	case encryptionFormatNoneKey:
+	default:
+		return "", errUnsupportedEncryptionFormat
+	}
+
+	switch compressionFormat {
+	case compressionFormatGZipKey:
+		fallthrough
+	case compressionFormatParallelGZipKey:
+		name = strings.TrimSuffix(name, compressionFormatGZipSuffix)
+	case compressionFormatLZ4Key:
+		name = strings.TrimSuffix(name, compressionFormatLZ4Suffix)
+	case compressionFormatZStandardKey:
+		name = strings.TrimSuffix(name, compressionFormatZStandardSuffix)
+	case compressionFormatBrotliKey:
+		name = strings.TrimSuffix(name, compressionFormatBrotliSuffix)
+	case compressionFormatBzip2Key:
+		fallthrough
+	case compressionFormatBzip2ParallelKey:
+		name = strings.TrimSuffix(name, compressionFormatBzip2Suffix)
+	case compressionFormatNoneKey:
+	default:
+		return "", errUnsupportedCompressionFormat
+	}
+
+	return name, nil
 }
 
 func openTapeReadOnly(tape string) (f *os.File, isRegular bool, err error) {

@@ -205,32 +205,9 @@ func update(
 			hdr.PAXRecords[pax.STFSRecordUncompressedSize] = strconv.Itoa(int(hdr.Size))
 			hdr.Size = int64(fileSizeCounter.BytesRead)
 
-			switch compressionFormat {
-			case compressionFormatGZipKey:
-				fallthrough
-			case compressionFormatParallelGZipKey:
-				hdr.Name += compressionFormatGZipSuffix
-			case compressionFormatLZ4Key:
-				hdr.Name += compressionFormatLZ4Suffix
-			case compressionFormatZStandardKey:
-				hdr.Name += compressionFormatZStandardSuffix
-			case compressionFormatBrotliKey:
-				hdr.Name += compressionFormatBrotliSuffix
-			case compressionFormatBzip2Key:
-				fallthrough
-			case compressionFormatBzip2ParallelKey:
-				hdr.Name += compressionFormatBzip2Suffix
-			case compressionFormatNoneKey:
-			default:
-				return errUnsupportedCompressionFormat
-			}
-
-			switch encryptionFormat {
-			case encryptionFormatAgeKey:
-				hdr.Name += encryptionFormatAgeSuffix
-			case compressionFormatNoneKey:
-			default:
-				return errUnsupportedEncryptionFormat
+			hdr.Name, err = addSuffix(hdr.Name, compressionFormat, encryptionFormat)
+			if err != nil {
+				return err
 			}
 		}
 
