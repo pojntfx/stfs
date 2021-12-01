@@ -8,10 +8,12 @@ import (
 	"fmt"
 	"io"
 	"io/fs"
+	"io/ioutil"
 	"os"
 	"path/filepath"
 	"strconv"
 
+	"filippo.io/age"
 	"github.com/andybalholm/brotli"
 	"github.com/dsnet/compress/bzip2"
 	"github.com/klauspost/compress/zstd"
@@ -33,6 +35,7 @@ const (
 	srcFlag              = "src"
 	overwriteFlag        = "overwrite"
 	compressionLevelFlag = "compression-level"
+	keyFlag              = "key"
 
 	compressionLevelFastest  = "fastest"
 	compressionLevelBalanced = "balanced"
@@ -44,6 +47,8 @@ var (
 
 	errUnknownCompressionLevel     = errors.New("unknown compression level")
 	errUnsupportedCompressionLevel = errors.New("unsupported compression level")
+
+	errKeyNotAccessible = errors.New("key not found or accessible")
 )
 
 type flusher interface {
@@ -51,6 +56,16 @@ type flusher interface {
 
 	Flush() error
 }
+
+func nopCloserWriter(w io.Writer) nopCloser {
+	return nopCloser{w}
+}
+
+type nopCloser struct {
+	io.Writer
+}
+
+func (nopCloser) Close() error { return nil }
 
 var archiveCmd = &cobra.Command{
 	Use:     "archive",
@@ -61,7 +76,17 @@ var archiveCmd = &cobra.Command{
 			return err
 		}
 
-		return checkCompressionLevel(viper.GetString(compressionLevelFlag))
+		if err := checkCompressionLevel(viper.GetString(compressionLevelFlag)); err != nil {
+			return err
+		}
+
+		if viper.GetString(encryptionFlag) != encryptionFormatNoneKey {
+			if _, err := os.Stat(viper.GetString(keyFlag)); err != nil {
+				return errKeyNotAccessible
+			}
+		}
+
+		return nil
 	},
 	RunE: func(cmd *cobra.Command, args []string) error {
 		if viper.GetBool(verboseFlag) {
@@ -85,6 +110,16 @@ var archiveCmd = &cobra.Command{
 			lastIndexedBlock = b
 		}
 
+		pubkey := []byte{}
+		if viper.GetString(encryptionFlag) != encryptionFormatNoneKey {
+			p, err := ioutil.ReadFile(viper.GetString(keyFlag))
+			if err != nil {
+				return err
+			}
+
+			pubkey = p
+		}
+
 		if err := archive(
 			viper.GetString(tapeFlag),
 			viper.GetInt(recordSizeFlag),
@@ -92,6 +127,8 @@ var archiveCmd = &cobra.Command{
 			viper.GetBool(overwriteFlag),
 			viper.GetString(compressionFlag),
 			viper.GetString(compressionLevelFlag),
+			viper.GetString(encryptionFlag),
+			pubkey,
 		); err != nil {
 			return err
 		}
@@ -115,6 +152,8 @@ func archive(
 	overwrite bool,
 	compressionFormat string,
 	compressionLevel string,
+	encryptionFormat string,
+	pubkey []byte,
 ) error {
 	dirty := false
 	tw, isRegular, cleanup, err := openTapeWriter(tape)
@@ -206,18 +245,31 @@ func archive(
 				return err
 			}
 
-			fileSizeCounter := counters.CounterWriter{
+			fileSizeCounter := &counters.CounterWriter{
 				Writer: io.Discard,
+			}
+
+			encryptor, err := encrypt(fileSizeCounter, encryptionFormat, pubkey)
+			if err != nil {
+				return err
 			}
 
 			if err := compress(
 				file,
-				&fileSizeCounter,
+				encryptor,
 				compressionFormat,
 				compressionLevel,
 				isRegular,
 				recordSize,
 			); err != nil {
+				return err
+			}
+
+			if err := encryptor.Close(); err != nil {
+				return err
+			}
+
+			if err := file.Close(); err != nil {
 				return err
 			}
 
@@ -274,14 +326,27 @@ func archive(
 			return err
 		}
 
+		encryptor, err := encrypt(tw, encryptionFormat, pubkey)
+		if err != nil {
+			return err
+		}
+
 		if err := compress(
 			file,
-			tw,
+			encryptor,
 			compressionFormat,
 			compressionLevel,
 			isRegular,
 			recordSize,
 		); err != nil {
+			return err
+		}
+
+		if err := encryptor.Close(); err != nil {
+			return err
+		}
+
+		if err := file.Close(); err != nil {
 			return err
 		}
 
@@ -307,8 +372,28 @@ func checkCompressionLevel(compressionLevel string) error {
 	return nil
 }
 
+func encrypt(
+	dst io.Writer,
+	encryptionFormat string,
+	pubkey []byte,
+) (io.WriteCloser, error) {
+	switch encryptionFormat {
+	case encryptionFormatAgeKey:
+		recipient, err := age.ParseX25519Recipient(string(pubkey))
+		if err != nil {
+			return nil, err
+		}
+
+		return age.Encrypt(dst, recipient)
+	case encryptionFormatNoneKey:
+		return nopCloserWriter(dst), nil
+	default:
+		return nil, errUnsupportedEncryptionFormat
+	}
+}
+
 func compress(
-	src io.ReadCloser,
+	src io.Reader,
 	dst io.Writer,
 	compressionFormat string,
 	compressionLevel string,
@@ -379,9 +464,6 @@ func compress(
 		if err := gz.Close(); err != nil {
 			return err
 		}
-		if err := src.Close(); err != nil {
-			return err
-		}
 	case compressionFormatLZ4Key:
 		l := lz4.Level5
 		switch compressionLevel {
@@ -416,9 +498,6 @@ func compress(
 		}
 
 		if err := lz.Close(); err != nil {
-			return err
-		}
-		if err := src.Close(); err != nil {
 			return err
 		}
 	case compressionFormatZStandardKey:
@@ -460,9 +539,6 @@ func compress(
 		if err := zz.Close(); err != nil {
 			return err
 		}
-		if err := src.Close(); err != nil {
-			return err
-		}
 	case compressionFormatBrotliKey:
 		l := brotli.DefaultCompression
 		switch compressionLevel {
@@ -497,9 +573,6 @@ func compress(
 			return err
 		}
 		if err := br.Close(); err != nil {
-			return err
-		}
-		if err := src.Close(); err != nil {
 			return err
 		}
 	case compressionFormatBzip2Key:
@@ -542,9 +615,6 @@ func compress(
 		if err := bz.Close(); err != nil {
 			return err
 		}
-		if err := src.Close(); err != nil {
-			return err
-		}
 	case compressionFormatNoneKey:
 		if isRegular {
 			if _, err := io.Copy(dst, src); err != nil {
@@ -556,10 +626,6 @@ func compress(
 				return err
 			}
 		}
-
-		if err := src.Close(); err != nil {
-			return err
-		}
 	default:
 		return errUnsupportedCompressionFormat
 	}
@@ -568,10 +634,11 @@ func compress(
 }
 
 func init() {
-	archiveCmd.PersistentFlags().IntP(recordSizeFlag, "e", 20, "Amount of 512-bit blocks per record")
+	archiveCmd.PersistentFlags().IntP(recordSizeFlag, "z", 20, "Amount of 512-bit blocks per record")
 	archiveCmd.PersistentFlags().StringP(srcFlag, "s", ".", "File or directory to archive")
 	archiveCmd.PersistentFlags().BoolP(overwriteFlag, "o", false, "Start writing from the start instead of from the end of the tape or tar file")
 	archiveCmd.PersistentFlags().StringP(compressionLevelFlag, "l", compressionLevelBalanced, fmt.Sprintf("Compression level to use (default %v, available are %v)", compressionLevelBalanced, knownCompressionLevels))
+	archiveCmd.PersistentFlags().StringP(keyFlag, "k", "", "Path to public key of recipient to encrypt for")
 
 	viper.AutomaticEnv()
 

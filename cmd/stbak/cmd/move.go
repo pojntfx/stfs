@@ -95,7 +95,7 @@ var moveCmd = &cobra.Command{
 }
 
 func init() {
-	moveCmd.PersistentFlags().IntP(recordSizeFlag, "e", 20, "Amount of 512-bit blocks per record")
+	moveCmd.PersistentFlags().IntP(recordSizeFlag, "z", 20, "Amount of 512-bit blocks per record")
 	moveCmd.PersistentFlags().StringP(srcFlag, "s", "", "Current path of the file or directory to move")
 	moveCmd.PersistentFlags().StringP(dstFlag, "d", "", "Path to move the file or directory to")
 

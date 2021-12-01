@@ -66,7 +66,7 @@ var findCmd = &cobra.Command{
 }
 
 func init() {
-	findCmd.PersistentFlags().StringP(expressionFlag, "e", "", "Regex to match the file/directory name against")
+	findCmd.PersistentFlags().StringP(expressionFlag, "x", "", "Regex to match the file/directory name against")
 
 	viper.AutomaticEnv()
 
