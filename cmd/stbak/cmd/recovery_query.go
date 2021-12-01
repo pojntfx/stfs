@@ -204,7 +204,7 @@ var recoveryQueryCmd = &cobra.Command{
 }
 
 func init() {
-	recoveryQueryCmd.PersistentFlags().IntP(recordSizeFlag, "e", 20, "Amount of 512-bit blocks per record")
+	recoveryQueryCmd.PersistentFlags().IntP(recordSizeFlag, "z", 20, "Amount of 512-bit blocks per record")
 	recoveryQueryCmd.PersistentFlags().IntP(recordFlag, "r", 0, "Record to seek too before counting")
 	recoveryQueryCmd.PersistentFlags().IntP(blockFlag, "b", 0, "Block in record to seek too before counting")
 

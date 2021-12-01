@@ -37,6 +37,13 @@ const (
 	compressionFormatBzip2Suffix = ".bz2"
 
 	compressionFormatBzip2ParallelKey = "parallelbzip2"
+
+	encryptionFlag = "encryption"
+
+	encryptionFormatNoneKey = "none"
+
+	encryptionFormatAgeKey    = "age"
+	encryptionFormatAgeSuffix = ".age"
 )
 
 var (
@@ -44,6 +51,11 @@ var (
 
 	errUnknownCompressionFormat     = errors.New("unknown compression format")
 	errUnsupportedCompressionFormat = errors.New("unsupported compression format")
+
+	knownEncryptionFormats = []string{encryptionFormatNoneKey, encryptionFormatAgeKey}
+
+	errUnknownEncryptionFormat     = errors.New("unknown encryption format")
+	errUnsupportedEncryptionFormat = errors.New("unsupported encryption format")
 )
 
 var rootCmd = &cobra.Command{
@@ -70,6 +82,19 @@ https://github.com/pojntfx/stfs`,
 			return errUnknownCompressionFormat
 		}
 
+		encryptionFormatIsKnown := false
+		encryptionFormat := viper.GetString(encryptionFlag)
+
+		for _, candidate := range knownEncryptionFormats {
+			if encryptionFormat == candidate {
+				encryptionFormatIsKnown = true
+			}
+		}
+
+		if !encryptionFormatIsKnown {
+			return errUnknownEncryptionFormat
+		}
+
 		return nil
 	},
 }
@@ -86,6 +111,7 @@ func Execute() {
 	rootCmd.PersistentFlags().StringP(metadataFlag, "m", metadataPath, "Metadata database to use")
 	rootCmd.PersistentFlags().BoolP(verboseFlag, "v", false, "Enable verbose logging")
 	rootCmd.PersistentFlags().StringP(compressionFlag, "c", compressionFormatNoneKey, fmt.Sprintf("Compression format to use (default %v, available are %v)", compressionFormatNoneKey, knownCompressionFormats))
+	rootCmd.PersistentFlags().StringP(encryptionFlag, "e", encryptionFormatNoneKey, fmt.Sprintf("Encryption format to use (default %v, available are %v)", encryptionFormatNoneKey, knownEncryptionFormats))
 
 	if err := viper.BindPFlags(rootCmd.PersistentFlags()); err != nil {
 		panic(err)

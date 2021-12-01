@@ -3,6 +3,7 @@ module github.com/pojntfx/stfs
 go 1.17
 
 require (
+	filippo.io/age v1.0.0
 	github.com/andybalholm/brotli v1.0.4
 	github.com/cosnicolaou/pbzip2 v1.0.1
 	github.com/dsnet/compress v0.0.1
@@ -37,6 +38,7 @@ require (
 	github.com/subosito/gotenv v1.2.0 // indirect
 	github.com/volatiletech/inflect v0.0.1 // indirect
 	github.com/ziutek/mymysql v1.5.4 // indirect
+	golang.org/x/crypto v0.0.0-20210817164053-32db794688a5 // indirect
 	golang.org/x/text v0.3.6 // indirect
 	golang.org/x/xerrors v0.0.0-20200804184101-5ec99f83aff1 // indirect
 	gopkg.in/gorp.v1 v1.7.2 // indirect

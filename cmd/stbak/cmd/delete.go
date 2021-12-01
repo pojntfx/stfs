@@ -167,7 +167,7 @@ func openTapeWriter(tape string) (tw *tar.Writer, isRegular bool, cleanup func(d
 }
 
 func init() {
-	deleteCmd.PersistentFlags().IntP(recordSizeFlag, "e", 20, "Amount of 512-bit blocks per record")
+	deleteCmd.PersistentFlags().IntP(recordSizeFlag, "z", 20, "Amount of 512-bit blocks per record")
 	deleteCmd.PersistentFlags().StringP(nameFlag, "n", "", "Name of the file to remove")
 
 	viper.AutomaticEnv()

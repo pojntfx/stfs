@@ -114,7 +114,7 @@ var restoreCmd = &cobra.Command{
 }
 
 func init() {
-	restoreCmd.PersistentFlags().IntP(recordSizeFlag, "e", 20, "Amount of 512-bit blocks per record")
+	restoreCmd.PersistentFlags().IntP(recordSizeFlag, "z", 20, "Amount of 512-bit blocks per record")
 	restoreCmd.PersistentFlags().StringP(srcFlag, "s", "", "File or directory to restore")
 	restoreCmd.PersistentFlags().StringP(dstFlag, "d", "", "File or directory restore to (archived name by default)")
 	restoreCmd.PersistentFlags().BoolP(flattenFlag, "f", false, "Ignore the folder hierarchy on the tape or tar file")
