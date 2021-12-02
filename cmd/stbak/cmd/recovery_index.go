@@ -31,13 +31,7 @@ var recoveryIndexCmd = &cobra.Command{
 			return err
 		}
 
-		if viper.GetString(encryptionFlag) != encryptionFormatNoneKey {
-			if _, err := os.Stat(viper.GetString(identityFlag)); err != nil {
-				return errIdentityNotAccessible
-			}
-		}
-
-		return nil
+		return checkKeyAccessible(viper.GetString(encryptionFlag), viper.GetString(identityFlag))
 	},
 	RunE: func(cmd *cobra.Command, args []string) error {
 		if err := viper.BindPFlags(cmd.PersistentFlags()); err != nil {
