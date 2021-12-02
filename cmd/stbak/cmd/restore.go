@@ -4,7 +4,6 @@ import (
 	"archive/tar"
 	"context"
 	"database/sql"
-	"io/ioutil"
 	"path"
 	"path/filepath"
 	"strings"
@@ -47,14 +46,9 @@ var restoreCmd = &cobra.Command{
 			return err
 		}
 
-		privkey := []byte{}
-		if viper.GetString(encryptionFlag) != encryptionFormatNoneKey {
-			p, err := ioutil.ReadFile(viper.GetString(identityFlag))
-			if err != nil {
-				return err
-			}
-
-			privkey = p
+		privkey, err := readKey(viper.GetString(encryptionFlag), viper.GetString(identityFlag))
+		if err != nil {
+			return err
 		}
 
 		headersToRestore := []*models.Header{}

@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"io"
 	"io/fs"
-	"io/ioutil"
 	"os"
 	"path/filepath"
 	"strconv"
@@ -56,14 +55,9 @@ var updateCmd = &cobra.Command{
 			return err
 		}
 
-		pubkey := []byte{}
-		if viper.GetString(encryptionFlag) != encryptionFormatNoneKey {
-			p, err := ioutil.ReadFile(viper.GetString(recipientFlag))
-			if err != nil {
-				return err
-			}
-
-			pubkey = p
+		pubkey, err := readKey(viper.GetString(encryptionFlag), viper.GetString(recipientFlag))
+		if err != nil {
+			return err
 		}
 
 		hdrs, err := update(
