@@ -3,8 +3,10 @@ package cmd
 import (
 	"archive/tar"
 	"bufio"
+	"bytes"
 	"compress/gzip"
 	"context"
+	"encoding/base32"
 	"io"
 	"io/ioutil"
 	"os"
@@ -40,8 +42,8 @@ var recoveryFetchCmd = &cobra.Command{
 		}
 
 		if viper.GetString(encryptionFlag) != encryptionFormatNoneKey {
-			if _, err := os.Stat(viper.GetString(keyFlag)); err != nil {
-				return errKeyNotAccessible
+			if _, err := os.Stat(viper.GetString(identityFlag)); err != nil {
+				return errIdentityNotAccessible
 			}
 		}
 
@@ -58,7 +60,7 @@ var recoveryFetchCmd = &cobra.Command{
 
 		privkey := []byte{}
 		if viper.GetString(encryptionFlag) != encryptionFormatNoneKey {
-			p, err := ioutil.ReadFile(viper.GetString(keyFlag))
+			p, err := ioutil.ReadFile(viper.GetString(identityFlag))
 			if err != nil {
 				return err
 			}
@@ -124,6 +126,10 @@ func restoreFromRecordAndBlock(
 
 	hdr, err := tr.Next()
 	if err != nil {
+		return err
+	}
+
+	if err := decryptHeader(hdr, encryptionFormat, privkey); err != nil {
 		return err
 	}
 
@@ -238,6 +244,56 @@ func decompress(
 	}
 }
 
+func decryptHeader(
+	hdr *tar.Header,
+	encryptionFormat string,
+	privkey []byte,
+) error {
+	var err error
+
+	hdr.Name, err = decryptString(hdr.Name, encryptionFormat, privkey)
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func decryptString(
+	src string,
+	encryptionFormat string,
+	privkey []byte,
+) (string, error) {
+	switch encryptionFormat {
+	case encryptionFormatAgeKey:
+		identity, err := age.ParseX25519Identity(string(privkey))
+		if err != nil {
+			return "", err
+		}
+
+		decoded, err := base32.StdEncoding.DecodeString(src)
+		if err != nil {
+			return "", err
+		}
+
+		r, err := age.Decrypt(bytes.NewBufferString(string(decoded)), identity)
+		if err != nil {
+			return "", err
+		}
+
+		out := &bytes.Buffer{}
+		if _, err := io.Copy(out, r); err != nil {
+			return "", err
+		}
+
+		return out.String(), nil
+	case encryptionFormatNoneKey:
+		return src, nil
+	default:
+		return "", errUnsupportedEncryptionFormat
+	}
+}
+
 func decrypt(
 	src io.Reader,
 	encryptionFormat string,
@@ -265,11 +321,11 @@ func decrypt(
 
 func init() {
 	recoveryFetchCmd.PersistentFlags().IntP(recordSizeFlag, "z", 20, "Amount of 512-bit blocks per record")
-	recoveryFetchCmd.PersistentFlags().IntP(recordFlag, "r", 0, "Record to seek too")
+	recoveryFetchCmd.PersistentFlags().IntP(recordFlag, "k", 0, "Record to seek too")
 	recoveryFetchCmd.PersistentFlags().IntP(blockFlag, "b", 0, "Block in record to seek too")
 	recoveryFetchCmd.PersistentFlags().StringP(dstFlag, "d", "", "File to restore to (archived name by default)")
 	recoveryFetchCmd.PersistentFlags().BoolP(previewFlag, "p", false, "Only read the header")
-	recoveryFetchCmd.PersistentFlags().StringP(keyFlag, "k", "", "Path to private key of recipient that has been encrypted for")
+	recoveryFetchCmd.PersistentFlags().StringP(identityFlag, "i", "", "Path to private key of recipient that has been encrypted for")
 
 	viper.AutomaticEnv()
 
