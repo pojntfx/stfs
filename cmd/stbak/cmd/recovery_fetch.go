@@ -7,6 +7,8 @@ import (
 	"compress/gzip"
 	"context"
 	"encoding/base32"
+	"encoding/json"
+	"errors"
 	"io"
 	"os"
 	"path/filepath"
@@ -20,6 +22,7 @@ import (
 	"github.com/pierrec/lz4/v4"
 	"github.com/pojntfx/stfs/pkg/controllers"
 	"github.com/pojntfx/stfs/pkg/formatting"
+	"github.com/pojntfx/stfs/pkg/pax"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 	"github.com/volatiletech/sqlboiler/v4/boil"
@@ -30,6 +33,10 @@ const (
 	blockFlag   = "block"
 	dstFlag     = "dst"
 	previewFlag = "preview"
+)
+
+var (
+	errEmbeddedHeaderMissing = errors.New("embedded header is missing")
 )
 
 var recoveryFetchCmd = &cobra.Command{
@@ -237,27 +244,30 @@ func decryptHeader(
 	encryptionFormat string,
 	privkey []byte,
 ) error {
-	var err error
+	if encryptionFormat == encryptionFormatNoneKey {
+		return nil
+	}
 
-	hdr.Name, err = decryptString(hdr.Name, encryptionFormat, privkey)
+	if hdr.PAXRecords == nil {
+		return errEmbeddedHeaderMissing
+	}
+
+	encryptedEmbeddedHeader, ok := hdr.PAXRecords[pax.STFSEmbeddedHeader]
+	if !ok {
+		return errEmbeddedHeaderMissing
+	}
+
+	embeddedHeader, err := decryptString(encryptedEmbeddedHeader, encryptionFormat, privkey)
 	if err != nil {
 		return err
 	}
 
-	hdr.Linkname, err = decryptString(hdr.Linkname, encryptionFormat, privkey)
-	if err != nil {
+	var newHdr tar.Header
+	if err := json.Unmarshal([]byte(embeddedHeader), &newHdr); err != nil {
 		return err
 	}
 
-	hdr.Uname, err = decryptString(hdr.Uname, encryptionFormat, privkey)
-	if err != nil {
-		return err
-	}
-
-	hdr.Gname, err = decryptString(hdr.Gname, encryptionFormat, privkey)
-	if err != nil {
-		return err
-	}
+	*hdr = newHdr
 
 	return nil
 }

@@ -20,6 +20,8 @@ const (
 	STFSRecordReplacesName = STFSPrefix + "ReplacesName"
 
 	STFSRecordUncompressedSize = STFSPrefix + "UncompressedSize"
+
+	STFSEmbeddedHeader = STFSPrefix + "EmbeddedHeader"
 )
 
 var (

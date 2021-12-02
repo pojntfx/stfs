@@ -6,6 +6,7 @@ import (
 	"compress/gzip"
 	"context"
 	"encoding/base32"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -421,27 +422,27 @@ func encryptHeader(
 	encryptionFormat string,
 	pubkey []byte,
 ) error {
-	var err error
+	if encryptionFormat == encryptionFormatNoneKey {
+		return nil
+	}
 
-	hdr.Name, err = encryptString(hdr.Name, encryptionFormat, pubkey)
+	newHdr := &tar.Header{
+		Format:     tar.FormatPAX,
+		Size:       hdr.Size,
+		PAXRecords: map[string]string{},
+	}
+
+	wrappedHeader, err := json.Marshal(hdr)
 	if err != nil {
 		return err
 	}
 
-	hdr.Linkname, err = encryptString(hdr.Linkname, encryptionFormat, pubkey)
+	newHdr.PAXRecords[pax.STFSEmbeddedHeader], err = encryptString(string(wrappedHeader), encryptionFormat, pubkey)
 	if err != nil {
 		return err
 	}
 
-	hdr.Uname, err = encryptString(hdr.Uname, encryptionFormat, pubkey)
-	if err != nil {
-		return err
-	}
-
-	hdr.Gname, err = encryptString(hdr.Gname, encryptionFormat, pubkey)
-	if err != nil {
-		return err
-	}
+	*hdr = *newHdr
 
 	return nil
 }
