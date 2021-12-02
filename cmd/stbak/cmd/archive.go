@@ -429,6 +429,21 @@ func encryptHeader(
 		return err
 	}
 
+	hdr.Linkname, err = encryptString(hdr.Linkname, encryptionFormat, pubkey)
+	if err != nil {
+		return err
+	}
+
+	hdr.Uname, err = encryptString(hdr.Uname, encryptionFormat, pubkey)
+	if err != nil {
+		return err
+	}
+
+	hdr.Gname, err = encryptString(hdr.Gname, encryptionFormat, pubkey)
+	if err != nil {
+		return err
+	}
+
 	return nil
 }
 

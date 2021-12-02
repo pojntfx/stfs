@@ -244,6 +244,21 @@ func decryptHeader(
 		return err
 	}
 
+	hdr.Linkname, err = decryptString(hdr.Linkname, encryptionFormat, privkey)
+	if err != nil {
+		return err
+	}
+
+	hdr.Uname, err = decryptString(hdr.Uname, encryptionFormat, privkey)
+	if err != nil {
+		return err
+	}
+
+	hdr.Gname, err = decryptString(hdr.Gname, encryptionFormat, privkey)
+	if err != nil {
+		return err
+	}
+
 	return nil
 }
 
