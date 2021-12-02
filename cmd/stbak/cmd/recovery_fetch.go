@@ -47,7 +47,7 @@ var recoveryFetchCmd = &cobra.Command{
 			}
 		}
 
-		return nil
+		return checkKeyAccessible(viper.GetString(encryptionFlag), viper.GetString(identityFlag))
 	},
 	RunE: func(cmd *cobra.Command, args []string) error {
 		if err := viper.BindPFlags(cmd.PersistentFlags()); err != nil {

@@ -35,13 +35,7 @@ var updateCmd = &cobra.Command{
 			return err
 		}
 
-		if viper.GetString(encryptionFlag) != encryptionFormatNoneKey {
-			if _, err := os.Stat(viper.GetString(recipientFlag)); err != nil {
-				return errRecipientNotAccessible
-			}
-		}
-
-		return nil
+		return checkKeyAccessible(viper.GetString(encryptionFlag), viper.GetString(recipientFlag))
 	},
 	RunE: func(cmd *cobra.Command, args []string) error {
 		if err := viper.BindPFlags(cmd.PersistentFlags()); err != nil {
