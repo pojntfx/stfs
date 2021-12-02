@@ -33,8 +33,8 @@ var restoreCmd = &cobra.Command{
 		}
 
 		if viper.GetString(encryptionFlag) != encryptionFormatNoneKey {
-			if _, err := os.Stat(viper.GetString(keyFlag)); err != nil {
-				return errKeyNotAccessible
+			if _, err := os.Stat(viper.GetString(identityFlag)); err != nil {
+				return errIdentityNotAccessible
 			}
 		}
 
@@ -56,7 +56,7 @@ var restoreCmd = &cobra.Command{
 
 		privkey := []byte{}
 		if viper.GetString(encryptionFlag) != encryptionFormatNoneKey {
-			p, err := ioutil.ReadFile(viper.GetString(keyFlag))
+			p, err := ioutil.ReadFile(viper.GetString(identityFlag))
 			if err != nil {
 				return err
 			}
@@ -145,7 +145,7 @@ func init() {
 	restoreCmd.PersistentFlags().StringP(srcFlag, "s", "", "File or directory to restore")
 	restoreCmd.PersistentFlags().StringP(dstFlag, "d", "", "File or directory restore to (archived name by default)")
 	restoreCmd.PersistentFlags().BoolP(flattenFlag, "f", false, "Ignore the folder hierarchy on the tape or tar file")
-	restoreCmd.PersistentFlags().StringP(keyFlag, "k", "", "Path to private key of recipient that has been encrypted for")
+	restoreCmd.PersistentFlags().StringP(identityFlag, "i", "", "Path to private key of recipient that has been encrypted for")
 
 	viper.AutomaticEnv()
 

@@ -36,8 +36,12 @@ var updateCmd = &cobra.Command{
 		}
 
 		if viper.GetString(encryptionFlag) != encryptionFormatNoneKey {
-			if _, err := os.Stat(viper.GetString(keyFlag)); err != nil {
-				return errKeyNotAccessible
+			if _, err := os.Stat(viper.GetString(recipientFlag)); err != nil {
+				return errRecipientNotAccessible
+			}
+
+			if _, err := os.Stat(viper.GetString(identityFlag)); err != nil {
+				return errIdentityNotAccessible
 			}
 		}
 
@@ -63,13 +67,19 @@ var updateCmd = &cobra.Command{
 		}
 
 		pubkey := []byte{}
+		privkey := []byte{}
 		if viper.GetString(encryptionFlag) != encryptionFormatNoneKey {
-			p, err := ioutil.ReadFile(viper.GetString(keyFlag))
+			p, err := ioutil.ReadFile(viper.GetString(recipientFlag))
 			if err != nil {
 				return err
 			}
 
 			pubkey = p
+
+			privkey, err = ioutil.ReadFile(viper.GetString(identityFlag))
+			if err != nil {
+				return err
+			}
 		}
 
 		if err := update(
@@ -94,6 +104,7 @@ var updateCmd = &cobra.Command{
 			false,
 			viper.GetString(compressionFlag),
 			viper.GetString(encryptionFlag),
+			privkey,
 		)
 	},
 }
@@ -226,6 +237,10 @@ func update(
 				return err
 			}
 
+			if err := encryptHeader(hdr, encryptionFormat, pubkey); err != nil {
+				return err
+			}
+
 			if err := tw.WriteHeader(hdr); err != nil {
 				return err
 			}
@@ -289,6 +304,10 @@ func update(
 				return err
 			}
 
+			if err := encryptHeader(hdr, encryptionFormat, pubkey); err != nil {
+				return err
+			}
+
 			if err := tw.WriteHeader(hdr); err != nil {
 				return err
 			}
@@ -305,7 +324,8 @@ func init() {
 	updateCmd.PersistentFlags().StringP(srcFlag, "s", "", "Path of the file or directory to update")
 	updateCmd.PersistentFlags().BoolP(overwriteFlag, "o", false, "Replace the content on the tape or tar file")
 	updateCmd.PersistentFlags().StringP(compressionLevelFlag, "l", compressionLevelBalanced, fmt.Sprintf("Compression level to use (default %v, available are %v)", compressionLevelBalanced, knownCompressionLevels))
-	updateCmd.PersistentFlags().StringP(keyFlag, "k", "", "Path to public key of recipient to encrypt for")
+	updateCmd.PersistentFlags().StringP(recipientFlag, "r", "", "Path to public key of recipient to encrypt for")
+	updateCmd.PersistentFlags().StringP(identityFlag, "i", "", "Path to private key of recipient that has been encrypted for")
 
 	viper.AutomaticEnv()
 

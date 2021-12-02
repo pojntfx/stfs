@@ -2,8 +2,10 @@ package cmd
 
 import (
 	"archive/tar"
+	"bytes"
 	"compress/gzip"
 	"context"
+	"encoding/base32"
 	"errors"
 	"fmt"
 	"io"
@@ -35,7 +37,9 @@ const (
 	srcFlag              = "src"
 	overwriteFlag        = "overwrite"
 	compressionLevelFlag = "compression-level"
-	keyFlag              = "key"
+
+	recipientFlag = "recipient"
+	identityFlag  = "identity"
 
 	compressionLevelFastest  = "fastest"
 	compressionLevelBalanced = "balanced"
@@ -48,7 +52,8 @@ var (
 	errUnknownCompressionLevel     = errors.New("unknown compression level")
 	errUnsupportedCompressionLevel = errors.New("unsupported compression level")
 
-	errKeyNotAccessible = errors.New("key not found or accessible")
+	errRecipientNotAccessible = errors.New("recipient/public key not found or accessible")
+	errIdentityNotAccessible  = errors.New("identity/private key not found or accessible")
 )
 
 type flusher interface {
@@ -91,8 +96,12 @@ var archiveCmd = &cobra.Command{
 		}
 
 		if viper.GetString(encryptionFlag) != encryptionFormatNoneKey {
-			if _, err := os.Stat(viper.GetString(keyFlag)); err != nil {
-				return errKeyNotAccessible
+			if _, err := os.Stat(viper.GetString(recipientFlag)); err != nil {
+				return errRecipientNotAccessible
+			}
+
+			if _, err := os.Stat(viper.GetString(identityFlag)); err != nil {
+				return errIdentityNotAccessible
 			}
 		}
 
@@ -121,13 +130,19 @@ var archiveCmd = &cobra.Command{
 		}
 
 		pubkey := []byte{}
+		privkey := []byte{}
 		if viper.GetString(encryptionFlag) != encryptionFormatNoneKey {
-			p, err := ioutil.ReadFile(viper.GetString(keyFlag))
+			p, err := ioutil.ReadFile(viper.GetString(recipientFlag))
 			if err != nil {
 				return err
 			}
 
 			pubkey = p
+
+			privkey, err = ioutil.ReadFile(viper.GetString(identityFlag))
+			if err != nil {
+				return err
+			}
 		}
 
 		if err := archive(
@@ -152,6 +167,7 @@ var archiveCmd = &cobra.Command{
 			viper.GetBool(overwriteFlag),
 			viper.GetString(compressionFlag),
 			viper.GetString(encryptionFlag),
+			privkey,
 		)
 	},
 }
@@ -327,6 +343,10 @@ func archive(
 			return err
 		}
 
+		if err := encryptHeader(hdr, encryptionFormat, pubkey); err != nil {
+			return err
+		}
+
 		if err := tw.WriteHeader(hdr); err != nil {
 			return err
 		}
@@ -406,6 +426,21 @@ func checkCompressionLevel(compressionLevel string) error {
 	return nil
 }
 
+func encryptHeader(
+	hdr *tar.Header,
+	encryptionFormat string,
+	pubkey []byte,
+) error {
+	var err error
+
+	hdr.Name, err = encryptString(hdr.Name, encryptionFormat, pubkey)
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
 func addSuffix(name string, compressionFormat string, encryptionFormat string) (string, error) {
 	switch compressionFormat {
 	case compressionFormatGZipKey:
@@ -455,6 +490,40 @@ func encrypt(
 		return nopCloserWriter(dst), nil
 	default:
 		return nil, errUnsupportedEncryptionFormat
+	}
+}
+
+func encryptString(
+	src string,
+	encryptionFormat string,
+	pubkey []byte,
+) (string, error) {
+	switch encryptionFormat {
+	case encryptionFormatAgeKey:
+		recipient, err := age.ParseX25519Recipient(string(pubkey))
+		if err != nil {
+			return "", err
+		}
+
+		out := &bytes.Buffer{}
+		w, err := age.Encrypt(out, recipient)
+		if err != nil {
+			return "", err
+		}
+
+		if _, err := io.WriteString(w, src); err != nil {
+			return "", err
+		}
+
+		if err := w.Close(); err != nil {
+			return "", err
+		}
+
+		return base32.StdEncoding.EncodeToString(out.Bytes()), nil
+	case encryptionFormatNoneKey:
+		return src, nil
+	default:
+		return "", errUnsupportedEncryptionFormat
 	}
 }
 
@@ -587,7 +656,8 @@ func init() {
 	archiveCmd.PersistentFlags().StringP(srcFlag, "s", ".", "File or directory to archive")
 	archiveCmd.PersistentFlags().BoolP(overwriteFlag, "o", false, "Start writing from the start instead of from the end of the tape or tar file")
 	archiveCmd.PersistentFlags().StringP(compressionLevelFlag, "l", compressionLevelBalanced, fmt.Sprintf("Compression level to use (default %v, available are %v)", compressionLevelBalanced, knownCompressionLevels))
-	archiveCmd.PersistentFlags().StringP(keyFlag, "k", "", "Path to public key of recipient to encrypt for")
+	archiveCmd.PersistentFlags().StringP(recipientFlag, "r", "", "Path to public key of recipient to encrypt for")
+	archiveCmd.PersistentFlags().StringP(identityFlag, "i", "", "Path to private key of recipient that has been encrypted for")
 
 	viper.AutomaticEnv()
 

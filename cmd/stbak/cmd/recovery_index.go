@@ -26,6 +26,19 @@ import (
 var recoveryIndexCmd = &cobra.Command{
 	Use:   "index",
 	Short: "Index contents of tape or tar file",
+	PersistentPreRunE: func(cmd *cobra.Command, args []string) error {
+		if err := viper.BindPFlags(cmd.PersistentFlags()); err != nil {
+			return err
+		}
+
+		if viper.GetString(encryptionFlag) != encryptionFormatNoneKey {
+			if _, err := os.Stat(viper.GetString(identityFlag)); err != nil {
+				return errIdentityNotAccessible
+			}
+		}
+
+		return nil
+	},
 	RunE: func(cmd *cobra.Command, args []string) error {
 		if err := viper.BindPFlags(cmd.PersistentFlags()); err != nil {
 			return err
@@ -33,6 +46,16 @@ var recoveryIndexCmd = &cobra.Command{
 
 		if viper.GetBool(verboseFlag) {
 			boil.DebugMode = true
+		}
+
+		privkey := []byte{}
+		if viper.GetString(encryptionFlag) != encryptionFormatNoneKey {
+			p, err := ioutil.ReadFile(viper.GetString(identityFlag))
+			if err != nil {
+				return err
+			}
+
+			privkey = p
 		}
 
 		return index(
@@ -44,6 +67,7 @@ var recoveryIndexCmd = &cobra.Command{
 			viper.GetBool(overwriteFlag),
 			viper.GetString(compressionFlag),
 			viper.GetString(encryptionFlag),
+			privkey,
 		)
 	},
 }
@@ -57,6 +81,7 @@ func index(
 	overwrite bool,
 	compressionFormat string,
 	encryptionFormat string,
+	privkey []byte,
 ) error {
 	if overwrite {
 		f, err := os.OpenFile(metadata, os.O_WRONLY|os.O_CREATE, 0600)
@@ -105,19 +130,19 @@ func index(
 					}
 
 					nextTotalBlocks := math.Ceil(float64((curr)) / float64(controllers.BlockSize))
-					record = int64(nextTotalBlocks) / int64(viper.GetInt(recordSizeFlag))
-					block = int64(nextTotalBlocks) - (record * int64(viper.GetInt(recordSizeFlag)))
+					record = int64(nextTotalBlocks) / int64(recordSize)
+					block = int64(nextTotalBlocks) - (record * int64(recordSize))
 
 					if block < 0 {
 						record--
-						block = int64(viper.GetInt(recordSizeFlag)) - 1
-					} else if block >= int64(viper.GetInt(recordSizeFlag)) {
+						block = int64(recordSize) - 1
+					} else if block >= int64(recordSize) {
 						record++
 						block = 0
 					}
 
 					// Seek to record and block
-					if _, err := f.Seek(int64((viper.GetInt(recordSizeFlag)*controllers.BlockSize*int(record))+int(block)*controllers.BlockSize), io.SeekStart); err != nil {
+					if _, err := f.Seek(int64((recordSize*controllers.BlockSize*int(record))+int(block)*controllers.BlockSize), io.SeekStart); err != nil {
 						return err
 					}
 
@@ -142,6 +167,10 @@ func index(
 				// EOF
 
 				break
+			}
+
+			if err := decryptHeader(hdr, encryptionFormat, privkey); err != nil {
+				return err
 			}
 
 			if err := indexHeader(record, block, hdr, metadataPersister, compressionFormat, encryptionFormat); err != nil {
@@ -217,6 +246,10 @@ func index(
 				}
 			}
 
+			if err := decryptHeader(hdr, encryptionFormat, privkey); err != nil {
+				return err
+			}
+
 			if err := indexHeader(record, block, hdr, metadataPersister, compressionFormat, encryptionFormat); err != nil {
 				return nil
 			}
@@ -245,9 +278,10 @@ func index(
 
 func init() {
 	recoveryIndexCmd.PersistentFlags().IntP(recordSizeFlag, "z", 20, "Amount of 512-bit blocks per record")
-	recoveryIndexCmd.PersistentFlags().IntP(recordFlag, "r", 0, "Record to seek too before counting")
+	recoveryIndexCmd.PersistentFlags().IntP(recordFlag, "k", 0, "Record to seek too before counting")
 	recoveryIndexCmd.PersistentFlags().IntP(blockFlag, "b", 0, "Block in record to seek too before counting")
 	recoveryIndexCmd.PersistentFlags().BoolP(overwriteFlag, "o", false, "Remove the old index before starting to index")
+	recoveryIndexCmd.PersistentFlags().StringP(identityFlag, "i", "", "Path to private key of recipient that has been encrypted for")
 
 	viper.AutomaticEnv()
 
