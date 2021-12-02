@@ -53,8 +53,7 @@ var (
 	errUnknownCompressionLevel     = errors.New("unknown compression level")
 	errUnsupportedCompressionLevel = errors.New("unsupported compression level")
 
-	errRecipientNotAccessible = errors.New("recipient/public key not found or accessible")
-	errIdentityNotAccessible  = errors.New("identity/private key not found or accessible")
+	errKeyNotAccessible = errors.New("key not found or accessible")
 
 	errMissingTarHeader = errors.New("tar header is missing")
 )
@@ -387,7 +386,7 @@ func checkKeyAccessible(encryptionFormat string, pathToKey string) error {
 	}
 
 	if _, err := os.Stat(pathToKey); err != nil {
-		return errRecipientNotAccessible
+		return errKeyNotAccessible
 	}
 
 	return nil
