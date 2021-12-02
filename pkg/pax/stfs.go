@@ -3,21 +3,23 @@ package pax
 import "errors"
 
 const (
-	STFSRecordVersion  = "STFS.Version"
+	STFSPrefix = "STFS."
+
+	STFSRecordVersion  = STFSPrefix + "Version"
 	STFSRecordVersion1 = "1"
 
-	STFSRecordAction       = "STFS.Action"
+	STFSRecordAction       = STFSPrefix + "Action"
 	STFSRecordActionCreate = "CREATE"
 	STFSRecordActionDelete = "DELETE"
 	STFSRecordActionUpdate = "UPDATE"
 
-	STFSRecordReplacesContent      = "STFS.ReplacesContent"
+	STFSRecordReplacesContent      = STFSPrefix + "ReplacesContent"
 	STFSRecordReplacesContentTrue  = "true"
 	STFSRecordReplacesContentFalse = "false"
 
-	STFSRecordReplacesName = "STFS.ReplacesName"
+	STFSRecordReplacesName = STFSPrefix + "ReplacesName"
 
-	STFSRecordUncompressedSize = "STFS.UncompressedSize"
+	STFSRecordUncompressedSize = STFSPrefix + "UncompressedSize"
 )
 
 var (
