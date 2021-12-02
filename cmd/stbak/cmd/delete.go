@@ -4,7 +4,6 @@ import (
 	"archive/tar"
 	"bufio"
 	"context"
-	"io/ioutil"
 	"os"
 
 	"github.com/pojntfx/stfs/pkg/controllers"
@@ -43,14 +42,9 @@ var deleteCmd = &cobra.Command{
 			boil.DebugMode = true
 		}
 
-		pubkey := []byte{}
-		if viper.GetString(encryptionFlag) != encryptionFormatNoneKey {
-			p, err := ioutil.ReadFile(viper.GetString(recipientFlag))
-			if err != nil {
-				return err
-			}
-
-			pubkey = p
+		pubkey, err := readKey(viper.GetString(encryptionFlag), viper.GetString(recipientFlag))
+		if err != nil {
+			return err
 		}
 
 		return delete(

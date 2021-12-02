@@ -8,7 +8,6 @@ import (
 	"context"
 	"encoding/base32"
 	"io"
-	"io/ioutil"
 	"os"
 	"path/filepath"
 
@@ -41,12 +40,6 @@ var recoveryFetchCmd = &cobra.Command{
 			return err
 		}
 
-		if viper.GetString(encryptionFlag) != encryptionFormatNoneKey {
-			if _, err := os.Stat(viper.GetString(identityFlag)); err != nil {
-				return errIdentityNotAccessible
-			}
-		}
-
 		return checkKeyAccessible(viper.GetString(encryptionFlag), viper.GetString(identityFlag))
 	},
 	RunE: func(cmd *cobra.Command, args []string) error {
@@ -58,14 +51,9 @@ var recoveryFetchCmd = &cobra.Command{
 			boil.DebugMode = true
 		}
 
-		privkey := []byte{}
-		if viper.GetString(encryptionFlag) != encryptionFormatNoneKey {
-			p, err := ioutil.ReadFile(viper.GetString(identityFlag))
-			if err != nil {
-				return err
-			}
-
-			privkey = p
+		privkey, err := readKey(viper.GetString(encryptionFlag), viper.GetString(identityFlag))
+		if err != nil {
+			return err
 		}
 
 		return restoreFromRecordAndBlock(

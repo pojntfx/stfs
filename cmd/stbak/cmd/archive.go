@@ -96,14 +96,9 @@ var archiveCmd = &cobra.Command{
 			lastIndexedBlock = b
 		}
 
-		pubkey := []byte{}
-		if viper.GetString(encryptionFlag) != encryptionFormatNoneKey {
-			p, err := ioutil.ReadFile(viper.GetString(recipientFlag))
-			if err != nil {
-				return err
-			}
-
-			pubkey = p
+		pubkey, err := readKey(viper.GetString(encryptionFlag), viper.GetString(recipientFlag))
+		if err != nil {
+			return err
 		}
 
 		hdrs, err := archive(
@@ -396,6 +391,14 @@ func checkKeyAccessible(encryptionFormat string, pathToKey string) error {
 	}
 
 	return nil
+}
+
+func readKey(encryptionFormat string, pathToKey string) ([]byte, error) {
+	if encryptionFormat == encryptionFormatNoneKey {
+		return []byte{}, nil
+	}
+
+	return ioutil.ReadFile(pathToKey)
 }
 
 func checkCompressionLevel(compressionLevel string) error {

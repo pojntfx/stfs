@@ -42,14 +42,9 @@ var recoveryIndexCmd = &cobra.Command{
 			boil.DebugMode = true
 		}
 
-		privkey := []byte{}
-		if viper.GetString(encryptionFlag) != encryptionFormatNoneKey {
-			p, err := ioutil.ReadFile(viper.GetString(identityFlag))
-			if err != nil {
-				return err
-			}
-
-			privkey = p
+		privkey, err := readKey(viper.GetString(encryptionFlag), viper.GetString(identityFlag))
+		if err != nil {
+			return err
 		}
 
 		return index(
