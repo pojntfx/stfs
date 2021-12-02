@@ -39,10 +39,6 @@ var updateCmd = &cobra.Command{
 			if _, err := os.Stat(viper.GetString(recipientFlag)); err != nil {
 				return errRecipientNotAccessible
 			}
-
-			if _, err := os.Stat(viper.GetString(identityFlag)); err != nil {
-				return errIdentityNotAccessible
-			}
 		}
 
 		return nil
@@ -67,7 +63,6 @@ var updateCmd = &cobra.Command{
 		}
 
 		pubkey := []byte{}
-		privkey := []byte{}
 		if viper.GetString(encryptionFlag) != encryptionFormatNoneKey {
 			p, err := ioutil.ReadFile(viper.GetString(recipientFlag))
 			if err != nil {
@@ -75,14 +70,9 @@ var updateCmd = &cobra.Command{
 			}
 
 			pubkey = p
-
-			privkey, err = ioutil.ReadFile(viper.GetString(identityFlag))
-			if err != nil {
-				return err
-			}
 		}
 
-		if err := update(
+		hdrs, err := update(
 			viper.GetString(tapeFlag),
 			viper.GetInt(recordSizeFlag),
 			viper.GetString(srcFlag),
@@ -91,7 +81,8 @@ var updateCmd = &cobra.Command{
 			viper.GetString(compressionLevelFlag),
 			viper.GetString(encryptionFlag),
 			pubkey,
-		); err != nil {
+		)
+		if err != nil {
 			return err
 		}
 
@@ -104,7 +95,17 @@ var updateCmd = &cobra.Command{
 			false,
 			viper.GetString(compressionFlag),
 			viper.GetString(encryptionFlag),
-			privkey,
+			[]byte{},
+			func(hdr *tar.Header, encryptionFormat string, privkey []byte, i int) error {
+				if len(hdrs) <= i {
+					return errMissingTarHeader
+				}
+
+				*hdr = *hdrs[i]
+
+				return nil
+			},
+			1,
 		)
 	},
 }
@@ -118,16 +119,17 @@ func update(
 	compressionLevel string,
 	encryptionFormat string,
 	pubkey []byte,
-) error {
+) ([]*tar.Header, error) {
 	dirty := false
 	tw, isRegular, cleanup, err := openTapeWriter(tape)
 	if err != nil {
-		return err
+		return []*tar.Header{}, err
 	}
 	defer cleanup(&dirty)
 
+	headers := []*tar.Header{}
 	first := true
-	return filepath.Walk(src, func(path string, info fs.FileInfo, err error) error {
+	return headers, filepath.Walk(src, func(path string, info fs.FileInfo, err error) error {
 		if err != nil {
 			return err
 		}
@@ -237,6 +239,9 @@ func update(
 				return err
 			}
 
+			hdrToAppend := *hdr
+			headers = append(headers, &hdrToAppend)
+
 			if err := encryptHeader(hdr, encryptionFormat, pubkey); err != nil {
 				return err
 			}
@@ -304,6 +309,9 @@ func update(
 				return err
 			}
 
+			hdrToAppend := *hdr
+			headers = append(headers, &hdrToAppend)
+
 			if err := encryptHeader(hdr, encryptionFormat, pubkey); err != nil {
 				return err
 			}
@@ -325,7 +333,6 @@ func init() {
 	updateCmd.PersistentFlags().BoolP(overwriteFlag, "o", false, "Replace the content on the tape or tar file")
 	updateCmd.PersistentFlags().StringP(compressionLevelFlag, "l", compressionLevelBalanced, fmt.Sprintf("Compression level to use (default %v, available are %v)", compressionLevelBalanced, knownCompressionLevels))
 	updateCmd.PersistentFlags().StringP(recipientFlag, "r", "", "Path to public key of recipient to encrypt for")
-	updateCmd.PersistentFlags().StringP(identityFlag, "i", "", "Path to private key of recipient that has been encrypted for")
 
 	viper.AutomaticEnv()
 

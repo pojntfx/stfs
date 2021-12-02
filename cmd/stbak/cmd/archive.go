@@ -54,6 +54,8 @@ var (
 
 	errRecipientNotAccessible = errors.New("recipient/public key not found or accessible")
 	errIdentityNotAccessible  = errors.New("identity/private key not found or accessible")
+
+	errMissingTarHeader = errors.New("tar header is missing")
 )
 
 type flusher interface {
@@ -99,10 +101,6 @@ var archiveCmd = &cobra.Command{
 			if _, err := os.Stat(viper.GetString(recipientFlag)); err != nil {
 				return errRecipientNotAccessible
 			}
-
-			if _, err := os.Stat(viper.GetString(identityFlag)); err != nil {
-				return errIdentityNotAccessible
-			}
 		}
 
 		return nil
@@ -130,7 +128,6 @@ var archiveCmd = &cobra.Command{
 		}
 
 		pubkey := []byte{}
-		privkey := []byte{}
 		if viper.GetString(encryptionFlag) != encryptionFormatNoneKey {
 			p, err := ioutil.ReadFile(viper.GetString(recipientFlag))
 			if err != nil {
@@ -138,14 +135,9 @@ var archiveCmd = &cobra.Command{
 			}
 
 			pubkey = p
-
-			privkey, err = ioutil.ReadFile(viper.GetString(identityFlag))
-			if err != nil {
-				return err
-			}
 		}
 
-		if err := archive(
+		hdrs, err := archive(
 			viper.GetString(tapeFlag),
 			viper.GetInt(recordSizeFlag),
 			viper.GetString(srcFlag),
@@ -154,7 +146,8 @@ var archiveCmd = &cobra.Command{
 			viper.GetString(compressionLevelFlag),
 			viper.GetString(encryptionFlag),
 			pubkey,
-		); err != nil {
+		)
+		if err != nil {
 			return err
 		}
 
@@ -167,7 +160,17 @@ var archiveCmd = &cobra.Command{
 			viper.GetBool(overwriteFlag),
 			viper.GetString(compressionFlag),
 			viper.GetString(encryptionFlag),
-			privkey,
+			[]byte{},
+			func(hdr *tar.Header, encryptionFormat string, privkey []byte, i int) error {
+				if len(hdrs) <= i {
+					return errMissingTarHeader
+				}
+
+				*hdr = *hdrs[i]
+
+				return nil
+			},
+			0,
 		)
 	},
 }
@@ -181,67 +184,68 @@ func archive(
 	compressionLevel string,
 	encryptionFormat string,
 	pubkey []byte,
-) error {
+) ([]*tar.Header, error) {
 	dirty := false
 	tw, isRegular, cleanup, err := openTapeWriter(tape)
 	if err != nil {
-		return err
+		return []*tar.Header{}, err
 	}
 
 	if overwrite {
 		if isRegular {
 			if err := cleanup(&dirty); err != nil { // dirty will always be false here
-				return err
+				return []*tar.Header{}, err
 			}
 
 			f, err := os.OpenFile(tape, os.O_WRONLY|os.O_CREATE, 0600)
 			if err != nil {
-				return err
+				return []*tar.Header{}, err
 			}
 
 			// Clear the file's content
 			if err := f.Truncate(0); err != nil {
-				return err
+				return []*tar.Header{}, err
 			}
 
 			if err := f.Close(); err != nil {
-				return err
+				return []*tar.Header{}, err
 			}
 
 			tw, isRegular, cleanup, err = openTapeWriter(tape)
 			if err != nil {
-				return err
+				return []*tar.Header{}, err
 			}
 		} else {
 			if err := cleanup(&dirty); err != nil { // dirty will always be false here
-				return err
+				return []*tar.Header{}, err
 			}
 
 			f, err := os.OpenFile(tape, os.O_WRONLY, os.ModeCharDevice)
 			if err != nil {
-				return err
+				return []*tar.Header{}, err
 			}
 
 			// Seek to the start of the tape
 			if err := controllers.SeekToRecordOnTape(f, 0); err != nil {
-				return err
+				return []*tar.Header{}, err
 			}
 
 			if err := f.Close(); err != nil {
-				return err
+				return []*tar.Header{}, err
 			}
 
 			tw, isRegular, cleanup, err = openTapeWriter(tape)
 			if err != nil {
-				return err
+				return []*tar.Header{}, err
 			}
 		}
 	}
 
 	defer cleanup(&dirty)
 
+	headers := []*tar.Header{}
 	first := true
-	return filepath.Walk(src, func(path string, info fs.FileInfo, err error) error {
+	return headers, filepath.Walk(src, func(path string, info fs.FileInfo, err error) error {
 		if err != nil {
 			return err
 		}
@@ -342,6 +346,9 @@ func archive(
 		if err := formatting.PrintCSV(formatting.GetTARHeaderAsCSV(-1, -1, hdr)); err != nil {
 			return err
 		}
+
+		hdrToAppend := *hdr
+		headers = append(headers, &hdrToAppend)
 
 		if err := encryptHeader(hdr, encryptionFormat, pubkey); err != nil {
 			return err
@@ -657,7 +664,6 @@ func init() {
 	archiveCmd.PersistentFlags().BoolP(overwriteFlag, "o", false, "Start writing from the start instead of from the end of the tape or tar file")
 	archiveCmd.PersistentFlags().StringP(compressionLevelFlag, "l", compressionLevelBalanced, fmt.Sprintf("Compression level to use (default %v, available are %v)", compressionLevelBalanced, knownCompressionLevels))
 	archiveCmd.PersistentFlags().StringP(recipientFlag, "r", "", "Path to public key of recipient to encrypt for")
-	archiveCmd.PersistentFlags().StringP(identityFlag, "i", "", "Path to private key of recipient that has been encrypted for")
 
 	viper.AutomaticEnv()
 

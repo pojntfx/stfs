@@ -68,6 +68,10 @@ var recoveryIndexCmd = &cobra.Command{
 			viper.GetString(compressionFlag),
 			viper.GetString(encryptionFlag),
 			privkey,
+			func(hdr *tar.Header, encryptionFormat string, privkey []byte, i int) error {
+				return decryptHeader(hdr, encryptionFormat, privkey)
+			},
+			0,
 		)
 	},
 }
@@ -82,6 +86,13 @@ func index(
 	compressionFormat string,
 	encryptionFormat string,
 	privkey []byte,
+	decryptHeader func(
+		hdr *tar.Header,
+		encryptionFormat string,
+		privkey []byte,
+		i int,
+	) error,
+	offset int,
 ) error {
 	if overwrite {
 		f, err := os.OpenFile(metadata, os.O_WRONLY|os.O_CREATE, 0600)
@@ -119,6 +130,7 @@ func index(
 
 		record := int64(record)
 		block := int64(block)
+		i := 0
 
 		for {
 			hdr, err := tr.Next()
@@ -169,12 +181,14 @@ func index(
 				break
 			}
 
-			if err := decryptHeader(hdr, encryptionFormat, privkey); err != nil {
-				return err
-			}
+			if i >= offset {
+				if err := decryptHeader(hdr, encryptionFormat, privkey, i-offset); err != nil {
+					return err
+				}
 
-			if err := indexHeader(record, block, hdr, metadataPersister, compressionFormat, encryptionFormat); err != nil {
-				return nil
+				if err := indexHeader(record, block, hdr, metadataPersister, compressionFormat, encryptionFormat); err != nil {
+					return nil
+				}
 			}
 
 			curr, err := f.Seek(0, io.SeekCurrent)
@@ -199,6 +213,8 @@ func index(
 				record++
 				block = 0
 			}
+
+			i++
 		}
 	} else {
 		// Seek to record
@@ -217,6 +233,7 @@ func index(
 
 		curr := int64((recordSize * controllers.BlockSize * int(record)) + (int(block) * controllers.BlockSize))
 		counter := &counters.CounterReader{Reader: br, BytesRead: int(curr)}
+		i := 0
 
 		tr := tar.NewReader(counter)
 		for {
@@ -246,12 +263,14 @@ func index(
 				}
 			}
 
-			if err := decryptHeader(hdr, encryptionFormat, privkey); err != nil {
-				return err
-			}
+			if i >= offset {
+				if err := decryptHeader(hdr, encryptionFormat, privkey, i-offset); err != nil {
+					return err
+				}
 
-			if err := indexHeader(record, block, hdr, metadataPersister, compressionFormat, encryptionFormat); err != nil {
-				return nil
+				if err := indexHeader(record, block, hdr, metadataPersister, compressionFormat, encryptionFormat); err != nil {
+					return nil
+				}
 			}
 
 			curr = int64(counter.BytesRead)
@@ -270,6 +289,8 @@ func index(
 				record++
 				block = 0
 			}
+
+			i++
 		}
 	}
 
