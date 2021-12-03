@@ -17,6 +17,7 @@ import (
 	"strconv"
 
 	"filippo.io/age"
+	"github.com/ProtonMail/go-crypto/openpgp"
 	"github.com/andybalholm/brotli"
 	"github.com/dsnet/compress/bzip2"
 	"github.com/klauspost/compress/zstd"
@@ -471,6 +472,8 @@ func addSuffix(name string, compressionFormat string, encryptionFormat string) (
 	switch encryptionFormat {
 	case encryptionFormatAgeKey:
 		name += encryptionFormatAgeSuffix
+	case encryptionFormatPGPKey:
+		name += encryptionFormatPGPSuffix
 	case compressionFormatNoneKey:
 	default:
 		return "", errUnsupportedEncryptionFormat
@@ -492,6 +495,13 @@ func encrypt(
 		}
 
 		return age.Encrypt(dst, recipient)
+	case encryptionFormatPGPKey:
+		recipient, err := openpgp.ReadKeyRing(bytes.NewBuffer(pubkey))
+		if err != nil {
+			return nil, err
+		}
+
+		return openpgp.Encrypt(dst, recipient, nil, nil, nil)
 	case encryptionFormatNoneKey:
 		return noop.AddClose(dst), nil
 	default:
@@ -513,6 +523,27 @@ func encryptString(
 
 		out := &bytes.Buffer{}
 		w, err := age.Encrypt(out, recipient)
+		if err != nil {
+			return "", err
+		}
+
+		if _, err := io.WriteString(w, src); err != nil {
+			return "", err
+		}
+
+		if err := w.Close(); err != nil {
+			return "", err
+		}
+
+		return base64.StdEncoding.EncodeToString(out.Bytes()), nil
+	case encryptionFormatPGPKey:
+		recipient, err := openpgp.ReadKeyRing(bytes.NewBuffer(pubkey))
+		if err != nil {
+			return "", err
+		}
+
+		out := &bytes.Buffer{}
+		w, err := openpgp.Encrypt(out, recipient, nil, nil, nil)
 		if err != nil {
 			return "", err
 		}

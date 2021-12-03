@@ -416,6 +416,8 @@ func removeSuffix(name string, compressionFormat string, encryptionFormat string
 	switch encryptionFormat {
 	case encryptionFormatAgeKey:
 		name = strings.TrimSuffix(name, encryptionFormatAgeSuffix)
+	case encryptionFormatPGPKey:
+		name = strings.TrimSuffix(name, encryptionFormatPGPSuffix)
 	case encryptionFormatNoneKey:
 	default:
 		return "", errUnsupportedEncryptionFormat
