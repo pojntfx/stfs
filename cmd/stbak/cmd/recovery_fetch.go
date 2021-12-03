@@ -75,6 +75,7 @@ var recoveryFetchCmd = &cobra.Command{
 			viper.GetString(compressionFlag),
 			viper.GetString(encryptionFlag),
 			privkey,
+			viper.GetString(passwordFlag),
 		)
 	},
 }
@@ -90,6 +91,7 @@ func restoreFromRecordAndBlock(
 	compressionFormat string,
 	encryptionFormat string,
 	privkey []byte,
+	password string,
 ) error {
 	f, isRegular, err := openTapeReadOnly(tape)
 	if err != nil {
@@ -125,7 +127,7 @@ func restoreFromRecordAndBlock(
 		return err
 	}
 
-	if err := decryptHeader(hdr, encryptionFormat, privkey); err != nil {
+	if err := decryptHeader(hdr, encryptionFormat, privkey, password); err != nil {
 		return err
 	}
 
@@ -166,7 +168,7 @@ func restoreFromRecordAndBlock(
 			return nil
 		}
 
-		decryptor, err := decrypt(tr, encryptionFormat, privkey)
+		decryptor, err := decrypt(tr, encryptionFormat, privkey, password)
 		if err != nil {
 			return err
 		}
@@ -244,6 +246,7 @@ func decryptHeader(
 	hdr *tar.Header,
 	encryptionFormat string,
 	privkey []byte,
+	password string,
 ) error {
 	if encryptionFormat == encryptionFormatNoneKey {
 		return nil
@@ -258,7 +261,7 @@ func decryptHeader(
 		return errEmbeddedHeaderMissing
 	}
 
-	embeddedHeader, err := decryptString(encryptedEmbeddedHeader, encryptionFormat, privkey)
+	embeddedHeader, err := decryptString(encryptedEmbeddedHeader, encryptionFormat, privkey, password)
 	if err != nil {
 		return err
 	}
@@ -277,6 +280,7 @@ func decryptString(
 	src string,
 	encryptionFormat string,
 	privkey []byte,
+	password string,
 ) (string, error) {
 	switch encryptionFormat {
 	case encryptionFormatAgeKey:
@@ -302,9 +306,23 @@ func decryptString(
 
 		return out.String(), nil
 	case encryptionFormatPGPKey:
-		identity, err := openpgp.ReadKeyRing(bytes.NewBuffer(privkey))
+		identities, err := openpgp.ReadKeyRing(bytes.NewBuffer(privkey))
 		if err != nil {
 			return "", err
+		}
+
+		if password != "" {
+			for _, identity := range identities {
+				if err := identity.PrivateKey.Decrypt([]byte(password)); err != nil {
+					return "", err
+				}
+
+				for _, subkey := range identity.Subkeys {
+					if err := subkey.PrivateKey.Decrypt([]byte(password)); err != nil {
+						return "", err
+					}
+				}
+			}
 		}
 
 		decoded, err := base64.StdEncoding.DecodeString(src)
@@ -312,7 +330,7 @@ func decryptString(
 			return "", err
 		}
 
-		r, err := openpgp.ReadMessage(bytes.NewBufferString(string(decoded)), identity, nil, nil)
+		r, err := openpgp.ReadMessage(bytes.NewBufferString(string(decoded)), identities, nil, nil)
 		if err != nil {
 			return "", err
 		}
@@ -334,6 +352,7 @@ func decrypt(
 	src io.Reader,
 	encryptionFormat string,
 	privkey []byte,
+	password string,
 ) (io.ReadCloser, error) {
 	switch encryptionFormat {
 	case encryptionFormatAgeKey:
@@ -349,12 +368,26 @@ func decrypt(
 
 		return io.NopCloser(r), nil
 	case encryptionFormatPGPKey:
-		identity, err := openpgp.ReadKeyRing(bytes.NewBuffer(privkey))
+		identities, err := openpgp.ReadKeyRing(bytes.NewBuffer(privkey))
 		if err != nil {
 			return nil, err
 		}
 
-		r, err := openpgp.ReadMessage(src, identity, nil, nil)
+		if password != "" {
+			for _, identity := range identities {
+				if err := identity.PrivateKey.Decrypt([]byte(password)); err != nil {
+					return nil, err
+				}
+
+				for _, subkey := range identity.Subkeys {
+					if err := subkey.PrivateKey.Decrypt([]byte(password)); err != nil {
+						return nil, err
+					}
+				}
+			}
+		}
+
+		r, err := openpgp.ReadMessage(src, identities, nil, nil)
 		if err != nil {
 			return nil, err
 		}
@@ -372,8 +405,9 @@ func init() {
 	recoveryFetchCmd.PersistentFlags().IntP(recordFlag, "k", 0, "Record to seek too")
 	recoveryFetchCmd.PersistentFlags().IntP(blockFlag, "b", 0, "Block in record to seek too")
 	recoveryFetchCmd.PersistentFlags().StringP(dstFlag, "d", "", "File to restore to (archived name by default)")
-	recoveryFetchCmd.PersistentFlags().BoolP(previewFlag, "p", false, "Only read the header")
+	recoveryFetchCmd.PersistentFlags().BoolP(previewFlag, "w", false, "Only read the header")
 	recoveryFetchCmd.PersistentFlags().StringP(identityFlag, "i", "", "Path to private key of recipient that has been encrypted for")
+	recoveryFetchCmd.PersistentFlags().StringP(passwordFlag, "p", "", "Password for the private key")
 
 	viper.AutomaticEnv()
 

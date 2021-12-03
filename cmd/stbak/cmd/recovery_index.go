@@ -58,7 +58,7 @@ var recoveryIndexCmd = &cobra.Command{
 			viper.GetString(encryptionFlag),
 			privkey,
 			func(hdr *tar.Header, encryptionFormat string, privkey []byte, i int) error {
-				return decryptHeader(hdr, encryptionFormat, privkey)
+				return decryptHeader(hdr, encryptionFormat, privkey, viper.GetString(passwordFlag))
 			},
 			0,
 		)
@@ -292,6 +292,7 @@ func init() {
 	recoveryIndexCmd.PersistentFlags().IntP(blockFlag, "b", 0, "Block in record to seek too before counting")
 	recoveryIndexCmd.PersistentFlags().BoolP(overwriteFlag, "o", false, "Remove the old index before starting to index")
 	recoveryIndexCmd.PersistentFlags().StringP(identityFlag, "i", "", "Path to private key of recipient that has been encrypted for")
+	recoveryIndexCmd.PersistentFlags().StringP(passwordFlag, "p", "", "Password for the private key")
 
 	viper.AutomaticEnv()
 
