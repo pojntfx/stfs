@@ -6,7 +6,7 @@ import (
 	"bytes"
 	"compress/gzip"
 	"context"
-	"encoding/base32"
+	"encoding/base64"
 	"encoding/json"
 	"errors"
 	"io"
@@ -284,7 +284,7 @@ func decryptString(
 			return "", err
 		}
 
-		decoded, err := base32.StdEncoding.DecodeString(src)
+		decoded, err := base64.StdEncoding.DecodeString(src)
 		if err != nil {
 			return "", err
 		}

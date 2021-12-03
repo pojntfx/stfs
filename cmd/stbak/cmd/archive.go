@@ -5,7 +5,7 @@ import (
 	"bytes"
 	"compress/gzip"
 	"context"
-	"encoding/base32"
+	"encoding/base64"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -525,7 +525,7 @@ func encryptString(
 			return "", err
 		}
 
-		return base32.StdEncoding.EncodeToString(out.Bytes()), nil
+		return base64.StdEncoding.EncodeToString(out.Bytes()), nil
 	case encryptionFormatNoneKey:
 		return src, nil
 	default:
