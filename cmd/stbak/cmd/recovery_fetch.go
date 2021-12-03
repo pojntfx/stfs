@@ -14,6 +14,7 @@ import (
 	"path/filepath"
 
 	"filippo.io/age"
+	"github.com/ProtonMail/go-crypto/openpgp"
 	"github.com/andybalholm/brotli"
 	"github.com/cosnicolaou/pbzip2"
 	"github.com/dsnet/compress/bzip2"
@@ -300,6 +301,28 @@ func decryptString(
 		}
 
 		return out.String(), nil
+	case encryptionFormatPGPKey:
+		identity, err := openpgp.ReadKeyRing(bytes.NewBuffer(privkey))
+		if err != nil {
+			return "", err
+		}
+
+		decoded, err := base64.StdEncoding.DecodeString(src)
+		if err != nil {
+			return "", err
+		}
+
+		r, err := openpgp.ReadMessage(bytes.NewBufferString(string(decoded)), identity, nil, nil)
+		if err != nil {
+			return "", err
+		}
+
+		out := &bytes.Buffer{}
+		if _, err := io.Copy(out, r.UnverifiedBody); err != nil {
+			return "", err
+		}
+
+		return out.String(), nil
 	case encryptionFormatNoneKey:
 		return src, nil
 	default:
@@ -325,6 +348,18 @@ func decrypt(
 		}
 
 		return io.NopCloser(r), nil
+	case encryptionFormatPGPKey:
+		identity, err := openpgp.ReadKeyRing(bytes.NewBuffer(privkey))
+		if err != nil {
+			return nil, err
+		}
+
+		r, err := openpgp.ReadMessage(src, identity, nil, nil)
+		if err != nil {
+			return nil, err
+		}
+
+		return io.NopCloser(r.UnverifiedBody), nil
 	case encryptionFormatNoneKey:
 		return io.NopCloser(src), nil
 	default:
