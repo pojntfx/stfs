@@ -284,6 +284,25 @@ func decryptString(
 ) (string, error) {
 	switch encryptionFormat {
 	case encryptionFormatAgeKey:
+		if password != "" {
+			passwordIdentity, err := age.NewScryptIdentity(password)
+			if err != nil {
+				return "", err
+			}
+
+			r, err := age.Decrypt(bytes.NewBuffer(privkey), passwordIdentity)
+			if err != nil {
+				return "", err
+			}
+
+			out := &bytes.Buffer{}
+			if _, err := io.Copy(out, r); err != nil {
+				return "", err
+			}
+
+			privkey = out.Bytes()
+		}
+
 		identity, err := age.ParseX25519Identity(string(privkey))
 		if err != nil {
 			return "", err
@@ -356,6 +375,25 @@ func decrypt(
 ) (io.ReadCloser, error) {
 	switch encryptionFormat {
 	case encryptionFormatAgeKey:
+		if password != "" {
+			passwordIdentity, err := age.NewScryptIdentity(password)
+			if err != nil {
+				return nil, err
+			}
+
+			r, err := age.Decrypt(bytes.NewBuffer(privkey), passwordIdentity)
+			if err != nil {
+				return nil, err
+			}
+
+			out := &bytes.Buffer{}
+			if _, err := io.Copy(out, r); err != nil {
+				return nil, err
+			}
+
+			privkey = out.Bytes()
+		}
+
 		identity, err := age.ParseX25519Identity(string(privkey))
 		if err != nil {
 			return nil, err
