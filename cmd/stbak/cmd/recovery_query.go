@@ -46,6 +46,7 @@ var recoveryQueryCmd = &cobra.Command{
 			viper.GetInt(recordSizeFlag),
 			viper.GetString(encryptionFlag),
 			privkey,
+			viper.GetString(passwordFlag),
 		)
 	},
 }
@@ -57,6 +58,7 @@ func query(
 	recordSize int,
 	encryptionFormat string,
 	privkey []byte,
+	password string,
 ) error {
 	f, isRegular, err := openTapeReadOnly(tape)
 	if err != nil {
@@ -124,7 +126,7 @@ func query(
 				break
 			}
 
-			if err := decryptHeader(hdr, encryptionFormat, privkey); err != nil {
+			if err := decryptHeader(hdr, encryptionFormat, privkey, password); err != nil {
 				return err
 			}
 
@@ -207,7 +209,7 @@ func query(
 				}
 			}
 
-			if err := decryptHeader(hdr, encryptionFormat, privkey); err != nil {
+			if err := decryptHeader(hdr, encryptionFormat, privkey, password); err != nil {
 				return err
 			}
 
@@ -246,6 +248,7 @@ func init() {
 	recoveryQueryCmd.PersistentFlags().IntP(recordFlag, "k", 0, "Record to seek too before counting")
 	recoveryQueryCmd.PersistentFlags().IntP(blockFlag, "b", 0, "Block in record to seek too before counting")
 	recoveryQueryCmd.PersistentFlags().StringP(identityFlag, "i", "", "Path to private key of recipient that has been encrypted for")
+	recoveryQueryCmd.PersistentFlags().StringP(passwordFlag, "p", "", "Password for the private key")
 
 	viper.AutomaticEnv()
 

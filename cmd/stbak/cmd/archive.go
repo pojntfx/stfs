@@ -43,6 +43,7 @@ const (
 
 	recipientFlag = "recipient"
 	identityFlag  = "identity"
+	passwordFlag  = "password"
 
 	compressionLevelFastest  = "fastest"
 	compressionLevelBalanced = "balanced"
