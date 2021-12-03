@@ -44,6 +44,9 @@ const (
 
 	encryptionFormatAgeKey    = "age"
 	encryptionFormatAgeSuffix = ".age"
+
+	encryptionFormatPGPKey    = "pgp"
+	encryptionFormatPGPSuffix = ".pgp"
 )
 
 var (
@@ -52,7 +55,7 @@ var (
 	errUnknownCompressionFormat     = errors.New("unknown compression format")
 	errUnsupportedCompressionFormat = errors.New("unsupported compression format")
 
-	knownEncryptionFormats = []string{encryptionFormatNoneKey, encryptionFormatAgeKey}
+	knownEncryptionFormats = []string{encryptionFormatNoneKey, encryptionFormatAgeKey, encryptionFormatPGPKey}
 
 	errUnknownEncryptionFormat     = errors.New("unknown encryption format")
 	errUnsupportedEncryptionFormat = errors.New("unsupported encryption format")
