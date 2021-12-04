@@ -23,7 +23,7 @@ const (
 
 	STFSRecordSignature = STFSPrefix + "Signature"
 
-	STFSEmbeddedHeader = STFSPrefix + "EmbeddedHeader"
+	STFSRecordEmbeddedHeader = STFSPrefix + "EmbeddedHeader"
 )
 
 var (
