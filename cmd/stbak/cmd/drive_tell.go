@@ -22,7 +22,7 @@ var driveTellCmd = &cobra.Command{
 			boil.DebugMode = true
 		}
 
-		f, err := os.OpenFile(viper.GetString(tapeFlag), os.O_RDONLY, os.ModeCharDevice)
+		f, err := os.OpenFile(viper.GetString(driveFlag), os.O_RDONLY, os.ModeCharDevice)
 		if err != nil {
 			panic(err)
 		}

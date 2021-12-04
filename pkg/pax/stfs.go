@@ -21,6 +21,8 @@ const (
 
 	STFSRecordUncompressedSize = STFSPrefix + "UncompressedSize"
 
+	STFSRecordSignature = STFSPrefix + "Signature"
+
 	STFSEmbeddedHeader = STFSPrefix + "EmbeddedHeader"
 )
 

@@ -32,7 +32,7 @@ import (
 const (
 	recordFlag  = "record"
 	blockFlag   = "block"
-	dstFlag     = "dst"
+	toFlag      = "to"
 	previewFlag = "preview"
 )
 
@@ -72,11 +72,11 @@ var recoveryFetchCmd = &cobra.Command{
 		}
 
 		return restoreFromRecordAndBlock(
-			viper.GetString(tapeFlag),
+			viper.GetString(driveFlag),
 			viper.GetInt(recordSizeFlag),
 			viper.GetInt(recordFlag),
 			viper.GetInt(blockFlag),
-			viper.GetString(dstFlag),
+			viper.GetString(toFlag),
 			viper.GetBool(previewFlag),
 			true,
 			viper.GetString(compressionFlag),
@@ -240,7 +240,7 @@ func decompress(
 		bz := pbzip2.NewReader(context.Background(), src)
 
 		return io.NopCloser(bz), nil
-	case compressionFormatNoneKey:
+	case noneKey:
 		return io.NopCloser(src), nil
 	default:
 		return nil, errUnsupportedCompressionFormat
@@ -252,7 +252,7 @@ func decryptHeader(
 	encryptionFormat string,
 	identity interface{},
 ) error {
-	if encryptionFormat == encryptionFormatNoneKey {
+	if encryptionFormat == noneKey {
 		return nil
 	}
 
@@ -328,7 +328,7 @@ func parseIdentity(
 		}
 
 		return identities, nil
-	case encryptionFormatNoneKey:
+	case noneKey:
 		return privkey, nil
 	default:
 		return nil, errUnsupportedEncryptionFormat
@@ -385,7 +385,7 @@ func decryptString(
 		}
 
 		return out.String(), nil
-	case encryptionFormatNoneKey:
+	case noneKey:
 		return src, nil
 	default:
 		return "", errUnsupportedEncryptionFormat
@@ -422,7 +422,7 @@ func decrypt(
 		}
 
 		return io.NopCloser(r.UnverifiedBody), nil
-	case encryptionFormatNoneKey:
+	case noneKey:
 		return io.NopCloser(src), nil
 	default:
 		return nil, errUnsupportedEncryptionFormat
@@ -433,7 +433,7 @@ func init() {
 	recoveryFetchCmd.PersistentFlags().IntP(recordSizeFlag, "z", 20, "Amount of 512-bit blocks per record")
 	recoveryFetchCmd.PersistentFlags().IntP(recordFlag, "k", 0, "Record to seek too")
 	recoveryFetchCmd.PersistentFlags().IntP(blockFlag, "b", 0, "Block in record to seek too")
-	recoveryFetchCmd.PersistentFlags().StringP(dstFlag, "d", "", "File to restore to (archived name by default)")
+	recoveryFetchCmd.PersistentFlags().StringP(toFlag, "t", "", "File to restore to (archived name by default)")
 	recoveryFetchCmd.PersistentFlags().BoolP(previewFlag, "w", false, "Only read the header")
 	recoveryFetchCmd.PersistentFlags().StringP(identityFlag, "i", "", "Path to private key of recipient that has been encrypted for")
 	recoveryFetchCmd.PersistentFlags().StringP(passwordFlag, "p", "", "Password for the private key")

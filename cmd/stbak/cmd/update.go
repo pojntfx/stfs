@@ -66,9 +66,9 @@ var updateCmd = &cobra.Command{
 		}
 
 		hdrs, err := update(
-			viper.GetString(tapeFlag),
+			viper.GetString(driveFlag),
 			viper.GetInt(recordSizeFlag),
-			viper.GetString(srcFlag),
+			viper.GetString(fromFlag),
 			viper.GetBool(overwriteFlag),
 			viper.GetString(compressionFlag),
 			viper.GetString(compressionLevelFlag),
@@ -80,7 +80,7 @@ var updateCmd = &cobra.Command{
 		}
 
 		return index(
-			viper.GetString(tapeFlag),
+			viper.GetString(driveFlag),
 			viper.GetString(metadataFlag),
 			viper.GetInt(recordSizeFlag),
 			int(lastIndexedRecord),
@@ -321,7 +321,7 @@ func update(
 
 func init() {
 	updateCmd.PersistentFlags().IntP(recordSizeFlag, "z", 20, "Amount of 512-bit blocks per record")
-	updateCmd.PersistentFlags().StringP(srcFlag, "s", "", "Path of the file or directory to update")
+	updateCmd.PersistentFlags().StringP(fromFlag, "f", "", "Path of the file or directory to update")
 	updateCmd.PersistentFlags().BoolP(overwriteFlag, "o", false, "Replace the content on the tape or tar file")
 	updateCmd.PersistentFlags().StringP(compressionLevelFlag, "l", compressionLevelBalanced, fmt.Sprintf("Compression level to use (default %v, available are %v)", compressionLevelBalanced, knownCompressionLevels))
 	updateCmd.PersistentFlags().StringP(recipientFlag, "r", "", "Path to public key of recipient to encrypt for")

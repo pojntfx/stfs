@@ -57,7 +57,7 @@ var restoreCmd = &cobra.Command{
 		}
 
 		headersToRestore := []*models.Header{}
-		src := strings.TrimSuffix(viper.GetString(srcFlag), "/")
+		src := strings.TrimSuffix(viper.GetString(fromFlag), "/")
 		dbhdr, err := metadataPersister.GetHeader(context.Background(), src)
 		if err != nil {
 			if err == sql.ErrNoRows {
@@ -100,20 +100,20 @@ var restoreCmd = &cobra.Command{
 			}
 
 			dst := dbhdr.Name
-			if viper.GetString(dstFlag) != "" {
+			if viper.GetString(toFlag) != "" {
 				if viper.GetBool(flattenFlag) {
-					dst = viper.GetString(dstFlag)
+					dst = viper.GetString(toFlag)
 				} else {
-					dst = filepath.Join(viper.GetString(dstFlag), strings.TrimPrefix(dst, viper.GetString(srcFlag)))
+					dst = filepath.Join(viper.GetString(toFlag), strings.TrimPrefix(dst, viper.GetString(fromFlag)))
 
-					if strings.TrimSuffix(dst, "/") == strings.TrimSuffix(viper.GetString(dstFlag), "/") {
+					if strings.TrimSuffix(dst, "/") == strings.TrimSuffix(viper.GetString(toFlag), "/") {
 						dst = filepath.Join(dst, path.Base(dbhdr.Name)) // Append the name so we don't overwrite
 					}
 				}
 			}
 
 			if err := restoreFromRecordAndBlock(
-				viper.GetString(tapeFlag),
+				viper.GetString(driveFlag),
 				viper.GetInt(recordSizeFlag),
 				int(dbhdr.Record),
 				int(dbhdr.Block),
@@ -134,9 +134,9 @@ var restoreCmd = &cobra.Command{
 
 func init() {
 	restoreCmd.PersistentFlags().IntP(recordSizeFlag, "z", 20, "Amount of 512-bit blocks per record")
-	restoreCmd.PersistentFlags().StringP(srcFlag, "s", "", "File or directory to restore")
-	restoreCmd.PersistentFlags().StringP(dstFlag, "d", "", "File or directory restore to (archived name by default)")
-	restoreCmd.PersistentFlags().BoolP(flattenFlag, "f", false, "Ignore the folder hierarchy on the tape or tar file")
+	restoreCmd.PersistentFlags().StringP(fromFlag, "f", "", "File or directory to restore")
+	restoreCmd.PersistentFlags().StringP(toFlag, "t", "", "File or directory restore to (archived name by default)")
+	restoreCmd.PersistentFlags().BoolP(flattenFlag, "a", false, "Ignore the folder hierarchy on the tape or tar file")
 	restoreCmd.PersistentFlags().StringP(identityFlag, "i", "", "Path to private key of recipient that has been encrypted for")
 	restoreCmd.PersistentFlags().StringP(passwordFlag, "p", "", "Password for the private key")
 

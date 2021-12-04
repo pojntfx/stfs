@@ -53,7 +53,7 @@ var recoveryIndexCmd = &cobra.Command{
 		}
 
 		return index(
-			viper.GetString(tapeFlag),
+			viper.GetString(driveFlag),
 			viper.GetString(metadataFlag),
 			viper.GetInt(recordSizeFlag),
 			viper.GetInt(recordFlag),
@@ -421,7 +421,7 @@ func removeSuffix(name string, compressionFormat string, encryptionFormat string
 		name = strings.TrimSuffix(name, encryptionFormatAgeSuffix)
 	case encryptionFormatPGPKey:
 		name = strings.TrimSuffix(name, encryptionFormatPGPSuffix)
-	case encryptionFormatNoneKey:
+	case noneKey:
 	default:
 		return "", errUnsupportedEncryptionFormat
 	}
@@ -441,7 +441,7 @@ func removeSuffix(name string, compressionFormat string, encryptionFormat string
 		fallthrough
 	case compressionFormatBzip2ParallelKey:
 		name = strings.TrimSuffix(name, compressionFormatBzip2Suffix)
-	case compressionFormatNoneKey:
+	case noneKey:
 	default:
 		return "", errUnsupportedCompressionFormat
 	}
