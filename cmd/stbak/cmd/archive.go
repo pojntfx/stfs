@@ -59,6 +59,8 @@ var (
 	errKeyNotAccessible = errors.New("key not found or accessible")
 
 	errMissingTarHeader = errors.New("tar header is missing")
+
+	errRecipientUnparsable = errors.New("recipient could not be parsed")
 )
 
 var archiveCmd = &cobra.Command{
@@ -103,6 +105,11 @@ var archiveCmd = &cobra.Command{
 			return err
 		}
 
+		recipient, err := parseRecipient(viper.GetString(encryptionFlag), pubkey)
+		if err != nil {
+			return err
+		}
+
 		hdrs, err := archive(
 			viper.GetString(tapeFlag),
 			viper.GetInt(recordSizeFlag),
@@ -111,7 +118,7 @@ var archiveCmd = &cobra.Command{
 			viper.GetString(compressionFlag),
 			viper.GetString(compressionLevelFlag),
 			viper.GetString(encryptionFlag),
-			pubkey,
+			recipient,
 		)
 		if err != nil {
 			return err
@@ -149,7 +156,7 @@ func archive(
 	compressionFormat string,
 	compressionLevel string,
 	encryptionFormat string,
-	pubkey []byte,
+	recipient interface{},
 ) ([]*tar.Header, error) {
 	dirty := false
 	tw, isRegular, cleanup, err := openTapeWriter(tape)
@@ -241,7 +248,7 @@ func archive(
 				Writer: io.Discard,
 			}
 
-			encryptor, err := encrypt(fileSizeCounter, encryptionFormat, pubkey)
+			encryptor, err := encrypt(fileSizeCounter, encryptionFormat, recipient)
 			if err != nil {
 				return err
 			}
@@ -316,7 +323,7 @@ func archive(
 		hdrToAppend := *hdr
 		headers = append(headers, &hdrToAppend)
 
-		if err := encryptHeader(hdr, encryptionFormat, pubkey); err != nil {
+		if err := encryptHeader(hdr, encryptionFormat, recipient); err != nil {
 			return err
 		}
 
@@ -329,7 +336,7 @@ func archive(
 		}
 
 		// Compress and write the file
-		encryptor, err := encrypt(tw, encryptionFormat, pubkey)
+		encryptor, err := encrypt(tw, encryptionFormat, recipient)
 		if err != nil {
 			return err
 		}
@@ -422,7 +429,7 @@ func checkCompressionLevel(compressionLevel string) error {
 func encryptHeader(
 	hdr *tar.Header,
 	encryptionFormat string,
-	pubkey []byte,
+	recipient interface{},
 ) error {
 	if encryptionFormat == encryptionFormatNoneKey {
 		return nil
@@ -439,7 +446,7 @@ func encryptHeader(
 		return err
 	}
 
-	newHdr.PAXRecords[pax.STFSEmbeddedHeader], err = encryptString(string(wrappedHeader), encryptionFormat, pubkey)
+	newHdr.PAXRecords[pax.STFSEmbeddedHeader], err = encryptString(string(wrappedHeader), encryptionFormat, recipient)
 	if err != nil {
 		return err
 	}
@@ -483,23 +490,39 @@ func addSuffix(name string, compressionFormat string, encryptionFormat string) (
 	return name, nil
 }
 
+func parseRecipient(
+	encryptionFormat string,
+	pubkey []byte,
+) (interface{}, error) {
+	switch encryptionFormat {
+	case encryptionFormatAgeKey:
+		return age.ParseX25519Recipient(string(pubkey))
+	case encryptionFormatPGPKey:
+		return openpgp.ReadKeyRing(bytes.NewBuffer(pubkey))
+	case encryptionFormatNoneKey:
+		return pubkey, nil
+	default:
+		return nil, errUnsupportedEncryptionFormat
+	}
+}
+
 func encrypt(
 	dst io.Writer,
 	encryptionFormat string,
-	pubkey []byte,
+	recipient interface{},
 ) (io.WriteCloser, error) {
 	switch encryptionFormat {
 	case encryptionFormatAgeKey:
-		recipient, err := age.ParseX25519Recipient(string(pubkey))
-		if err != nil {
-			return nil, err
+		recipient, ok := recipient.(*age.X25519Recipient)
+		if !ok {
+			return nil, errRecipientUnparsable
 		}
 
 		return age.Encrypt(dst, recipient)
 	case encryptionFormatPGPKey:
-		recipient, err := openpgp.ReadKeyRing(bytes.NewBuffer(pubkey))
-		if err != nil {
-			return nil, err
+		recipient, ok := recipient.(openpgp.EntityList)
+		if !ok {
+			return nil, errRecipientUnparsable
 		}
 
 		return openpgp.Encrypt(dst, recipient, nil, nil, nil)
@@ -513,13 +536,13 @@ func encrypt(
 func encryptString(
 	src string,
 	encryptionFormat string,
-	pubkey []byte,
+	recipient interface{},
 ) (string, error) {
 	switch encryptionFormat {
 	case encryptionFormatAgeKey:
-		recipient, err := age.ParseX25519Recipient(string(pubkey))
-		if err != nil {
-			return "", err
+		recipient, ok := recipient.(*age.X25519Recipient)
+		if !ok {
+			return "", errRecipientUnparsable
 		}
 
 		out := &bytes.Buffer{}
@@ -538,9 +561,9 @@ func encryptString(
 
 		return base64.StdEncoding.EncodeToString(out.Bytes()), nil
 	case encryptionFormatPGPKey:
-		recipient, err := openpgp.ReadKeyRing(bytes.NewBuffer(pubkey))
-		if err != nil {
-			return "", err
+		recipient, ok := recipient.(openpgp.EntityList)
+		if !ok {
+			return "", errRecipientUnparsable
 		}
 
 		out := &bytes.Buffer{}
