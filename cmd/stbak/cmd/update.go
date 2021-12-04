@@ -260,6 +260,10 @@ func update(
 			hdrToAppend := *hdr
 			headers = append(headers, &hdrToAppend)
 
+			if err := signHeader(hdr, signatureFormat, identity); err != nil {
+				return err
+			}
+
 			if err := encryptHeader(hdr, encryptionFormat, recipient); err != nil {
 				return err
 			}
@@ -329,6 +333,10 @@ func update(
 
 			hdrToAppend := *hdr
 			headers = append(headers, &hdrToAppend)
+
+			if err := signHeader(hdr, signatureFormat, identity); err != nil {
+				return err
+			}
 
 			if err := encryptHeader(hdr, encryptionFormat, recipient); err != nil {
 				return err

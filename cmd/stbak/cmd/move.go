@@ -24,7 +24,11 @@ var moveCmd = &cobra.Command{
 			return err
 		}
 
-		return checkKeyAccessible(viper.GetString(encryptionFlag), viper.GetString(recipientFlag))
+		if err := checkKeyAccessible(viper.GetString(encryptionFlag), viper.GetString(recipientFlag)); err != nil {
+			return err
+		}
+
+		return checkKeyAccessible(viper.GetString(signatureFlag), viper.GetString(identityFlag))
 	},
 	RunE: func(cmd *cobra.Command, args []string) error {
 		if err := viper.BindPFlags(cmd.PersistentFlags()); err != nil {
@@ -45,6 +49,16 @@ var moveCmd = &cobra.Command{
 			return err
 		}
 
+		privkey, err := readKey(viper.GetString(signatureFlag), viper.GetString(identityFlag))
+		if err != nil {
+			return err
+		}
+
+		identity, err := parseSignerIdentity(viper.GetString(signatureFlag), privkey, viper.GetString(passwordFlag))
+		if err != nil {
+			return err
+		}
+
 		return move(
 			viper.GetString(driveFlag),
 			viper.GetString(metadataFlag),
@@ -52,6 +66,8 @@ var moveCmd = &cobra.Command{
 			viper.GetString(toFlag),
 			viper.GetString(encryptionFlag),
 			recipient,
+			viper.GetString(signatureFlag),
+			identity,
 		)
 	},
 }
@@ -63,6 +79,8 @@ func move(
 	dst string,
 	encryptionFormat string,
 	recipient interface{},
+	signatureFormat string,
+	identity interface{},
 ) error {
 	dirty := false
 	tw, _, cleanup, err := openTapeWriter(tape)
@@ -115,6 +133,10 @@ func move(
 		hdr.PAXRecords[pax.STFSRecordAction] = pax.STFSRecordActionUpdate
 		hdr.PAXRecords[pax.STFSRecordReplacesName] = dbhdr.Name
 
+		if err := signHeader(hdr, signatureFormat, identity); err != nil {
+			return err
+		}
+
 		if err := encryptHeader(hdr, encryptionFormat, recipient); err != nil {
 			return err
 		}
@@ -138,6 +160,8 @@ func init() {
 	moveCmd.PersistentFlags().StringP(fromFlag, "f", "", "Current path of the file or directory to move")
 	moveCmd.PersistentFlags().StringP(toFlag, "t", "", "Path to move the file or directory to")
 	moveCmd.PersistentFlags().StringP(recipientFlag, "r", "", "Path to public key of recipient to encrypt for")
+	moveCmd.PersistentFlags().StringP(identityFlag, "i", "", "Path to private key to sign with")
+	moveCmd.PersistentFlags().StringP(passwordFlag, "p", "", "Password for the private key")
 
 	viper.AutomaticEnv()
 
