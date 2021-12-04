@@ -349,6 +349,10 @@ func archive(
 		hdrToAppend := *hdr
 		headers = append(headers, &hdrToAppend)
 
+		if err := signHeader(hdr, signatureFormat, identity); err != nil {
+			return err
+		}
+
 		if err := encryptHeader(hdr, encryptionFormat, recipient); err != nil {
 			return err
 		}
@@ -472,7 +476,38 @@ func encryptHeader(
 		return err
 	}
 
-	newHdr.PAXRecords[pax.STFSEmbeddedHeader], err = encryptString(string(wrappedHeader), encryptionFormat, recipient)
+	newHdr.PAXRecords[pax.STFSRecordEmbeddedHeader], err = encryptString(string(wrappedHeader), encryptionFormat, recipient)
+	if err != nil {
+		return err
+	}
+
+	*hdr = *newHdr
+
+	return nil
+}
+
+func signHeader(
+	hdr *tar.Header,
+	signatureFormat string,
+	identity interface{},
+) error {
+	if signatureFormat == noneKey {
+		return nil
+	}
+
+	newHdr := &tar.Header{
+		Format:     tar.FormatPAX,
+		Size:       hdr.Size,
+		PAXRecords: map[string]string{},
+	}
+
+	wrappedHeader, err := json.Marshal(hdr)
+	if err != nil {
+		return err
+	}
+
+	newHdr.PAXRecords[pax.STFSRecordEmbeddedHeader] = string(wrappedHeader)
+	newHdr.PAXRecords[pax.STFSRecordSignature], err = signString(newHdr.PAXRecords[pax.STFSRecordEmbeddedHeader], signatureFormat, identity)
 	if err != nil {
 		return err
 	}
@@ -652,6 +687,26 @@ func encryptString(
 		return src, nil
 	default:
 		return "", errUnsupportedEncryptionFormat
+	}
+}
+
+func signString(
+	src string,
+	signatureFormat string,
+	identity interface{},
+) (string, error) {
+	switch signatureFormat {
+	case signatureFormatMinisignKey:
+		identity, ok := identity.(minisign.PrivateKey)
+		if !ok {
+			return "", errIdentityUnparsable
+		}
+
+		return base64.StdEncoding.EncodeToString(minisign.Sign(identity, []byte(src))), nil
+	case noneKey:
+		return src, nil
+	default:
+		return "", errUnsupportedSignatureFormat
 	}
 }
 

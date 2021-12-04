@@ -43,6 +43,8 @@ var (
 	errIdentityUnparsable = errors.New("recipient could not be parsed")
 
 	errInvalidSignature = errors.New("invalid signature")
+
+	errSignatureMissing = errors.New("missing signature")
 )
 
 var recoveryFetchCmd = &cobra.Command{
@@ -154,6 +156,10 @@ func restoreFromRecordAndBlock(
 	}
 
 	if err := decryptHeader(hdr, encryptionFormat, identity); err != nil {
+		return err
+	}
+
+	if err := verifyHeader(hdr, signatureFormat, recipient); err != nil {
 		return err
 	}
 
@@ -297,13 +303,50 @@ func decryptHeader(
 		return errEmbeddedHeaderMissing
 	}
 
-	encryptedEmbeddedHeader, ok := hdr.PAXRecords[pax.STFSEmbeddedHeader]
+	encryptedEmbeddedHeader, ok := hdr.PAXRecords[pax.STFSRecordEmbeddedHeader]
 	if !ok {
 		return errEmbeddedHeaderMissing
 	}
 
 	embeddedHeader, err := decryptString(encryptedEmbeddedHeader, encryptionFormat, identity)
 	if err != nil {
+		return err
+	}
+
+	var newHdr tar.Header
+	if err := json.Unmarshal([]byte(embeddedHeader), &newHdr); err != nil {
+		return err
+	}
+
+	*hdr = newHdr
+
+	return nil
+}
+
+func verifyHeader(
+	hdr *tar.Header,
+	signatureFormat string,
+	recipient interface{},
+) error {
+	if signatureFormat == noneKey {
+		return nil
+	}
+
+	if hdr.PAXRecords == nil {
+		return errEmbeddedHeaderMissing
+	}
+
+	embeddedHeader, ok := hdr.PAXRecords[pax.STFSRecordEmbeddedHeader]
+	if !ok {
+		return errEmbeddedHeaderMissing
+	}
+
+	signature, ok := hdr.PAXRecords[pax.STFSRecordSignature]
+	if !ok {
+		return errSignatureMissing
+	}
+
+	if err := verifyString(embeddedHeader, signatureFormat, recipient, signature); err != nil {
 		return err
 	}
 
@@ -522,6 +565,36 @@ func verify(
 		}, nil
 	default:
 		return nil, nil, errUnsupportedSignatureFormat
+	}
+}
+
+func verifyString(
+	src string,
+	signatureFormat string,
+	recipient interface{},
+	signature string,
+) error {
+	switch signatureFormat {
+	case signatureFormatMinisignKey:
+		recipient, ok := recipient.(minisign.PublicKey)
+		if !ok {
+			return errRecipientUnparsable
+		}
+
+		decodedSignature, err := base64.StdEncoding.DecodeString(signature)
+		if err != nil {
+			return err
+		}
+
+		if minisign.Verify(recipient, []byte(src), decodedSignature) {
+			return nil
+		}
+
+		return errInvalidSignature
+	case noneKey:
+		return nil
+	default:
+		return errUnsupportedSignatureFormat
 	}
 }
 
