@@ -57,8 +57,9 @@ var (
 
 	knownEncryptionFormats = []string{encryptionFormatNoneKey, encryptionFormatAgeKey, encryptionFormatPGPKey}
 
-	errUnknownEncryptionFormat     = errors.New("unknown encryption format")
-	errUnsupportedEncryptionFormat = errors.New("unsupported encryption format")
+	errUnknownEncryptionFormat              = errors.New("unknown encryption format")
+	errUnsupportedEncryptionFormat          = errors.New("unsupported encryption format")
+	errKeygenForEncryptionFormatUnsupported = errors.New("can not generate keys for this encryption format")
 )
 
 var rootCmd = &cobra.Command{
