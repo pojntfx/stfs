@@ -40,13 +40,18 @@ var moveCmd = &cobra.Command{
 			return err
 		}
 
+		recipient, err := parseRecipient(viper.GetString(encryptionFlag), pubkey)
+		if err != nil {
+			return err
+		}
+
 		return move(
 			viper.GetString(tapeFlag),
 			viper.GetString(metadataFlag),
 			viper.GetString(srcFlag),
 			viper.GetString(dstFlag),
 			viper.GetString(encryptionFlag),
-			pubkey,
+			recipient,
 		)
 	},
 }
@@ -57,7 +62,7 @@ func move(
 	src string,
 	dst string,
 	encryptionFormat string,
-	pubkey []byte,
+	recipient interface{},
 ) error {
 	dirty := false
 	tw, _, cleanup, err := openTapeWriter(tape)
@@ -110,7 +115,7 @@ func move(
 		hdr.PAXRecords[pax.STFSRecordAction] = pax.STFSRecordActionUpdate
 		hdr.PAXRecords[pax.STFSRecordReplacesName] = dbhdr.Name
 
-		if err := encryptHeader(hdr, encryptionFormat, pubkey); err != nil {
+		if err := encryptHeader(hdr, encryptionFormat, recipient); err != nil {
 			return err
 		}
 

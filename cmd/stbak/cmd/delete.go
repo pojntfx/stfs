@@ -47,12 +47,17 @@ var deleteCmd = &cobra.Command{
 			return err
 		}
 
+		recipient, err := parseRecipient(viper.GetString(encryptionFlag), pubkey)
+		if err != nil {
+			return err
+		}
+
 		return delete(
 			viper.GetString(tapeFlag),
 			viper.GetString(metadataFlag),
 			viper.GetString(nameFlag),
 			viper.GetString(encryptionFlag),
-			pubkey,
+			recipient,
 		)
 	},
 }
@@ -62,7 +67,7 @@ func delete(
 	metadata string,
 	name string,
 	encryptionFormat string,
-	pubkey []byte,
+	recipient interface{},
 ) error {
 	dirty := false
 	tw, _, cleanup, err := openTapeWriter(tape)
@@ -113,7 +118,7 @@ func delete(
 		hdr.PAXRecords[pax.STFSRecordVersion] = pax.STFSRecordVersion1
 		hdr.PAXRecords[pax.STFSRecordAction] = pax.STFSRecordActionDelete
 
-		if err := encryptHeader(hdr, encryptionFormat, pubkey); err != nil {
+		if err := encryptHeader(hdr, encryptionFormat, recipient); err != nil {
 			return err
 		}
 

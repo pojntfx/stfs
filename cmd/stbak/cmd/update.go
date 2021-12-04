@@ -60,6 +60,11 @@ var updateCmd = &cobra.Command{
 			return err
 		}
 
+		recipient, err := parseRecipient(viper.GetString(encryptionFlag), pubkey)
+		if err != nil {
+			return err
+		}
+
 		hdrs, err := update(
 			viper.GetString(tapeFlag),
 			viper.GetInt(recordSizeFlag),
@@ -68,7 +73,7 @@ var updateCmd = &cobra.Command{
 			viper.GetString(compressionFlag),
 			viper.GetString(compressionLevelFlag),
 			viper.GetString(encryptionFlag),
-			pubkey,
+			recipient,
 		)
 		if err != nil {
 			return err
@@ -106,7 +111,7 @@ func update(
 	compressionFormat string,
 	compressionLevel string,
 	encryptionFormat string,
-	pubkey []byte,
+	recipient interface{},
 ) ([]*tar.Header, error) {
 	dirty := false
 	tw, isRegular, cleanup, err := openTapeWriter(tape)
@@ -152,7 +157,7 @@ func update(
 				Writer: io.Discard,
 			}
 
-			encryptor, err := encrypt(fileSizeCounter, encryptionFormat, pubkey)
+			encryptor, err := encrypt(fileSizeCounter, encryptionFormat, recipient)
 			if err != nil {
 				return err
 			}
@@ -230,7 +235,7 @@ func update(
 			hdrToAppend := *hdr
 			headers = append(headers, &hdrToAppend)
 
-			if err := encryptHeader(hdr, encryptionFormat, pubkey); err != nil {
+			if err := encryptHeader(hdr, encryptionFormat, recipient); err != nil {
 				return err
 			}
 
@@ -243,7 +248,7 @@ func update(
 			}
 
 			// Compress and write the file
-			encryptor, err := encrypt(tw, encryptionFormat, pubkey)
+			encryptor, err := encrypt(tw, encryptionFormat, recipient)
 			if err != nil {
 				return err
 			}
@@ -300,7 +305,7 @@ func update(
 			hdrToAppend := *hdr
 			headers = append(headers, &hdrToAppend)
 
-			if err := encryptHeader(hdr, encryptionFormat, pubkey); err != nil {
+			if err := encryptHeader(hdr, encryptionFormat, recipient); err != nil {
 				return err
 			}
 
