@@ -114,6 +114,9 @@ var updateCmd = &cobra.Command{
 				return nil
 			},
 			1,
+			func(hdr *tar.Header) error {
+				return nil // We sign above, no need to verify
+			},
 		)
 	},
 }

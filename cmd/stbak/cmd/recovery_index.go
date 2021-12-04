@@ -31,7 +31,11 @@ var recoveryIndexCmd = &cobra.Command{
 			return err
 		}
 
-		return checkKeyAccessible(viper.GetString(encryptionFlag), viper.GetString(identityFlag))
+		if err := checkKeyAccessible(viper.GetString(encryptionFlag), viper.GetString(identityFlag)); err != nil {
+			return err
+		}
+
+		return checkKeyAccessible(viper.GetString(signatureFlag), viper.GetString(recipientFlag))
 	},
 	RunE: func(cmd *cobra.Command, args []string) error {
 		if err := viper.BindPFlags(cmd.PersistentFlags()); err != nil {
@@ -40,6 +44,16 @@ var recoveryIndexCmd = &cobra.Command{
 
 		if viper.GetBool(verboseFlag) {
 			boil.DebugMode = true
+		}
+
+		pubkey, err := readKey(viper.GetString(signatureFlag), viper.GetString(recipientFlag))
+		if err != nil {
+			return err
+		}
+
+		recipient, err := parseSignerRecipient(viper.GetString(signatureFlag), pubkey)
+		if err != nil {
+			return err
 		}
 
 		privkey, err := readKey(viper.GetString(encryptionFlag), viper.GetString(identityFlag))
@@ -65,6 +79,9 @@ var recoveryIndexCmd = &cobra.Command{
 				return decryptHeader(hdr, viper.GetString(encryptionFlag), identity)
 			},
 			0,
+			func(hdr *tar.Header) error {
+				return verifyHeader(hdr, viper.GetString(signatureFlag), recipient)
+			},
 		)
 	},
 }
@@ -83,6 +100,9 @@ func index(
 		i int,
 	) error,
 	offset int,
+	verifyHeader func(
+		hdr *tar.Header,
+	) error,
 ) error {
 	if overwrite {
 		f, err := os.OpenFile(metadata, os.O_WRONLY|os.O_CREATE, 0600)
@@ -176,6 +196,10 @@ func index(
 					return err
 				}
 
+				if err := verifyHeader(hdr); err != nil {
+					return err
+				}
+
 				if err := indexHeader(record, block, hdr, metadataPersister, compressionFormat, encryptionFormat); err != nil {
 					return nil
 				}
@@ -255,6 +279,10 @@ func index(
 
 			if i >= offset {
 				if err := decryptHeader(hdr, i-offset); err != nil {
+					return err
+				}
+
+				if err := verifyHeader(hdr); err != nil {
 					return err
 				}
 
@@ -466,6 +494,7 @@ func init() {
 	recoveryIndexCmd.PersistentFlags().BoolP(overwriteFlag, "o", false, "Remove the old index before starting to index")
 	recoveryIndexCmd.PersistentFlags().StringP(identityFlag, "i", "", "Path to private key of recipient that has been encrypted for")
 	recoveryIndexCmd.PersistentFlags().StringP(passwordFlag, "p", "", "Password for the private key")
+	recoveryIndexCmd.PersistentFlags().StringP(recipientFlag, "r", "", "Path to the public key to verify with")
 
 	viper.AutomaticEnv()
 
