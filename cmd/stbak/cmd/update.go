@@ -34,7 +34,11 @@ var updateCmd = &cobra.Command{
 			return err
 		}
 
-		return checkKeyAccessible(viper.GetString(encryptionFlag), viper.GetString(recipientFlag))
+		if err := checkKeyAccessible(viper.GetString(encryptionFlag), viper.GetString(recipientFlag)); err != nil {
+			return err
+		}
+
+		return checkKeyAccessible(viper.GetString(signatureFlag), viper.GetString(identityFlag))
 	},
 	RunE: func(cmd *cobra.Command, args []string) error {
 		if err := viper.BindPFlags(cmd.PersistentFlags()); err != nil {
@@ -65,6 +69,16 @@ var updateCmd = &cobra.Command{
 			return err
 		}
 
+		privkey, err := readKey(viper.GetString(signatureFlag), viper.GetString(identityFlag))
+		if err != nil {
+			return err
+		}
+
+		identity, err := parseSignerIdentity(viper.GetString(signatureFlag), privkey, viper.GetString(passwordFlag))
+		if err != nil {
+			return err
+		}
+
 		hdrs, err := update(
 			viper.GetString(driveFlag),
 			viper.GetInt(recordSizeFlag),
@@ -74,6 +88,8 @@ var updateCmd = &cobra.Command{
 			viper.GetString(compressionLevelFlag),
 			viper.GetString(encryptionFlag),
 			recipient,
+			viper.GetString(signatureFlag),
+			identity,
 		)
 		if err != nil {
 			return err
@@ -111,6 +127,8 @@ func update(
 	compressionLevel string,
 	encryptionFormat string,
 	recipient interface{},
+	signatureFormat string,
+	identity interface{},
 ) ([]*tar.Header, error) {
 	dirty := false
 	tw, isRegular, cleanup, err := openTapeWriter(tape)
@@ -177,13 +195,18 @@ func update(
 				return err
 			}
 
+			signer, sign, err := sign(file, signatureFormat, identity)
+			if err != nil {
+				return err
+			}
+
 			if isRegular {
-				if _, err := io.Copy(compressor, file); err != nil {
+				if _, err := io.Copy(compressor, signer); err != nil {
 					return err
 				}
 			} else {
 				buf := make([]byte, controllers.BlockSize*recordSize)
-				if _, err := io.CopyBuffer(compressor, file, buf); err != nil {
+				if _, err := io.CopyBuffer(compressor, signer, buf); err != nil {
 					return err
 				}
 			}
@@ -208,6 +231,9 @@ func update(
 				hdr.PAXRecords = map[string]string{}
 			}
 			hdr.PAXRecords[pax.STFSRecordUncompressedSize] = strconv.Itoa(int(hdr.Size))
+			if signature := sign(); signature != "" {
+				hdr.PAXRecords[pax.STFSRecordSignature] = signature
+			}
 			hdr.Size = int64(fileSizeCounter.BytesRead)
 
 			hdr.Name, err = addSuffix(hdr.Name, compressionFormat, encryptionFormat)
@@ -325,6 +351,8 @@ func init() {
 	updateCmd.PersistentFlags().BoolP(overwriteFlag, "o", false, "Replace the content on the tape or tar file")
 	updateCmd.PersistentFlags().StringP(compressionLevelFlag, "l", compressionLevelBalanced, fmt.Sprintf("Compression level to use (default %v, available are %v)", compressionLevelBalanced, knownCompressionLevels))
 	updateCmd.PersistentFlags().StringP(recipientFlag, "r", "", "Path to public key of recipient to encrypt for")
+	updateCmd.PersistentFlags().StringP(identityFlag, "i", "", "Path to private key to sign with")
+	updateCmd.PersistentFlags().StringP(passwordFlag, "p", "", "Password for the private key")
 
 	viper.AutomaticEnv()
 
