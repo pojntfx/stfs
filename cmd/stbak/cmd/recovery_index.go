@@ -47,6 +47,11 @@ var recoveryIndexCmd = &cobra.Command{
 			return err
 		}
 
+		identity, err := parseIdentity(viper.GetString(encryptionFlag), privkey, viper.GetString(passwordFlag))
+		if err != nil {
+			return err
+		}
+
 		return index(
 			viper.GetString(tapeFlag),
 			viper.GetString(metadataFlag),
@@ -56,9 +61,8 @@ var recoveryIndexCmd = &cobra.Command{
 			viper.GetBool(overwriteFlag),
 			viper.GetString(compressionFlag),
 			viper.GetString(encryptionFlag),
-			privkey,
-			func(hdr *tar.Header, encryptionFormat string, privkey []byte, i int) error {
-				return decryptHeader(hdr, encryptionFormat, privkey, viper.GetString(passwordFlag))
+			func(hdr *tar.Header, encryptionFormat string, i int) error {
+				return decryptHeader(hdr, encryptionFormat, identity)
 			},
 			0,
 		)
@@ -74,11 +78,9 @@ func index(
 	overwrite bool,
 	compressionFormat string,
 	encryptionFormat string,
-	privkey []byte,
 	decryptHeader func(
 		hdr *tar.Header,
 		encryptionFormat string,
-		privkey []byte,
 		i int,
 	) error,
 	offset int,
@@ -171,7 +173,7 @@ func index(
 			}
 
 			if i >= offset {
-				if err := decryptHeader(hdr, encryptionFormat, privkey, i-offset); err != nil {
+				if err := decryptHeader(hdr, encryptionFormat, i-offset); err != nil {
 					return err
 				}
 
@@ -253,7 +255,7 @@ func index(
 			}
 
 			if i >= offset {
-				if err := decryptHeader(hdr, encryptionFormat, privkey, i-offset); err != nil {
+				if err := decryptHeader(hdr, encryptionFormat, i-offset); err != nil {
 					return err
 				}
 

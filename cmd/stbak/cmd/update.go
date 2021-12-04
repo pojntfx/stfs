@@ -88,8 +88,7 @@ var updateCmd = &cobra.Command{
 			false,
 			viper.GetString(compressionFlag),
 			viper.GetString(encryptionFlag),
-			[]byte{},
-			func(hdr *tar.Header, encryptionFormat string, privkey []byte, i int) error {
+			func(hdr *tar.Header, encryptionFormat string, i int) error {
 				if len(hdrs) <= i {
 					return errMissingTarHeader
 				}

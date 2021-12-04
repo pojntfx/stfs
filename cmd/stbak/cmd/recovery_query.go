@@ -39,14 +39,18 @@ var recoveryQueryCmd = &cobra.Command{
 			return err
 		}
 
+		identity, err := parseIdentity(viper.GetString(encryptionFlag), privkey, viper.GetString(passwordFlag))
+		if err != nil {
+			return err
+		}
+
 		return query(
 			viper.GetString(tapeFlag),
 			viper.GetInt(recordFlag),
 			viper.GetInt(blockFlag),
 			viper.GetInt(recordSizeFlag),
 			viper.GetString(encryptionFlag),
-			privkey,
-			viper.GetString(passwordFlag),
+			identity,
 		)
 	},
 }
@@ -57,8 +61,7 @@ func query(
 	block int,
 	recordSize int,
 	encryptionFormat string,
-	privkey []byte,
-	password string,
+	identity interface{},
 ) error {
 	f, isRegular, err := openTapeReadOnly(tape)
 	if err != nil {
@@ -126,7 +129,7 @@ func query(
 				break
 			}
 
-			if err := decryptHeader(hdr, encryptionFormat, privkey, password); err != nil {
+			if err := decryptHeader(hdr, encryptionFormat, identity); err != nil {
 				return err
 			}
 
@@ -209,7 +212,7 @@ func query(
 				}
 			}
 
-			if err := decryptHeader(hdr, encryptionFormat, privkey, password); err != nil {
+			if err := decryptHeader(hdr, encryptionFormat, identity); err != nil {
 				return err
 			}
 

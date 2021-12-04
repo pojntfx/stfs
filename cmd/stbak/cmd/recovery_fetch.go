@@ -38,6 +38,8 @@ const (
 
 var (
 	errEmbeddedHeaderMissing = errors.New("embedded header is missing")
+
+	errIdentityUnparsable = errors.New("recipient could not be parsed")
 )
 
 var recoveryFetchCmd = &cobra.Command{
@@ -64,6 +66,11 @@ var recoveryFetchCmd = &cobra.Command{
 			return err
 		}
 
+		identity, err := parseIdentity(viper.GetString(encryptionFlag), privkey, viper.GetString(passwordFlag))
+		if err != nil {
+			return err
+		}
+
 		return restoreFromRecordAndBlock(
 			viper.GetString(tapeFlag),
 			viper.GetInt(recordSizeFlag),
@@ -74,8 +81,7 @@ var recoveryFetchCmd = &cobra.Command{
 			true,
 			viper.GetString(compressionFlag),
 			viper.GetString(encryptionFlag),
-			privkey,
-			viper.GetString(passwordFlag),
+			identity,
 		)
 	},
 }
@@ -90,8 +96,7 @@ func restoreFromRecordAndBlock(
 	showHeader bool,
 	compressionFormat string,
 	encryptionFormat string,
-	privkey []byte,
-	password string,
+	identity interface{},
 ) error {
 	f, isRegular, err := openTapeReadOnly(tape)
 	if err != nil {
@@ -127,7 +132,7 @@ func restoreFromRecordAndBlock(
 		return err
 	}
 
-	if err := decryptHeader(hdr, encryptionFormat, privkey, password); err != nil {
+	if err := decryptHeader(hdr, encryptionFormat, identity); err != nil {
 		return err
 	}
 
@@ -168,7 +173,7 @@ func restoreFromRecordAndBlock(
 			return nil
 		}
 
-		decryptor, err := decrypt(tr, encryptionFormat, privkey, password)
+		decryptor, err := decrypt(tr, encryptionFormat, identity)
 		if err != nil {
 			return err
 		}
@@ -245,8 +250,7 @@ func decompress(
 func decryptHeader(
 	hdr *tar.Header,
 	encryptionFormat string,
-	privkey []byte,
-	password string,
+	identity interface{},
 ) error {
 	if encryptionFormat == encryptionFormatNoneKey {
 		return nil
@@ -261,7 +265,7 @@ func decryptHeader(
 		return errEmbeddedHeaderMissing
 	}
 
-	embeddedHeader, err := decryptString(encryptedEmbeddedHeader, encryptionFormat, privkey, password)
+	embeddedHeader, err := decryptString(encryptedEmbeddedHeader, encryptionFormat, identity)
 	if err != nil {
 		return err
 	}
@@ -276,103 +280,11 @@ func decryptHeader(
 	return nil
 }
 
-func decryptString(
-	src string,
+func parseIdentity(
 	encryptionFormat string,
 	privkey []byte,
 	password string,
-) (string, error) {
-	switch encryptionFormat {
-	case encryptionFormatAgeKey:
-		if password != "" {
-			passwordIdentity, err := age.NewScryptIdentity(password)
-			if err != nil {
-				return "", err
-			}
-
-			r, err := age.Decrypt(bytes.NewBuffer(privkey), passwordIdentity)
-			if err != nil {
-				return "", err
-			}
-
-			out := &bytes.Buffer{}
-			if _, err := io.Copy(out, r); err != nil {
-				return "", err
-			}
-
-			privkey = out.Bytes()
-		}
-
-		identity, err := age.ParseX25519Identity(string(privkey))
-		if err != nil {
-			return "", err
-		}
-
-		decoded, err := base64.StdEncoding.DecodeString(src)
-		if err != nil {
-			return "", err
-		}
-
-		r, err := age.Decrypt(bytes.NewBufferString(string(decoded)), identity)
-		if err != nil {
-			return "", err
-		}
-
-		out := &bytes.Buffer{}
-		if _, err := io.Copy(out, r); err != nil {
-			return "", err
-		}
-
-		return out.String(), nil
-	case encryptionFormatPGPKey:
-		identities, err := openpgp.ReadKeyRing(bytes.NewBuffer(privkey))
-		if err != nil {
-			return "", err
-		}
-
-		if password != "" {
-			for _, identity := range identities {
-				if err := identity.PrivateKey.Decrypt([]byte(password)); err != nil {
-					return "", err
-				}
-
-				for _, subkey := range identity.Subkeys {
-					if err := subkey.PrivateKey.Decrypt([]byte(password)); err != nil {
-						return "", err
-					}
-				}
-			}
-		}
-
-		decoded, err := base64.StdEncoding.DecodeString(src)
-		if err != nil {
-			return "", err
-		}
-
-		r, err := openpgp.ReadMessage(bytes.NewBufferString(string(decoded)), identities, nil, nil)
-		if err != nil {
-			return "", err
-		}
-
-		out := &bytes.Buffer{}
-		if _, err := io.Copy(out, r.UnverifiedBody); err != nil {
-			return "", err
-		}
-
-		return out.String(), nil
-	case encryptionFormatNoneKey:
-		return src, nil
-	default:
-		return "", errUnsupportedEncryptionFormat
-	}
-}
-
-func decrypt(
-	src io.Reader,
-	encryptionFormat string,
-	privkey []byte,
-	password string,
-) (io.ReadCloser, error) {
+) (interface{}, error) {
 	switch encryptionFormat {
 	case encryptionFormatAgeKey:
 		if password != "" {
@@ -394,17 +306,7 @@ func decrypt(
 			privkey = out.Bytes()
 		}
 
-		identity, err := age.ParseX25519Identity(string(privkey))
-		if err != nil {
-			return nil, err
-		}
-
-		r, err := age.Decrypt(src, identity)
-		if err != nil {
-			return nil, err
-		}
-
-		return io.NopCloser(r), nil
+		return age.ParseX25519Identity(string(privkey))
 	case encryptionFormatPGPKey:
 		identities, err := openpgp.ReadKeyRing(bytes.NewBuffer(privkey))
 		if err != nil {
@@ -425,7 +327,96 @@ func decrypt(
 			}
 		}
 
-		r, err := openpgp.ReadMessage(src, identities, nil, nil)
+		return identities, nil
+	case encryptionFormatNoneKey:
+		return privkey, nil
+	default:
+		return nil, errUnsupportedEncryptionFormat
+	}
+}
+
+func decryptString(
+	src string,
+	encryptionFormat string,
+	identity interface{},
+) (string, error) {
+	switch encryptionFormat {
+	case encryptionFormatAgeKey:
+		identity, ok := identity.(*age.X25519Identity)
+		if !ok {
+			return "", errIdentityUnparsable
+		}
+
+		decoded, err := base64.StdEncoding.DecodeString(src)
+		if err != nil {
+			return "", err
+		}
+
+		r, err := age.Decrypt(bytes.NewBufferString(string(decoded)), identity)
+		if err != nil {
+			return "", err
+		}
+
+		out := &bytes.Buffer{}
+		if _, err := io.Copy(out, r); err != nil {
+			return "", err
+		}
+
+		return out.String(), nil
+	case encryptionFormatPGPKey:
+		identity, ok := identity.(openpgp.EntityList)
+		if !ok {
+			return "", errIdentityUnparsable
+		}
+
+		decoded, err := base64.StdEncoding.DecodeString(src)
+		if err != nil {
+			return "", err
+		}
+
+		r, err := openpgp.ReadMessage(bytes.NewBufferString(string(decoded)), identity, nil, nil)
+		if err != nil {
+			return "", err
+		}
+
+		out := &bytes.Buffer{}
+		if _, err := io.Copy(out, r.UnverifiedBody); err != nil {
+			return "", err
+		}
+
+		return out.String(), nil
+	case encryptionFormatNoneKey:
+		return src, nil
+	default:
+		return "", errUnsupportedEncryptionFormat
+	}
+}
+
+func decrypt(
+	src io.Reader,
+	encryptionFormat string,
+	identity interface{},
+) (io.ReadCloser, error) {
+	switch encryptionFormat {
+	case encryptionFormatAgeKey:
+		identity, ok := identity.(*age.X25519Identity)
+		if !ok {
+			return nil, errIdentityUnparsable
+		}
+
+		r, err := age.Decrypt(src, identity)
+		if err != nil {
+			return nil, err
+		}
+
+		return io.NopCloser(r), nil
+	case encryptionFormatPGPKey:
+		identity, ok := identity.(openpgp.EntityList)
+		if !ok {
+			return nil, errIdentityUnparsable
+		}
+
+		r, err := openpgp.ReadMessage(src, identity, nil, nil)
 		if err != nil {
 			return nil, err
 		}
