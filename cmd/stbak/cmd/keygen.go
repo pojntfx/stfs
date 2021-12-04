@@ -8,6 +8,9 @@ import (
 	"path/filepath"
 
 	"filippo.io/age"
+	"github.com/ProtonMail/gopenpgp/v2/armor"
+	"github.com/ProtonMail/gopenpgp/v2/crypto"
+	"github.com/ProtonMail/gopenpgp/v2/helper"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 	"github.com/volatiletech/sqlboiler/v4/boil"
@@ -61,6 +64,34 @@ var keygenCmd = &cobra.Command{
 
 				privkey = out.String()
 			}
+		case encryptionFormatPGPKey:
+			armoredIdentity, err := helper.GenerateKey("STFS", "stfs@example.com", []byte(viper.GetString(passwordFlag)), "x25519", 0)
+			if err != nil {
+				return err
+			}
+
+			rawIdentity, err := armor.Unarmor(armoredIdentity)
+			if err != nil {
+				return err
+			}
+
+			identity, err := crypto.NewKey([]byte(rawIdentity))
+			if err != nil {
+				return err
+			}
+
+			pub, err := identity.GetPublicKey()
+			if err != nil {
+				return err
+			}
+
+			priv, err := identity.Serialize()
+			if err != nil {
+				return err
+			}
+
+			pubkey = string(pub)
+			privkey = string(priv)
 		default:
 			return errKeygenForEncryptionFormatUnsupported
 		}
