@@ -352,6 +352,10 @@ func parseIdentity(
 
 		if password != "" {
 			for _, identity := range identities {
+				if identity.PrivateKey == nil {
+					return nil, errIdentityUnparsable
+				}
+
 				if err := identity.PrivateKey.Decrypt([]byte(password)); err != nil {
 					return nil, err
 				}
