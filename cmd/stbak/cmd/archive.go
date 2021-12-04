@@ -16,6 +16,7 @@ import (
 	"path/filepath"
 	"strconv"
 
+	"aead.dev/minisign"
 	"filippo.io/age"
 	"github.com/ProtonMail/go-crypto/openpgp"
 	"github.com/andybalholm/brotli"
@@ -37,7 +38,7 @@ import (
 
 const (
 	recordSizeFlag       = "record-size"
-	srcFlag              = "src"
+	fromFlag             = "from"
 	overwriteFlag        = "overwrite"
 	compressionLevelFlag = "compression-level"
 
@@ -76,7 +77,11 @@ var archiveCmd = &cobra.Command{
 			return err
 		}
 
-		return checkKeyAccessible(viper.GetString(encryptionFlag), viper.GetString(recipientFlag))
+		if err := checkKeyAccessible(viper.GetString(encryptionFlag), viper.GetString(recipientFlag)); err != nil {
+			return err
+		}
+
+		return checkKeyAccessible(viper.GetString(signatureFlag), viper.GetString(identityFlag))
 	},
 	RunE: func(cmd *cobra.Command, args []string) error {
 		if viper.GetBool(verboseFlag) {
@@ -110,22 +115,34 @@ var archiveCmd = &cobra.Command{
 			return err
 		}
 
+		privkey, err := readKey(viper.GetString(signatureFlag), viper.GetString(identityFlag))
+		if err != nil {
+			return err
+		}
+
+		identity, err := parseSignerIdentity(viper.GetString(signatureFlag), privkey, viper.GetString(passwordFlag))
+		if err != nil {
+			return err
+		}
+
 		hdrs, err := archive(
-			viper.GetString(tapeFlag),
+			viper.GetString(driveFlag),
 			viper.GetInt(recordSizeFlag),
-			viper.GetString(srcFlag),
+			viper.GetString(fromFlag),
 			viper.GetBool(overwriteFlag),
 			viper.GetString(compressionFlag),
 			viper.GetString(compressionLevelFlag),
 			viper.GetString(encryptionFlag),
 			recipient,
+			viper.GetString(signatureFlag),
+			identity,
 		)
 		if err != nil {
 			return err
 		}
 
 		return index(
-			viper.GetString(tapeFlag),
+			viper.GetString(driveFlag),
 			viper.GetString(metadataFlag),
 			viper.GetInt(recordSizeFlag),
 			int(lastIndexedRecord),
@@ -156,6 +173,8 @@ func archive(
 	compressionLevel string,
 	encryptionFormat string,
 	recipient interface{},
+	signatureFormat string,
+	identity interface{},
 ) ([]*tar.Header, error) {
 	dirty := false
 	tw, isRegular, cleanup, err := openTapeWriter(tape)
@@ -268,13 +287,18 @@ func archive(
 				return err
 			}
 
+			signer, sign, err := sign(file, signatureFormat, identity)
+			if err != nil {
+				return err
+			}
+
 			if isRegular {
-				if _, err := io.Copy(compressor, file); err != nil {
+				if _, err := io.Copy(compressor, signer); err != nil {
 					return err
 				}
 			} else {
 				buf := make([]byte, controllers.BlockSize*recordSize)
-				if _, err := io.CopyBuffer(compressor, file, buf); err != nil {
+				if _, err := io.CopyBuffer(compressor, signer, buf); err != nil {
 					return err
 				}
 			}
@@ -299,6 +323,9 @@ func archive(
 				hdr.PAXRecords = map[string]string{}
 			}
 			hdr.PAXRecords[pax.STFSRecordUncompressedSize] = strconv.Itoa(int(hdr.Size))
+			if signature := sign(); signature != "" {
+				hdr.PAXRecords[pax.STFSRecordSignature] = signature
+			}
 			hdr.Size = int64(fileSizeCounter.BytesRead)
 
 			hdr.Name, err = addSuffix(hdr.Name, compressionFormat, encryptionFormat)
@@ -390,7 +417,7 @@ func archive(
 }
 
 func checkKeyAccessible(encryptionFormat string, pathToKey string) error {
-	if encryptionFormat == encryptionFormatNoneKey {
+	if encryptionFormat == noneKey {
 		return nil
 	}
 
@@ -402,7 +429,7 @@ func checkKeyAccessible(encryptionFormat string, pathToKey string) error {
 }
 
 func readKey(encryptionFormat string, pathToKey string) ([]byte, error) {
-	if encryptionFormat == encryptionFormatNoneKey {
+	if encryptionFormat == noneKey {
 		return []byte{}, nil
 	}
 
@@ -430,7 +457,7 @@ func encryptHeader(
 	encryptionFormat string,
 	recipient interface{},
 ) error {
-	if encryptionFormat == encryptionFormatNoneKey {
+	if encryptionFormat == noneKey {
 		return nil
 	}
 
@@ -471,7 +498,7 @@ func addSuffix(name string, compressionFormat string, encryptionFormat string) (
 		fallthrough
 	case compressionFormatBzip2ParallelKey:
 		name += compressionFormatBzip2Suffix
-	case compressionFormatNoneKey:
+	case noneKey:
 	default:
 		return "", errUnsupportedCompressionFormat
 	}
@@ -481,7 +508,7 @@ func addSuffix(name string, compressionFormat string, encryptionFormat string) (
 		name += encryptionFormatAgeSuffix
 	case encryptionFormatPGPKey:
 		name += encryptionFormatPGPSuffix
-	case compressionFormatNoneKey:
+	case noneKey:
 	default:
 		return "", errUnsupportedEncryptionFormat
 	}
@@ -498,7 +525,7 @@ func parseRecipient(
 		return age.ParseX25519Recipient(string(pubkey))
 	case encryptionFormatPGPKey:
 		return openpgp.ReadKeyRing(bytes.NewBuffer(pubkey))
-	case encryptionFormatNoneKey:
+	case noneKey:
 		return pubkey, nil
 	default:
 		return nil, errUnsupportedEncryptionFormat
@@ -525,10 +552,51 @@ func encrypt(
 		}
 
 		return openpgp.Encrypt(dst, recipient, nil, nil, nil)
-	case encryptionFormatNoneKey:
+	case noneKey:
 		return noop.AddClose(dst), nil
 	default:
 		return nil, errUnsupportedEncryptionFormat
+	}
+}
+
+func parseSignerIdentity(
+	signatureFormat string,
+	privkey []byte,
+	password string,
+) (interface{}, error) {
+	switch signatureFormat {
+	case signatureFormatMinisignKey:
+		return minisign.DecryptKey(password, privkey)
+	case noneKey:
+		return privkey, nil
+	default:
+		return nil, errUnsupportedSignatureFormat
+	}
+}
+
+func sign(
+	src io.Reader,
+	signatureFormat string,
+	identity interface{},
+) (io.Reader, func() string, error) {
+	switch signatureFormat {
+	case signatureFormatMinisignKey:
+		identity, ok := identity.(minisign.PrivateKey)
+		if !ok {
+			return nil, nil, errIdentityUnparsable
+		}
+
+		signer := minisign.NewReader(src)
+
+		return signer, func() string {
+			return base64.StdEncoding.EncodeToString(signer.Sign(identity))
+		}, nil
+	case noneKey:
+		return io.NopCloser(src), func() string {
+			return ""
+		}, nil
+	default:
+		return nil, nil, errUnsupportedSignatureFormat
 	}
 }
 
@@ -580,7 +648,7 @@ func encryptString(
 		}
 
 		return base64.StdEncoding.EncodeToString(out.Bytes()), nil
-	case encryptionFormatNoneKey:
+	case noneKey:
 		return src, nil
 	default:
 		return "", errUnsupportedEncryptionFormat
@@ -704,7 +772,7 @@ func compress(
 		}
 
 		return noop.AddFlush(bz), nil
-	case compressionFormatNoneKey:
+	case noneKey:
 		return noop.AddFlush(noop.AddClose(dst)), nil
 	default:
 		return nil, errUnsupportedCompressionFormat
@@ -713,10 +781,12 @@ func compress(
 
 func init() {
 	archiveCmd.PersistentFlags().IntP(recordSizeFlag, "z", 20, "Amount of 512-bit blocks per record")
-	archiveCmd.PersistentFlags().StringP(srcFlag, "s", ".", "File or directory to archive")
+	archiveCmd.PersistentFlags().StringP(fromFlag, "f", ".", "File or directory to archive")
 	archiveCmd.PersistentFlags().BoolP(overwriteFlag, "o", false, "Start writing from the start instead of from the end of the tape or tar file")
 	archiveCmd.PersistentFlags().StringP(compressionLevelFlag, "l", compressionLevelBalanced, fmt.Sprintf("Compression level to use (default %v, available are %v)", compressionLevelBalanced, knownCompressionLevels))
 	archiveCmd.PersistentFlags().StringP(recipientFlag, "r", "", "Path to public key of recipient to encrypt for")
+	archiveCmd.PersistentFlags().StringP(identityFlag, "i", "", "Path to private key to sign with")
+	archiveCmd.PersistentFlags().StringP(passwordFlag, "p", "", "Password for the private key")
 
 	viper.AutomaticEnv()
 

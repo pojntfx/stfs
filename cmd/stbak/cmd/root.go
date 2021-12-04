@@ -12,12 +12,13 @@ import (
 )
 
 const (
-	tapeFlag        = "tape"
-	metadataFlag    = "metadata"
-	verboseFlag     = "verbose"
+	driveFlag    = "drive"
+	metadataFlag = "metadata"
+	verboseFlag  = "verbose"
+
 	compressionFlag = "compression"
 
-	compressionFormatNoneKey = "none"
+	noneKey = "none"
 
 	compressionFormatGZipKey    = "gzip"
 	compressionFormatGZipSuffix = ".gz"
@@ -40,26 +41,33 @@ const (
 
 	encryptionFlag = "encryption"
 
-	encryptionFormatNoneKey = "none"
-
 	encryptionFormatAgeKey    = "age"
 	encryptionFormatAgeSuffix = ".age"
 
 	encryptionFormatPGPKey    = "pgp"
 	encryptionFormatPGPSuffix = ".pgp"
+
+	signatureFlag = "signature"
+
+	signatureFormatMinisignKey = "minisign"
 )
 
 var (
-	knownCompressionFormats = []string{compressionFormatNoneKey, compressionFormatGZipKey, compressionFormatParallelGZipKey, compressionFormatLZ4Key, compressionFormatZStandardKey, compressionFormatBrotliKey, compressionFormatBzip2Key, compressionFormatBzip2ParallelKey}
+	knownCompressionFormats = []string{noneKey, compressionFormatGZipKey, compressionFormatParallelGZipKey, compressionFormatLZ4Key, compressionFormatZStandardKey, compressionFormatBrotliKey, compressionFormatBzip2Key, compressionFormatBzip2ParallelKey}
 
 	errUnknownCompressionFormat     = errors.New("unknown compression format")
 	errUnsupportedCompressionFormat = errors.New("unsupported compression format")
 
-	knownEncryptionFormats = []string{encryptionFormatNoneKey, encryptionFormatAgeKey, encryptionFormatPGPKey}
+	knownEncryptionFormats = []string{noneKey, encryptionFormatAgeKey, encryptionFormatPGPKey}
 
 	errUnknownEncryptionFormat              = errors.New("unknown encryption format")
 	errUnsupportedEncryptionFormat          = errors.New("unsupported encryption format")
 	errKeygenForEncryptionFormatUnsupported = errors.New("can not generate keys for this encryption format")
+
+	knownSignatureFormats = []string{noneKey, signatureFormatMinisignKey}
+
+	errUnknownSignatureFormat     = errors.New("unknown signature format")
+	errUnsupportedSignatureFormat = errors.New("unsupported signature format")
 )
 
 var rootCmd = &cobra.Command{
@@ -99,6 +107,19 @@ https://github.com/pojntfx/stfs`,
 			return errUnknownEncryptionFormat
 		}
 
+		signatureFormatIsKnown := false
+		signatureFormat := viper.GetString(signatureFlag)
+
+		for _, candidate := range knownSignatureFormats {
+			if signatureFormat == candidate {
+				signatureFormatIsKnown = true
+			}
+		}
+
+		if !signatureFormatIsKnown {
+			return errUnknownSignatureFormat
+		}
+
 		return nil
 	},
 }
@@ -111,11 +132,12 @@ func Execute() {
 	}
 	metadataPath := filepath.Join(home, ".local", "share", "stbak", "var", "lib", "stbak", "metadata.sqlite")
 
-	rootCmd.PersistentFlags().StringP(tapeFlag, "t", "/dev/nst0", "Tape or tar file to use")
+	rootCmd.PersistentFlags().StringP(driveFlag, "d", "/dev/nst0", "Tape or tar file to use")
 	rootCmd.PersistentFlags().StringP(metadataFlag, "m", metadataPath, "Metadata database to use")
 	rootCmd.PersistentFlags().BoolP(verboseFlag, "v", false, "Enable verbose logging")
-	rootCmd.PersistentFlags().StringP(compressionFlag, "c", compressionFormatNoneKey, fmt.Sprintf("Compression format to use (default %v, available are %v)", compressionFormatNoneKey, knownCompressionFormats))
-	rootCmd.PersistentFlags().StringP(encryptionFlag, "e", encryptionFormatNoneKey, fmt.Sprintf("Encryption format to use (default %v, available are %v)", encryptionFormatNoneKey, knownEncryptionFormats))
+	rootCmd.PersistentFlags().StringP(compressionFlag, "c", noneKey, fmt.Sprintf("Compression format to use (default %v, available are %v)", noneKey, knownCompressionFormats))
+	rootCmd.PersistentFlags().StringP(encryptionFlag, "e", noneKey, fmt.Sprintf("Encryption format to use (default %v, available are %v)", noneKey, knownEncryptionFormats))
+	rootCmd.PersistentFlags().StringP(signatureFlag, "s", noneKey, fmt.Sprintf("Signature format to use (default %v, available are %v)", noneKey, knownSignatureFormats))
 
 	if err := viper.BindPFlags(rootCmd.PersistentFlags()); err != nil {
 		panic(err)

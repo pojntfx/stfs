@@ -45,7 +45,7 @@ var recoveryQueryCmd = &cobra.Command{
 		}
 
 		return query(
-			viper.GetString(tapeFlag),
+			viper.GetString(driveFlag),
 			viper.GetInt(recordFlag),
 			viper.GetInt(blockFlag),
 			viper.GetInt(recordSizeFlag),

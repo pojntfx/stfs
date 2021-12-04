@@ -3,6 +3,7 @@ module github.com/pojntfx/stfs
 go 1.17
 
 require (
+	aead.dev/minisign v0.2.0
 	filippo.io/age v1.0.0
 	github.com/ProtonMail/go-crypto v0.0.0-20211112122917-428f8eabeeb3
 	github.com/ProtonMail/gopenpgp/v2 v2.3.0

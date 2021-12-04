@@ -53,7 +53,7 @@ var deleteCmd = &cobra.Command{
 		}
 
 		return delete(
-			viper.GetString(tapeFlag),
+			viper.GetString(driveFlag),
 			viper.GetString(metadataFlag),
 			viper.GetString(nameFlag),
 			viper.GetString(encryptionFlag),

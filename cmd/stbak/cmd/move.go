@@ -46,10 +46,10 @@ var moveCmd = &cobra.Command{
 		}
 
 		return move(
-			viper.GetString(tapeFlag),
+			viper.GetString(driveFlag),
 			viper.GetString(metadataFlag),
-			viper.GetString(srcFlag),
-			viper.GetString(dstFlag),
+			viper.GetString(fromFlag),
+			viper.GetString(toFlag),
 			viper.GetString(encryptionFlag),
 			recipient,
 		)
@@ -135,8 +135,8 @@ func move(
 
 func init() {
 	moveCmd.PersistentFlags().IntP(recordSizeFlag, "z", 20, "Amount of 512-bit blocks per record")
-	moveCmd.PersistentFlags().StringP(srcFlag, "s", "", "Current path of the file or directory to move")
-	moveCmd.PersistentFlags().StringP(dstFlag, "d", "", "Path to move the file or directory to")
+	moveCmd.PersistentFlags().StringP(fromFlag, "f", "", "Current path of the file or directory to move")
+	moveCmd.PersistentFlags().StringP(toFlag, "t", "", "Path to move the file or directory to")
 	moveCmd.PersistentFlags().StringP(recipientFlag, "r", "", "Path to public key of recipient to encrypt for")
 
 	viper.AutomaticEnv()
