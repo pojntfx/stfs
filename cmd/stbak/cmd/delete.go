@@ -31,7 +31,11 @@ var deleteCmd = &cobra.Command{
 			return err
 		}
 
-		return checkKeyAccessible(viper.GetString(encryptionFlag), viper.GetString(recipientFlag))
+		if err := checkKeyAccessible(viper.GetString(encryptionFlag), viper.GetString(recipientFlag)); err != nil {
+			return err
+		}
+
+		return checkKeyAccessible(viper.GetString(signatureFlag), viper.GetString(identityFlag))
 	},
 	RunE: func(cmd *cobra.Command, args []string) error {
 		if err := viper.BindPFlags(cmd.PersistentFlags()); err != nil {
@@ -52,12 +56,24 @@ var deleteCmd = &cobra.Command{
 			return err
 		}
 
+		privkey, err := readKey(viper.GetString(signatureFlag), viper.GetString(identityFlag))
+		if err != nil {
+			return err
+		}
+
+		identity, err := parseSignerIdentity(viper.GetString(signatureFlag), privkey, viper.GetString(passwordFlag))
+		if err != nil {
+			return err
+		}
+
 		return delete(
 			viper.GetString(driveFlag),
 			viper.GetString(metadataFlag),
 			viper.GetString(nameFlag),
 			viper.GetString(encryptionFlag),
 			recipient,
+			viper.GetString(signatureFlag),
+			identity,
 		)
 	},
 }
@@ -68,6 +84,8 @@ func delete(
 	name string,
 	encryptionFormat string,
 	recipient interface{},
+	signatureFormat string,
+	identity interface{},
 ) error {
 	dirty := false
 	tw, _, cleanup, err := openTapeWriter(tape)
@@ -117,6 +135,10 @@ func delete(
 		hdr.Size = 0 // Don't try to seek after the record
 		hdr.PAXRecords[pax.STFSRecordVersion] = pax.STFSRecordVersion1
 		hdr.PAXRecords[pax.STFSRecordAction] = pax.STFSRecordActionDelete
+
+		if err := signHeader(hdr, signatureFormat, identity); err != nil {
+			return err
+		}
 
 		if err := encryptHeader(hdr, encryptionFormat, recipient); err != nil {
 			return err
@@ -207,6 +229,8 @@ func init() {
 	deleteCmd.PersistentFlags().IntP(recordSizeFlag, "z", 20, "Amount of 512-bit blocks per record")
 	deleteCmd.PersistentFlags().StringP(nameFlag, "n", "", "Name of the file to remove")
 	deleteCmd.PersistentFlags().StringP(recipientFlag, "r", "", "Path to public key of recipient to encrypt for")
+	deleteCmd.PersistentFlags().StringP(identityFlag, "i", "", "Path to private key to sign with")
+	deleteCmd.PersistentFlags().StringP(passwordFlag, "p", "", "Password for the private key")
 
 	viper.AutomaticEnv()
 
