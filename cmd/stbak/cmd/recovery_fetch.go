@@ -13,6 +13,7 @@ import (
 	"os"
 	"path/filepath"
 
+	"aead.dev/minisign"
 	"filippo.io/age"
 	"github.com/ProtonMail/go-crypto/openpgp"
 	"github.com/andybalholm/brotli"
@@ -40,6 +41,8 @@ var (
 	errEmbeddedHeaderMissing = errors.New("embedded header is missing")
 
 	errIdentityUnparsable = errors.New("recipient could not be parsed")
+
+	errInvalidSignature = errors.New("invalid signature")
 )
 
 var recoveryFetchCmd = &cobra.Command{
@@ -50,7 +53,11 @@ var recoveryFetchCmd = &cobra.Command{
 			return err
 		}
 
-		return checkKeyAccessible(viper.GetString(encryptionFlag), viper.GetString(identityFlag))
+		if err := checkKeyAccessible(viper.GetString(encryptionFlag), viper.GetString(identityFlag)); err != nil {
+			return err
+		}
+
+		return checkKeyAccessible(viper.GetString(signatureFlag), viper.GetString(recipientFlag))
 	},
 	RunE: func(cmd *cobra.Command, args []string) error {
 		if err := viper.BindPFlags(cmd.PersistentFlags()); err != nil {
@@ -59,6 +66,16 @@ var recoveryFetchCmd = &cobra.Command{
 
 		if viper.GetBool(verboseFlag) {
 			boil.DebugMode = true
+		}
+
+		pubkey, err := readKey(viper.GetString(signatureFlag), viper.GetString(recipientFlag))
+		if err != nil {
+			return err
+		}
+
+		recipient, err := parseSignerRecipient(viper.GetString(signatureFlag), pubkey)
+		if err != nil {
+			return err
 		}
 
 		privkey, err := readKey(viper.GetString(encryptionFlag), viper.GetString(identityFlag))
@@ -82,6 +99,8 @@ var recoveryFetchCmd = &cobra.Command{
 			viper.GetString(compressionFlag),
 			viper.GetString(encryptionFlag),
 			identity,
+			viper.GetString(signatureFlag),
+			recipient,
 		)
 	},
 }
@@ -97,6 +116,8 @@ func restoreFromRecordAndBlock(
 	compressionFormat string,
 	encryptionFormat string,
 	identity interface{},
+	signatureFormat string,
+	recipient interface{},
 ) error {
 	f, isRegular, err := openTapeReadOnly(tape)
 	if err != nil {
@@ -183,7 +204,23 @@ func restoreFromRecordAndBlock(
 			return err
 		}
 
-		if _, err := io.Copy(dstFile, decompressor); err != nil {
+		signature := ""
+		if hdr.PAXRecords != nil {
+			if s, ok := hdr.PAXRecords[pax.STFSRecordSignature]; ok {
+				signature = s
+			}
+		}
+
+		verifier, verify, err := verify(decompressor, signatureFormat, recipient, signature)
+		if err != nil {
+			return err
+		}
+
+		if _, err := io.Copy(dstFile, verifier); err != nil {
+			return err
+		}
+
+		if err := verify(); err != nil {
 			return err
 		}
 
@@ -429,6 +466,61 @@ func decrypt(
 	}
 }
 
+func parseSignerRecipient(
+	signatureFormat string,
+	pubkey []byte,
+) (interface{}, error) {
+	switch signatureFormat {
+	case signatureFormatMinisignKey:
+		var recipient minisign.PublicKey
+		if err := recipient.UnmarshalText(pubkey); err != nil {
+			return nil, err
+		}
+
+		return recipient, nil
+	case noneKey:
+		return pubkey, nil
+	default:
+		return nil, errUnsupportedSignatureFormat
+	}
+}
+
+func verify(
+	src io.Reader,
+	signatureFormat string,
+	recipient interface{},
+	signature string,
+) (io.Reader, func() error, error) {
+	switch signatureFormat {
+	case signatureFormatMinisignKey:
+		recipient, ok := recipient.(minisign.PublicKey)
+		if !ok {
+			return nil, nil, errRecipientUnparsable
+		}
+
+		verifier := minisign.NewReader(src)
+
+		return verifier, func() error {
+			decodedSignature, err := base64.StdEncoding.DecodeString(signature)
+			if err != nil {
+				return err
+			}
+
+			if verifier.Verify(recipient, decodedSignature) {
+				return nil
+			}
+
+			return errInvalidSignature
+		}, nil
+	case noneKey:
+		return io.NopCloser(src), func() error {
+			return nil
+		}, nil
+	default:
+		return nil, nil, errUnsupportedSignatureFormat
+	}
+}
+
 func init() {
 	recoveryFetchCmd.PersistentFlags().IntP(recordSizeFlag, "z", 20, "Amount of 512-bit blocks per record")
 	recoveryFetchCmd.PersistentFlags().IntP(recordFlag, "k", 0, "Record to seek too")
@@ -437,6 +529,7 @@ func init() {
 	recoveryFetchCmd.PersistentFlags().BoolP(previewFlag, "w", false, "Only read the header")
 	recoveryFetchCmd.PersistentFlags().StringP(identityFlag, "i", "", "Path to private key of recipient that has been encrypted for")
 	recoveryFetchCmd.PersistentFlags().StringP(passwordFlag, "p", "", "Password for the private key")
+	recoveryFetchCmd.PersistentFlags().StringP(recipientFlag, "r", "", "Path to the public key to verify with")
 
 	viper.AutomaticEnv()
 

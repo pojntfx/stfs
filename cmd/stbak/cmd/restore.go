@@ -30,7 +30,11 @@ var restoreCmd = &cobra.Command{
 			return err
 		}
 
-		return checkKeyAccessible(viper.GetString(encryptionFlag), viper.GetString(identityFlag))
+		if err := checkKeyAccessible(viper.GetString(encryptionFlag), viper.GetString(identityFlag)); err != nil {
+			return err
+		}
+
+		return checkKeyAccessible(viper.GetString(signatureFlag), viper.GetString(recipientFlag))
 	},
 	RunE: func(cmd *cobra.Command, args []string) error {
 		if err := viper.BindPFlags(cmd.PersistentFlags()); err != nil {
@@ -43,6 +47,16 @@ var restoreCmd = &cobra.Command{
 
 		metadataPersister := persisters.NewMetadataPersister(viper.GetString(metadataFlag))
 		if err := metadataPersister.Open(); err != nil {
+			return err
+		}
+
+		pubkey, err := readKey(viper.GetString(signatureFlag), viper.GetString(recipientFlag))
+		if err != nil {
+			return err
+		}
+
+		recipient, err := parseSignerRecipient(viper.GetString(signatureFlag), pubkey)
+		if err != nil {
 			return err
 		}
 
@@ -123,6 +137,8 @@ var restoreCmd = &cobra.Command{
 				viper.GetString(compressionFlag),
 				viper.GetString(encryptionFlag),
 				identity,
+				viper.GetString(signatureFlag),
+				recipient,
 			); err != nil {
 				return err
 			}
@@ -139,6 +155,7 @@ func init() {
 	restoreCmd.PersistentFlags().BoolP(flattenFlag, "a", false, "Ignore the folder hierarchy on the tape or tar file")
 	restoreCmd.PersistentFlags().StringP(identityFlag, "i", "", "Path to private key of recipient that has been encrypted for")
 	restoreCmd.PersistentFlags().StringP(passwordFlag, "p", "", "Password for the private key")
+	restoreCmd.PersistentFlags().StringP(recipientFlag, "r", "", "Path to the public key to verify with")
 
 	viper.AutomaticEnv()
 
