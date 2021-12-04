@@ -51,6 +51,11 @@ var restoreCmd = &cobra.Command{
 			return err
 		}
 
+		identity, err := parseIdentity(viper.GetString(encryptionFlag), privkey, viper.GetString(passwordFlag))
+		if err != nil {
+			return err
+		}
+
 		headersToRestore := []*models.Header{}
 		src := strings.TrimSuffix(viper.GetString(srcFlag), "/")
 		dbhdr, err := metadataPersister.GetHeader(context.Background(), src)
@@ -117,8 +122,7 @@ var restoreCmd = &cobra.Command{
 				false,
 				viper.GetString(compressionFlag),
 				viper.GetString(encryptionFlag),
-				privkey,
-				viper.GetString(passwordFlag),
+				identity,
 			); err != nil {
 				return err
 			}
