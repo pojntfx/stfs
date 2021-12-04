@@ -150,7 +150,7 @@ var archiveCmd = &cobra.Command{
 			viper.GetBool(overwriteFlag),
 			viper.GetString(compressionFlag),
 			viper.GetString(encryptionFlag),
-			func(hdr *tar.Header, encryptionFormat string, i int) error {
+			func(hdr *tar.Header, i int) error {
 				if len(hdrs) <= i {
 					return errMissingTarHeader
 				}

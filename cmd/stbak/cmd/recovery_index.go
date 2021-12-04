@@ -61,8 +61,8 @@ var recoveryIndexCmd = &cobra.Command{
 			viper.GetBool(overwriteFlag),
 			viper.GetString(compressionFlag),
 			viper.GetString(encryptionFlag),
-			func(hdr *tar.Header, encryptionFormat string, i int) error {
-				return decryptHeader(hdr, encryptionFormat, identity)
+			func(hdr *tar.Header, i int) error {
+				return decryptHeader(hdr, viper.GetString(encryptionFlag), identity)
 			},
 			0,
 		)
@@ -80,7 +80,6 @@ func index(
 	encryptionFormat string,
 	decryptHeader func(
 		hdr *tar.Header,
-		encryptionFormat string,
 		i int,
 	) error,
 	offset int,
@@ -173,7 +172,7 @@ func index(
 			}
 
 			if i >= offset {
-				if err := decryptHeader(hdr, encryptionFormat, i-offset); err != nil {
+				if err := decryptHeader(hdr, i-offset); err != nil {
 					return err
 				}
 
@@ -255,7 +254,7 @@ func index(
 			}
 
 			if i >= offset {
-				if err := decryptHeader(hdr, encryptionFormat, i-offset); err != nil {
+				if err := decryptHeader(hdr, i-offset); err != nil {
 					return err
 				}
 
@@ -286,19 +285,6 @@ func index(
 	}
 
 	return nil
-}
-
-func init() {
-	recoveryIndexCmd.PersistentFlags().IntP(recordSizeFlag, "z", 20, "Amount of 512-bit blocks per record")
-	recoveryIndexCmd.PersistentFlags().IntP(recordFlag, "k", 0, "Record to seek too before counting")
-	recoveryIndexCmd.PersistentFlags().IntP(blockFlag, "b", 0, "Block in record to seek too before counting")
-	recoveryIndexCmd.PersistentFlags().BoolP(overwriteFlag, "o", false, "Remove the old index before starting to index")
-	recoveryIndexCmd.PersistentFlags().StringP(identityFlag, "i", "", "Path to private key of recipient that has been encrypted for")
-	recoveryIndexCmd.PersistentFlags().StringP(passwordFlag, "p", "", "Password for the private key")
-
-	viper.AutomaticEnv()
-
-	recoveryCmd.AddCommand(recoveryIndexCmd)
 }
 
 func indexHeader(
@@ -471,4 +457,17 @@ func openTapeReadOnly(tape string) (f *os.File, isRegular bool, err error) {
 	}
 
 	return f, isRegular, nil
+}
+
+func init() {
+	recoveryIndexCmd.PersistentFlags().IntP(recordSizeFlag, "z", 20, "Amount of 512-bit blocks per record")
+	recoveryIndexCmd.PersistentFlags().IntP(recordFlag, "k", 0, "Record to seek too before counting")
+	recoveryIndexCmd.PersistentFlags().IntP(blockFlag, "b", 0, "Block in record to seek too before counting")
+	recoveryIndexCmd.PersistentFlags().BoolP(overwriteFlag, "o", false, "Remove the old index before starting to index")
+	recoveryIndexCmd.PersistentFlags().StringP(identityFlag, "i", "", "Path to private key of recipient that has been encrypted for")
+	recoveryIndexCmd.PersistentFlags().StringP(passwordFlag, "p", "", "Password for the private key")
+
+	viper.AutomaticEnv()
+
+	recoveryCmd.AddCommand(recoveryIndexCmd)
 }
