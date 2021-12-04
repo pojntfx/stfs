@@ -23,7 +23,11 @@ var recoveryQueryCmd = &cobra.Command{
 			return err
 		}
 
-		return checkKeyAccessible(viper.GetString(encryptionFlag), viper.GetString(identityFlag))
+		if err := checkKeyAccessible(viper.GetString(encryptionFlag), viper.GetString(identityFlag)); err != nil {
+			return err
+		}
+
+		return checkKeyAccessible(viper.GetString(signatureFlag), viper.GetString(recipientFlag))
 	},
 	RunE: func(cmd *cobra.Command, args []string) error {
 		if err := viper.BindPFlags(cmd.PersistentFlags()); err != nil {
@@ -32,6 +36,16 @@ var recoveryQueryCmd = &cobra.Command{
 
 		if viper.GetBool(verboseFlag) {
 			boil.DebugMode = true
+		}
+
+		pubkey, err := readKey(viper.GetString(signatureFlag), viper.GetString(recipientFlag))
+		if err != nil {
+			return err
+		}
+
+		recipient, err := parseSignerRecipient(viper.GetString(signatureFlag), pubkey)
+		if err != nil {
+			return err
 		}
 
 		privkey, err := readKey(viper.GetString(encryptionFlag), viper.GetString(identityFlag))
@@ -51,6 +65,8 @@ var recoveryQueryCmd = &cobra.Command{
 			viper.GetInt(recordSizeFlag),
 			viper.GetString(encryptionFlag),
 			identity,
+			viper.GetString(signatureFlag),
+			recipient,
 		)
 	},
 }
@@ -62,6 +78,8 @@ func query(
 	recordSize int,
 	encryptionFormat string,
 	identity interface{},
+	signatureFormat string,
+	recipient interface{},
 ) error {
 	f, isRegular, err := openTapeReadOnly(tape)
 	if err != nil {
@@ -130,6 +148,10 @@ func query(
 			}
 
 			if err := decryptHeader(hdr, encryptionFormat, identity); err != nil {
+				return err
+			}
+
+			if err := verifyHeader(hdr, signatureFormat, recipient); err != nil {
 				return err
 			}
 
@@ -216,6 +238,10 @@ func query(
 				return err
 			}
 
+			if err := verifyHeader(hdr, signatureFormat, recipient); err != nil {
+				return err
+			}
+
 			if record == 0 && block == 0 {
 				if err := formatting.PrintCSV(formatting.TARHeaderCSV); err != nil {
 					return err
@@ -252,6 +278,7 @@ func init() {
 	recoveryQueryCmd.PersistentFlags().IntP(blockFlag, "b", 0, "Block in record to seek too before counting")
 	recoveryQueryCmd.PersistentFlags().StringP(identityFlag, "i", "", "Path to private key of recipient that has been encrypted for")
 	recoveryQueryCmd.PersistentFlags().StringP(passwordFlag, "p", "", "Password for the private key")
+	recoveryQueryCmd.PersistentFlags().StringP(recipientFlag, "r", "", "Path to the public key to verify with")
 
 	viper.AutomaticEnv()
 

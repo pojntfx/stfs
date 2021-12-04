@@ -160,6 +160,9 @@ var archiveCmd = &cobra.Command{
 				return nil
 			},
 			0,
+			func(hdr *tar.Header) error {
+				return nil // We sign above, no need to verify
+			},
 		)
 	},
 }
