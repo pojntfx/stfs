@@ -24,13 +24,13 @@ var driveTellCmd = &cobra.Command{
 
 		f, err := os.OpenFile(viper.GetString(driveFlag), os.O_RDONLY, os.ModeCharDevice)
 		if err != nil {
-			panic(err)
+			return err
 		}
 		defer f.Close()
 
 		currentRecord, err := controllers.GetCurrentRecordFromTape(f)
 		if err != nil {
-			panic(err)
+			return err
 		}
 
 		fmt.Println(currentRecord)

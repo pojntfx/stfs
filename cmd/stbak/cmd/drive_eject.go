@@ -23,7 +23,7 @@ var driveEjectCmd = &cobra.Command{
 
 		f, err := os.OpenFile(viper.GetString(driveFlag), os.O_RDONLY, os.ModeCharDevice)
 		if err != nil {
-			panic(err)
+			return err
 		}
 		defer f.Close()
 

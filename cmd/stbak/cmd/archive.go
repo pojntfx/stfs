@@ -327,7 +327,12 @@ func archive(
 				hdr.PAXRecords = map[string]string{}
 			}
 			hdr.PAXRecords[pax.STFSRecordUncompressedSize] = strconv.Itoa(int(hdr.Size))
-			if signature := sign(); signature != "" {
+			signature, err := sign()
+			if err != nil {
+				return err
+			}
+
+			if signature != "" {
 				hdr.PAXRecords[pax.STFSRecordSignature] = signature
 			}
 			hdr.Size = int64(fileSizeCounter.BytesRead)
@@ -619,7 +624,7 @@ func sign(
 	src io.Reader,
 	signatureFormat string,
 	identity interface{},
-) (io.ReadCloser, func() string, error) {
+) (io.Reader, func() (string, error), error) {
 	switch signatureFormat {
 	case signatureFormatMinisignKey:
 		identity, ok := identity.(minisign.PrivateKey)
@@ -629,8 +634,8 @@ func sign(
 
 		signer := minisign.NewReader(src)
 
-		return io.NopCloser(signer), func() string {
-			return base64.StdEncoding.EncodeToString(signer.Sign(identity))
+		return signer, func() (string, error) {
+			return base64.StdEncoding.EncodeToString(signer.Sign(identity)), nil
 		}, nil
 	case signatureFormatPGPKey:
 		identities, ok := identity.(openpgp.EntityList)
@@ -660,21 +665,21 @@ func sign(
 
 		hash := sig.Hash.New()
 
-		return io.NopCloser(io.TeeReader(src, hash)), func() string {
+		return io.TeeReader(src, hash), func() (string, error) {
 			if err := sig.Sign(hash, signingKey.PrivateKey, config); err != nil {
-				panic(err)
+				return "", err
 			}
 
 			out := &bytes.Buffer{}
 			if err := sig.Serialize(out); err != nil {
-				panic(err)
+				return "", err
 			}
 
-			return base64.StdEncoding.EncodeToString(out.Bytes())
+			return base64.StdEncoding.EncodeToString(out.Bytes()), nil
 		}, nil
 	case noneKey:
-		return io.NopCloser(src), func() string {
-			return ""
+		return src, func() (string, error) {
+			return "", nil
 		}, nil
 	default:
 		return nil, nil, errUnsupportedSignatureFormat
