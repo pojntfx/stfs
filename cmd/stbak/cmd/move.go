@@ -61,6 +61,7 @@ var moveCmd = &cobra.Command{
 
 		return move(
 			viper.GetString(driveFlag),
+			viper.GetInt(recordSizeFlag),
 			viper.GetString(metadataFlag),
 			viper.GetString(fromFlag),
 			viper.GetString(toFlag),
@@ -74,6 +75,7 @@ var moveCmd = &cobra.Command{
 
 func move(
 	tape string,
+	recordSize int,
 	metadata string,
 	src string,
 	dst string,
@@ -83,7 +85,7 @@ func move(
 	identity interface{},
 ) error {
 	dirty := false
-	tw, _, cleanup, err := openTapeWriter(tape)
+	tw, _, cleanup, err := openTapeWriter(tape, recordSize, false)
 	if err != nil {
 		return err
 	}

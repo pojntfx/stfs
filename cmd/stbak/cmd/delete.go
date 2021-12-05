@@ -68,6 +68,7 @@ var deleteCmd = &cobra.Command{
 
 		return delete(
 			viper.GetString(driveFlag),
+			viper.GetInt(recordSizeFlag),
 			viper.GetString(metadataFlag),
 			viper.GetString(nameFlag),
 			viper.GetString(encryptionFlag),
@@ -80,6 +81,7 @@ var deleteCmd = &cobra.Command{
 
 func delete(
 	tape string,
+	recordSize int,
 	metadata string,
 	name string,
 	encryptionFormat string,
@@ -88,7 +90,7 @@ func delete(
 	identity interface{},
 ) error {
 	dirty := false
-	tw, _, cleanup, err := openTapeWriter(tape)
+	tw, _, cleanup, err := openTapeWriter(tape, recordSize, false)
 	if err != nil {
 		return err
 	}
@@ -158,7 +160,7 @@ func delete(
 	return nil
 }
 
-func openTapeWriter(tape string) (tw *tar.Writer, isRegular bool, cleanup func(dirty *bool) error, err error) {
+func openTapeWriter(tape string, recordSize int, overwrite bool) (tw *tar.Writer, isRegular bool, cleanup func(dirty *bool) error, err error) {
 	stat, err := os.Stat(tape)
 	if err == nil {
 		isRegular = stat.Mode().IsRegular()
@@ -184,9 +186,11 @@ func openTapeWriter(tape string) (tw *tar.Writer, isRegular bool, cleanup func(d
 			return nil, false, nil, err
 		}
 
-		// Go to end of tape
-		if err := controllers.GoToEndOfTape(f); err != nil {
-			return nil, false, nil, err
+		if !overwrite {
+			// Go to end of tape
+			if err := controllers.GoToEndOfTape(f); err != nil {
+				return nil, false, nil, err
+			}
 		}
 	}
 
@@ -195,7 +199,7 @@ func openTapeWriter(tape string) (tw *tar.Writer, isRegular bool, cleanup func(d
 	if isRegular {
 		tw = tar.NewWriter(f)
 	} else {
-		bw = bufio.NewWriterSize(f, controllers.BlockSize*viper.GetInt(recordSizeFlag))
+		bw = bufio.NewWriterSize(f, controllers.BlockSize*recordSize)
 		counter = &counters.CounterWriter{Writer: bw, BytesRead: 0}
 		tw = tar.NewWriter(counter)
 	}
@@ -208,9 +212,9 @@ func openTapeWriter(tape string) (tw *tar.Writer, isRegular bool, cleanup func(d
 			}
 
 			if !isRegular {
-				if controllers.BlockSize*viper.GetInt(recordSizeFlag)-counter.BytesRead > 0 {
+				if controllers.BlockSize*recordSize-counter.BytesRead > 0 {
 					// Fill the rest of the record with zeros
-					if _, err := bw.Write(make([]byte, controllers.BlockSize*viper.GetInt(recordSizeFlag)-counter.BytesRead)); err != nil {
+					if _, err := bw.Write(make([]byte, controllers.BlockSize*recordSize-counter.BytesRead)); err != nil {
 						return err
 					}
 				}

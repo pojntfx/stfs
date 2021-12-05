@@ -181,7 +181,7 @@ func archive(
 	identity interface{},
 ) ([]*tar.Header, error) {
 	dirty := false
-	tw, isRegular, cleanup, err := openTapeWriter(tape)
+	tw, isRegular, cleanup, err := openTapeWriter(tape, recordSize, overwrite)
 	if err != nil {
 		return []*tar.Header{}, err
 	}
@@ -206,7 +206,7 @@ func archive(
 				return []*tar.Header{}, err
 			}
 
-			tw, isRegular, cleanup, err = openTapeWriter(tape)
+			tw, isRegular, cleanup, err = openTapeWriter(tape, recordSize, overwrite)
 			if err != nil {
 				return []*tar.Header{}, err
 			}
@@ -229,7 +229,7 @@ func archive(
 				return []*tar.Header{}, err
 			}
 
-			tw, isRegular, cleanup, err = openTapeWriter(tape)
+			tw, isRegular, cleanup, err = openTapeWriter(tape, recordSize, overwrite)
 			if err != nil {
 				return []*tar.Header{}, err
 			}

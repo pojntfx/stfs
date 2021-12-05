@@ -134,7 +134,7 @@ func update(
 	identity interface{},
 ) ([]*tar.Header, error) {
 	dirty := false
-	tw, isRegular, cleanup, err := openTapeWriter(tape)
+	tw, isRegular, cleanup, err := openTapeWriter(tape, recordSize, false)
 	if err != nil {
 		return []*tar.Header{}, err
 	}
