@@ -16,6 +16,7 @@ import (
 	"aead.dev/minisign"
 	"filippo.io/age"
 	"github.com/ProtonMail/go-crypto/openpgp"
+	"github.com/ProtonMail/go-crypto/openpgp/packet"
 	"github.com/andybalholm/brotli"
 	"github.com/cosnicolaou/pbzip2"
 	"github.com/dsnet/compress/bzip2"
@@ -525,6 +526,8 @@ func parseSignerRecipient(
 		}
 
 		return recipient, nil
+	case signatureFormatPGPKey:
+		return parseRecipient(signatureFormat, pubkey)
 	case noneKey:
 		return pubkey, nil
 	default:
@@ -559,6 +562,39 @@ func verify(
 
 			return errInvalidSignature
 		}, nil
+	case signatureFormatPGPKey:
+		recipients, ok := recipient.(openpgp.EntityList)
+		if !ok {
+			return nil, nil, errIdentityUnparsable
+		}
+
+		if len(recipients) < 1 {
+			return nil, nil, errIdentityUnparsable
+		}
+
+		decodedSignature, err := base64.StdEncoding.DecodeString(signature)
+		if err != nil {
+			return nil, nil, err
+		}
+
+		reader := packet.NewReader(bytes.NewBuffer(decodedSignature))
+		pkt, err := reader.Next()
+		if err != nil {
+			return nil, nil, err
+		}
+
+		sig, ok := pkt.(*packet.Signature)
+		if !ok {
+			return nil, nil, errInvalidSignature
+		}
+
+		hash := sig.Hash.New()
+
+		tee := io.TeeReader(src, hash)
+
+		return tee, func() error {
+			return recipients[0].PrimaryKey.VerifySignature(hash, sig)
+		}, nil
 	case noneKey:
 		return io.NopCloser(src), func() error {
 			return nil
@@ -591,6 +627,39 @@ func verifyString(
 		}
 
 		return errInvalidSignature
+	case signatureFormatPGPKey:
+		recipients, ok := recipient.(openpgp.EntityList)
+		if !ok {
+			return nil
+		}
+
+		if len(recipients) < 1 {
+			return nil
+		}
+
+		decodedSignature, err := base64.StdEncoding.DecodeString(signature)
+		if err != nil {
+			return nil
+		}
+
+		reader := packet.NewReader(bytes.NewBuffer(decodedSignature))
+		pkt, err := reader.Next()
+		if err != nil {
+			return nil
+		}
+
+		sig, ok := pkt.(*packet.Signature)
+		if !ok {
+			return nil
+		}
+
+		hash := sig.Hash.New()
+
+		if _, err := io.Copy(hash, bytes.NewBufferString(src)); err != nil {
+			return err
+		}
+
+		return recipients[0].PrimaryKey.VerifySignature(hash, sig)
 	case noneKey:
 		return nil
 	default:
