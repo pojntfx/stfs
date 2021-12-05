@@ -19,6 +19,7 @@ import (
 	"aead.dev/minisign"
 	"filippo.io/age"
 	"github.com/ProtonMail/go-crypto/openpgp"
+	"github.com/ProtonMail/go-crypto/openpgp/packet"
 	"github.com/andybalholm/brotli"
 	"github.com/dsnet/compress/bzip2"
 	"github.com/klauspost/compress/zstd"
@@ -605,6 +606,8 @@ func parseSignerIdentity(
 	switch signatureFormat {
 	case signatureFormatMinisignKey:
 		return minisign.DecryptKey(password, privkey)
+	case signatureFormatPGPKey:
+		return parseIdentity(signatureFormat, privkey, password)
 	case noneKey:
 		return privkey, nil
 	default:
@@ -616,7 +619,7 @@ func sign(
 	src io.Reader,
 	signatureFormat string,
 	identity interface{},
-) (io.Reader, func() string, error) {
+) (io.ReadCloser, func() string, error) {
 	switch signatureFormat {
 	case signatureFormatMinisignKey:
 		identity, ok := identity.(minisign.PrivateKey)
@@ -626,8 +629,48 @@ func sign(
 
 		signer := minisign.NewReader(src)
 
-		return signer, func() string {
+		return io.NopCloser(signer), func() string {
 			return base64.StdEncoding.EncodeToString(signer.Sign(identity))
+		}, nil
+	case signatureFormatPGPKey:
+		identities, ok := identity.(openpgp.EntityList)
+		if !ok {
+			return nil, nil, errIdentityUnparsable
+		}
+
+		if len(identities) < 1 {
+			return nil, nil, errIdentityUnparsable
+		}
+
+		// See openpgp.DetachSign
+		var config *packet.Config
+		signingKey, ok := identities[0].SigningKeyById(config.Now(), config.SigningKey())
+		if !ok || signingKey.PrivateKey == nil || signingKey.PublicKey == nil {
+			return nil, nil, errIdentityUnparsable
+		}
+
+		sig := new(packet.Signature)
+		sig.SigType = packet.SigTypeBinary
+		sig.PubKeyAlgo = signingKey.PrivateKey.PubKeyAlgo
+		sig.Hash = config.Hash()
+		sig.CreationTime = config.Now()
+		sigLifetimeSecs := config.SigLifetime()
+		sig.SigLifetimeSecs = &sigLifetimeSecs
+		sig.IssuerKeyId = &signingKey.PrivateKey.KeyId
+
+		hash := sig.Hash.New()
+
+		return io.NopCloser(io.TeeReader(src, hash)), func() string {
+			if err := sig.Sign(hash, signingKey.PrivateKey, config); err != nil {
+				panic(err)
+			}
+
+			out := &bytes.Buffer{}
+			if err := sig.Serialize(out); err != nil {
+				panic(err)
+			}
+
+			return base64.StdEncoding.EncodeToString(out.Bytes())
 		}, nil
 	case noneKey:
 		return io.NopCloser(src), func() string {
@@ -706,6 +749,22 @@ func signString(
 		}
 
 		return base64.StdEncoding.EncodeToString(minisign.Sign(identity, []byte(src))), nil
+	case signatureFormatPGPKey:
+		identities, ok := identity.(openpgp.EntityList)
+		if !ok {
+			return "", errIdentityUnparsable
+		}
+
+		if len(identities) < 1 {
+			return "", errIdentityUnparsable
+		}
+
+		out := &bytes.Buffer{}
+		if err := openpgp.DetachSign(out, identities[0], bytes.NewBufferString(src), nil); err != nil {
+			return "", err
+		}
+
+		return base64.StdEncoding.EncodeToString(out.Bytes()), nil
 	case noneKey:
 		return src, nil
 	default:
