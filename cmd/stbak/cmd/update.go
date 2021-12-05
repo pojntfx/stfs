@@ -234,7 +234,12 @@ func update(
 				hdr.PAXRecords = map[string]string{}
 			}
 			hdr.PAXRecords[pax.STFSRecordUncompressedSize] = strconv.Itoa(int(hdr.Size))
-			if signature := sign(); signature != "" {
+			signature, err := sign()
+			if err != nil {
+				return err
+			}
+
+			if signature != "" {
 				hdr.PAXRecords[pax.STFSRecordSignature] = signature
 			}
 			hdr.Size = int64(fileSizeCounter.BytesRead)
