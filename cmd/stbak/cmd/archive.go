@@ -793,8 +793,15 @@ func compress(
 	case compressionFormatGZipKey:
 		fallthrough
 	case compressionFormatParallelGZipKey:
-		// TODO: Add support for tape drives
 		if compressionFormat == compressionFormatGZipKey {
+			if !isRegular {
+				maxSize := getNearestPowerOf2Lower(controllers.BlockSize * recordSize)
+
+				if maxSize < 65535 { // See https://www.daylight.com/meetings/mug00/Sayle/gzip.html#:~:text=Stored%20blocks%20are%20allowed%20to,size%20of%20the%20gzip%20header.
+					return nil, errCompressionFormatRequiresLargerRecordSize
+				}
+			}
+
 			l := gzip.DefaultCompression
 			switch compressionLevel {
 			case compressionLevelFastest:
@@ -808,6 +815,10 @@ func compress(
 			}
 
 			return gzip.NewWriterLevel(dst, l)
+		}
+
+		if !isRegular {
+			return nil, errCompressionFormatOnlyRegularSupport // "device or resource busy"
 		}
 
 		l := pgzip.DefaultCompression
@@ -824,7 +835,6 @@ func compress(
 
 		return pgzip.NewWriterLevel(dst, l)
 	case compressionFormatLZ4Key:
-		// TODO: Add support for tape drives
 		l := lz4.Level5
 		switch compressionLevel {
 		case compressionLevelFastest:
@@ -888,7 +898,7 @@ func compress(
 		return zz, nil
 	case compressionFormatBrotliKey:
 		if !isRegular {
-			return nil, errCompressionFormatOnlyRegularSupport
+			return nil, errCompressionFormatOnlyRegularSupport // "cannot allocate memory"
 		}
 
 		l := brotli.DefaultCompression
