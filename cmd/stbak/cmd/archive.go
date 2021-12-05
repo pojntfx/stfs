@@ -12,6 +12,7 @@ import (
 	"io"
 	"io/fs"
 	"io/ioutil"
+	"math"
 	"os"
 	"path/filepath"
 	"strconv"
@@ -788,6 +789,7 @@ func compress(
 	case compressionFormatGZipKey:
 		fallthrough
 	case compressionFormatParallelGZipKey:
+		// TODO: Add support for tape drives
 		if compressionFormat == compressionFormatGZipKey {
 			l := gzip.DefaultCompression
 			switch compressionLevel {
@@ -818,6 +820,7 @@ func compress(
 
 		return pgzip.NewWriterLevel(dst, l)
 	case compressionFormatLZ4Key:
+		// TODO: Add support for tape drives
 		l := lz4.Level5
 		switch compressionLevel {
 		case compressionLevelFastest:
@@ -849,13 +852,24 @@ func compress(
 			return nil, errUnsupportedCompressionLevel
 		}
 
-		zz, err := zstd.NewWriter(dst, zstd.WithEncoderLevel(l))
-		if err != nil {
-			return nil, err
+		var zz *zstd.Encoder
+		if isRegular {
+			z, err := zstd.NewWriter(dst, zstd.WithEncoderLevel(l))
+			if err != nil {
+				return nil, err
+			}
+			zz = z
+		} else {
+			z, err := zstd.NewWriter(dst, zstd.WithWindowSize(getNearestPowerOf2Lower(controllers.BlockSize*recordSize)))
+			if err != nil {
+				return nil, err
+			}
+			zz = z
 		}
 
 		return zz, nil
 	case compressionFormatBrotliKey:
+		// TODO: Add support for tape drives
 		l := brotli.DefaultCompression
 		switch compressionLevel {
 		case compressionLevelFastest:
@@ -874,6 +888,7 @@ func compress(
 	case compressionFormatBzip2Key:
 		fallthrough
 	case compressionFormatBzip2ParallelKey:
+		// TODO: Add support for tape drives
 		l := bzip2.DefaultCompression
 		switch compressionLevel {
 		case compressionLevelFastest:
@@ -901,11 +916,17 @@ func compress(
 	}
 }
 
+func getNearestPowerOf2Lower(n int) int {
+	power := int(math.Log2(float64(n))) // Truncation is intentional, see https://www.geeksforgeeks.org/highest-power-2-less-equal-given-number/
+
+	return int(math.Pow(2, float64(power))) // Truncation is intentional, see https://www.geeksforgeeks.org/highest-power-2-less-equal-given-number/
+}
+
 func init() {
 	archiveCmd.PersistentFlags().IntP(recordSizeFlag, "z", 20, "Amount of 512-bit blocks per record")
 	archiveCmd.PersistentFlags().StringP(fromFlag, "f", ".", "File or directory to archive")
 	archiveCmd.PersistentFlags().BoolP(overwriteFlag, "o", false, "Start writing from the start instead of from the end of the tape or tar file")
-	archiveCmd.PersistentFlags().StringP(compressionLevelFlag, "l", compressionLevelBalanced, fmt.Sprintf("Compression level to use (default %v, available are %v)", compressionLevelBalanced, knownCompressionLevels))
+	archiveCmd.PersistentFlags().StringP(compressionLevelFlag, "l", compressionLevelBalanced, fmt.Sprintf("Compression level to use (default %v, available are %v). Has no effect when on tape, where --record-size is used instead.", compressionLevelBalanced, knownCompressionLevels))
 	archiveCmd.PersistentFlags().StringP(recipientFlag, "r", "", "Path to public key of recipient to encrypt for")
 	archiveCmd.PersistentFlags().StringP(identityFlag, "i", "", "Path to private key to sign with")
 	archiveCmd.PersistentFlags().StringP(passwordFlag, "p", "", "Password for the private key")
