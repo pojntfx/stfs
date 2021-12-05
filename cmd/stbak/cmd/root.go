@@ -60,9 +60,9 @@ var (
 
 	knownEncryptionFormats = []string{noneKey, encryptionFormatAgeKey, encryptionFormatPGPKey}
 
-	errUnknownEncryptionFormat              = errors.New("unknown encryption format")
-	errUnsupportedEncryptionFormat          = errors.New("unsupported encryption format")
-	errKeygenForEncryptionFormatUnsupported = errors.New("can not generate keys for this encryption format")
+	errUnknownEncryptionFormat     = errors.New("unknown encryption format")
+	errUnsupportedEncryptionFormat = errors.New("unsupported encryption format")
+	errKeygenForFormatUnsupported  = errors.New("can not generate keys for this format")
 
 	knownSignatureFormats = []string{noneKey, signatureFormatMinisignKey}
 
