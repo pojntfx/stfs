@@ -2,11 +2,13 @@ package cmd
 
 import (
 	"bytes"
+	"crypto/rand"
 	"io"
 	"io/ioutil"
 	"os"
 	"path/filepath"
 
+	"aead.dev/minisign"
 	"filippo.io/age"
 	"github.com/ProtonMail/gopenpgp/v2/armor"
 	"github.com/ProtonMail/gopenpgp/v2/crypto"
@@ -32,68 +34,90 @@ var keygenCmd = &cobra.Command{
 		pubkey := ""
 		privkey := ""
 
-		switch viper.GetString(encryptionFlag) {
-		case encryptionFormatAgeKey:
-			identity, err := age.GenerateX25519Identity()
-			if err != nil {
-				return err
-			}
-
-			pubkey = identity.Recipient().String()
-			privkey = identity.String()
-
-			if password := viper.GetString(passwordFlag); password != "" {
-				passwordRecipient, err := age.NewScryptRecipient(password)
+		if encryptionFormat := viper.GetString(encryptionFlag); encryptionFormat != noneKey {
+			switch encryptionFormat {
+			case encryptionFormatAgeKey:
+				identity, err := age.GenerateX25519Identity()
 				if err != nil {
 					return err
 				}
 
-				out := &bytes.Buffer{}
-				w, err := age.Encrypt(out, passwordRecipient)
+				pubkey = identity.Recipient().String()
+				privkey = identity.String()
+
+				if password := viper.GetString(passwordFlag); password != "" {
+					passwordRecipient, err := age.NewScryptRecipient(password)
+					if err != nil {
+						return err
+					}
+
+					out := &bytes.Buffer{}
+					w, err := age.Encrypt(out, passwordRecipient)
+					if err != nil {
+						return err
+					}
+
+					if _, err := io.WriteString(w, privkey); err != nil {
+						return err
+					}
+
+					if err := w.Close(); err != nil {
+						return err
+					}
+
+					privkey = out.String()
+				}
+			case encryptionFormatPGPKey:
+				armoredIdentity, err := helper.GenerateKey("STFS", "stfs@example.com", []byte(viper.GetString(passwordFlag)), "x25519", 0)
 				if err != nil {
 					return err
 				}
 
-				if _, err := io.WriteString(w, privkey); err != nil {
+				rawIdentity, err := armor.Unarmor(armoredIdentity)
+				if err != nil {
 					return err
 				}
 
-				if err := w.Close(); err != nil {
+				identity, err := crypto.NewKey([]byte(rawIdentity))
+				if err != nil {
 					return err
 				}
 
-				privkey = out.String()
-			}
-		case encryptionFormatPGPKey:
-			armoredIdentity, err := helper.GenerateKey("STFS", "stfs@example.com", []byte(viper.GetString(passwordFlag)), "x25519", 0)
-			if err != nil {
-				return err
-			}
+				pub, err := identity.GetPublicKey()
+				if err != nil {
+					return err
+				}
 
-			rawIdentity, err := armor.Unarmor(armoredIdentity)
-			if err != nil {
-				return err
-			}
+				priv, err := identity.Serialize()
+				if err != nil {
+					return err
+				}
 
-			identity, err := crypto.NewKey([]byte(rawIdentity))
-			if err != nil {
-				return err
+				pubkey = string(pub)
+				privkey = string(priv)
+			default:
+				return errKeygenForFormatUnsupported
 			}
+		} else if signatureFormat := viper.GetString(signatureFlag); signatureFormat != noneKey {
+			switch signatureFormat {
+			case signatureFormatMinisignKey:
+				pub, rawPriv, err := minisign.GenerateKey(rand.Reader)
+				if err != nil {
+					return err
+				}
 
-			pub, err := identity.GetPublicKey()
-			if err != nil {
-				return err
+				priv, err := minisign.EncryptKey(viper.GetString(passwordFlag), rawPriv)
+				if err != nil {
+					return err
+				}
+
+				pubkey = pub.String()
+				privkey = string(priv)
+			default:
+				return errKeygenForFormatUnsupported
 			}
-
-			priv, err := identity.Serialize()
-			if err != nil {
-				return err
-			}
-
-			pubkey = string(pub)
-			privkey = string(priv)
-		default:
-			return errKeygenForEncryptionFormatUnsupported
+		} else {
+			return errKeygenForFormatUnsupported
 		}
 
 		// Write pubkey (read/writable by everyone)
