@@ -50,6 +50,8 @@ const (
 	signatureFlag = "signature"
 
 	signatureFormatMinisignKey = "minisign"
+
+	signatureFormatPGPKey = "pgp"
 )
 
 var (
@@ -64,7 +66,7 @@ var (
 	errUnsupportedEncryptionFormat = errors.New("unsupported encryption format")
 	errKeygenForFormatUnsupported  = errors.New("can not generate keys for this format")
 
-	knownSignatureFormats = []string{noneKey, signatureFormatMinisignKey}
+	knownSignatureFormats = []string{noneKey, signatureFormatMinisignKey, signatureFormatPGPKey}
 
 	errUnknownSignatureFormat     = errors.New("unknown signature format")
 	errUnsupportedSignatureFormat = errors.New("unsupported signature format")
