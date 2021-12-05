@@ -90,7 +90,7 @@ func delete(
 	identity interface{},
 ) error {
 	dirty := false
-	tw, _, cleanup, err := openTapeWriter(tape, recordSize, false)
+	tw, isRegular, cleanup, err := openTapeWriter(tape, recordSize, false)
 	if err != nil {
 		return err
 	}
@@ -138,7 +138,7 @@ func delete(
 		hdr.PAXRecords[pax.STFSRecordVersion] = pax.STFSRecordVersion1
 		hdr.PAXRecords[pax.STFSRecordAction] = pax.STFSRecordActionDelete
 
-		if err := signHeader(hdr, signatureFormat, identity); err != nil {
+		if err := signHeader(hdr, isRegular, signatureFormat, identity); err != nil {
 			return err
 		}
 

@@ -68,6 +68,8 @@ var (
 	errCompressionFormatRequiresLargerRecordSize = errors.New("this compression format requires a larger record size")
 
 	errCompressionFormatOnlyRegularSupport = errors.New("this compression format only supports regular files, not i.e. tape drives")
+
+	errSignatureFormatOnlyRegularSupport = errors.New("this signature format only supports regular files, not i.e. tape drives")
 )
 
 var archiveCmd = &cobra.Command{
@@ -166,7 +168,7 @@ var archiveCmd = &cobra.Command{
 				return nil
 			},
 			0,
-			func(hdr *tar.Header) error {
+			func(hdr *tar.Header, isRegular bool) error {
 				return nil // We sign above, no need to verify
 			},
 		)
@@ -296,7 +298,7 @@ func archive(
 				return err
 			}
 
-			signer, sign, err := sign(file, signatureFormat, identity)
+			signer, sign, err := sign(file, isRegular, signatureFormat, identity)
 			if err != nil {
 				return err
 			}
@@ -363,7 +365,7 @@ func archive(
 		hdrToAppend := *hdr
 		headers = append(headers, &hdrToAppend)
 
-		if err := signHeader(hdr, signatureFormat, identity); err != nil {
+		if err := signHeader(hdr, isRegular, signatureFormat, identity); err != nil {
 			return err
 		}
 
@@ -502,6 +504,7 @@ func encryptHeader(
 
 func signHeader(
 	hdr *tar.Header,
+	isRegular bool,
 	signatureFormat string,
 	identity interface{},
 ) error {
@@ -521,7 +524,7 @@ func signHeader(
 	}
 
 	newHdr.PAXRecords[pax.STFSRecordEmbeddedHeader] = string(wrappedHeader)
-	newHdr.PAXRecords[pax.STFSRecordSignature], err = signString(newHdr.PAXRecords[pax.STFSRecordEmbeddedHeader], signatureFormat, identity)
+	newHdr.PAXRecords[pax.STFSRecordSignature], err = signString(newHdr.PAXRecords[pax.STFSRecordEmbeddedHeader], isRegular, signatureFormat, identity)
 	if err != nil {
 		return err
 	}
@@ -627,11 +630,16 @@ func parseSignerIdentity(
 
 func sign(
 	src io.Reader,
+	isRegular bool,
 	signatureFormat string,
 	identity interface{},
 ) (io.Reader, func() (string, error), error) {
 	switch signatureFormat {
 	case signatureFormatMinisignKey:
+		if !isRegular {
+			return nil, nil, errSignatureFormatOnlyRegularSupport
+		}
+
 		identity, ok := identity.(minisign.PrivateKey)
 		if !ok {
 			return nil, nil, errIdentityUnparsable
@@ -748,11 +756,16 @@ func encryptString(
 
 func signString(
 	src string,
+	isRegular bool,
 	signatureFormat string,
 	identity interface{},
 ) (string, error) {
 	switch signatureFormat {
 	case signatureFormatMinisignKey:
+		if !isRegular {
+			return "", errSignatureFormatOnlyRegularSupport
+		}
+
 		identity, ok := identity.(minisign.PrivateKey)
 		if !ok {
 			return "", errIdentityUnparsable

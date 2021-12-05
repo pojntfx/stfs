@@ -151,7 +151,7 @@ func query(
 				return err
 			}
 
-			if err := verifyHeader(hdr, signatureFormat, recipient); err != nil {
+			if err := verifyHeader(hdr, isRegular, signatureFormat, recipient); err != nil {
 				return err
 			}
 
@@ -238,7 +238,7 @@ func query(
 				return err
 			}
 
-			if err := verifyHeader(hdr, signatureFormat, recipient); err != nil {
+			if err := verifyHeader(hdr, isRegular, signatureFormat, recipient); err != nil {
 				return err
 			}
 
