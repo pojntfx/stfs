@@ -64,6 +64,10 @@ var (
 	errMissingTarHeader = errors.New("tar header is missing")
 
 	errRecipientUnparsable = errors.New("recipient could not be parsed")
+
+	errCompressionFormatRequiresLargerRecordSize = errors.New("this compression format requires a larger record size")
+
+	errCompressionFormatOnlyRegularSupport = errors.New("this compression format only supports regular files, not i.e. tape drives")
 )
 
 var archiveCmd = &cobra.Command{
@@ -833,8 +837,27 @@ func compress(
 			return nil, errUnsupportedCompressionLevel
 		}
 
+		opts := []lz4.Option{lz4.CompressionLevelOption(l), lz4.ConcurrencyOption(-1)}
+		if !isRegular {
+			maxSize := getNearestPowerOf2Lower(controllers.BlockSize * recordSize)
+
+			if uint32(maxSize) < uint32(lz4.Block64Kb) {
+				return nil, errCompressionFormatRequiresLargerRecordSize
+			}
+
+			if uint32(maxSize) < uint32(lz4.Block256Kb) {
+				opts = append(opts, lz4.BlockSizeOption(lz4.Block64Kb))
+			} else if uint32(maxSize) < uint32(lz4.Block1Mb) {
+				opts = append(opts, lz4.BlockSizeOption(lz4.Block256Kb))
+			} else if uint32(maxSize) < uint32(lz4.Block4Mb) {
+				opts = append(opts, lz4.BlockSizeOption(lz4.Block1Mb))
+			} else {
+				opts = append(opts, lz4.BlockSizeOption(lz4.Block4Mb))
+			}
+		}
+
 		lz := lz4.NewWriter(dst)
-		if err := lz.Apply(lz4.ConcurrencyOption(-1), lz4.CompressionLevelOption(l)); err != nil {
+		if err := lz.Apply(opts...); err != nil {
 			return nil, err
 		}
 
@@ -852,24 +875,22 @@ func compress(
 			return nil, errUnsupportedCompressionLevel
 		}
 
-		var zz *zstd.Encoder
-		if isRegular {
-			z, err := zstd.NewWriter(dst, zstd.WithEncoderLevel(l))
-			if err != nil {
-				return nil, err
-			}
-			zz = z
-		} else {
-			z, err := zstd.NewWriter(dst, zstd.WithWindowSize(getNearestPowerOf2Lower(controllers.BlockSize*recordSize)))
-			if err != nil {
-				return nil, err
-			}
-			zz = z
+		opts := []zstd.EOption{zstd.WithEncoderLevel(l)}
+		if !isRegular {
+			opts = append(opts, zstd.WithWindowSize(getNearestPowerOf2Lower(controllers.BlockSize*recordSize)))
+		}
+
+		zz, err := zstd.NewWriter(dst, opts...)
+		if err != nil {
+			return nil, err
 		}
 
 		return zz, nil
 	case compressionFormatBrotliKey:
-		// TODO: Add support for tape drives
+		if !isRegular {
+			return nil, errCompressionFormatOnlyRegularSupport
+		}
+
 		l := brotli.DefaultCompression
 		switch compressionLevel {
 		case compressionLevelFastest:
@@ -888,7 +909,6 @@ func compress(
 	case compressionFormatBzip2Key:
 		fallthrough
 	case compressionFormatBzip2ParallelKey:
-		// TODO: Add support for tape drives
 		l := bzip2.DefaultCompression
 		switch compressionLevel {
 		case compressionLevelFastest:
@@ -917,16 +937,18 @@ func compress(
 }
 
 func getNearestPowerOf2Lower(n int) int {
-	power := int(math.Log2(float64(n))) // Truncation is intentional, see https://www.geeksforgeeks.org/highest-power-2-less-equal-given-number/
+	return int(math.Pow(2, float64(getNearestLogOf2Lower(n)))) // Truncation is intentional, see https://www.geeksforgeeks.org/highest-power-2-less-equal-given-number/
+}
 
-	return int(math.Pow(2, float64(power))) // Truncation is intentional, see https://www.geeksforgeeks.org/highest-power-2-less-equal-given-number/
+func getNearestLogOf2Lower(n int) int {
+	return int(math.Log2(float64(n))) // Truncation is intentional, see https://www.geeksforgeeks.org/highest-power-2-less-equal-given-number/
 }
 
 func init() {
 	archiveCmd.PersistentFlags().IntP(recordSizeFlag, "z", 20, "Amount of 512-bit blocks per record")
 	archiveCmd.PersistentFlags().StringP(fromFlag, "f", ".", "File or directory to archive")
 	archiveCmd.PersistentFlags().BoolP(overwriteFlag, "o", false, "Start writing from the start instead of from the end of the tape or tar file")
-	archiveCmd.PersistentFlags().StringP(compressionLevelFlag, "l", compressionLevelBalanced, fmt.Sprintf("Compression level to use (default %v, available are %v). Has no effect when on tape, where --record-size is used instead.", compressionLevelBalanced, knownCompressionLevels))
+	archiveCmd.PersistentFlags().StringP(compressionLevelFlag, "l", compressionLevelBalanced, fmt.Sprintf("Compression level to use (default %v, available are %v)", compressionLevelBalanced, knownCompressionLevels))
 	archiveCmd.PersistentFlags().StringP(recipientFlag, "r", "", "Path to public key of recipient to encrypt for")
 	archiveCmd.PersistentFlags().StringP(identityFlag, "i", "", "Path to private key to sign with")
 	archiveCmd.PersistentFlags().StringP(passwordFlag, "p", "", "Password for the private key")
