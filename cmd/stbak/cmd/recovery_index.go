@@ -79,8 +79,8 @@ var recoveryIndexCmd = &cobra.Command{
 				return decryptHeader(hdr, viper.GetString(encryptionFlag), identity)
 			},
 			0,
-			func(hdr *tar.Header) error {
-				return verifyHeader(hdr, viper.GetString(signatureFlag), recipient)
+			func(hdr *tar.Header, isRegular bool) error {
+				return verifyHeader(hdr, isRegular, viper.GetString(signatureFlag), recipient)
 			},
 		)
 	},
@@ -102,6 +102,7 @@ func index(
 	offset int,
 	verifyHeader func(
 		hdr *tar.Header,
+		isRegular bool,
 	) error,
 ) error {
 	if overwrite {
@@ -196,7 +197,7 @@ func index(
 					return err
 				}
 
-				if err := verifyHeader(hdr); err != nil {
+				if err := verifyHeader(hdr, isRegular); err != nil {
 					return err
 				}
 
@@ -282,7 +283,7 @@ func index(
 					return err
 				}
 
-				if err := verifyHeader(hdr); err != nil {
+				if err := verifyHeader(hdr, isRegular); err != nil {
 					return err
 				}
 

@@ -114,7 +114,7 @@ var updateCmd = &cobra.Command{
 				return nil
 			},
 			1,
-			func(hdr *tar.Header) error {
+			func(hdr *tar.Header, isRegular bool) error {
 				return nil // We sign above, no need to verify
 			},
 		)
@@ -198,7 +198,7 @@ func update(
 				return err
 			}
 
-			signer, sign, err := sign(file, signatureFormat, identity)
+			signer, sign, err := sign(file, isRegular, signatureFormat, identity)
 			if err != nil {
 				return err
 			}
@@ -268,7 +268,7 @@ func update(
 			hdrToAppend := *hdr
 			headers = append(headers, &hdrToAppend)
 
-			if err := signHeader(hdr, signatureFormat, identity); err != nil {
+			if err := signHeader(hdr, isRegular, signatureFormat, identity); err != nil {
 				return err
 			}
 
@@ -342,7 +342,7 @@ func update(
 			hdrToAppend := *hdr
 			headers = append(headers, &hdrToAppend)
 
-			if err := signHeader(hdr, signatureFormat, identity); err != nil {
+			if err := signHeader(hdr, isRegular, signatureFormat, identity); err != nil {
 				return err
 			}
 

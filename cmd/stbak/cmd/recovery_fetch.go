@@ -160,7 +160,7 @@ func restoreFromRecordAndBlock(
 		return err
 	}
 
-	if err := verifyHeader(hdr, signatureFormat, recipient); err != nil {
+	if err := verifyHeader(hdr, isRegular, signatureFormat, recipient); err != nil {
 		return err
 	}
 
@@ -218,7 +218,7 @@ func restoreFromRecordAndBlock(
 			}
 		}
 
-		verifier, verify, err := verify(decompressor, signatureFormat, recipient, signature)
+		verifier, verify, err := verify(decompressor, isRegular, signatureFormat, recipient, signature)
 		if err != nil {
 			return err
 		}
@@ -326,6 +326,7 @@ func decryptHeader(
 
 func verifyHeader(
 	hdr *tar.Header,
+	isRegular bool,
 	signatureFormat string,
 	recipient interface{},
 ) error {
@@ -347,7 +348,7 @@ func verifyHeader(
 		return errSignatureMissing
 	}
 
-	if err := verifyString(embeddedHeader, signatureFormat, recipient, signature); err != nil {
+	if err := verifyString(embeddedHeader, isRegular, signatureFormat, recipient, signature); err != nil {
 		return err
 	}
 
@@ -537,12 +538,17 @@ func parseSignerRecipient(
 
 func verify(
 	src io.Reader,
+	isRegular bool,
 	signatureFormat string,
 	recipient interface{},
 	signature string,
 ) (io.Reader, func() error, error) {
 	switch signatureFormat {
 	case signatureFormatMinisignKey:
+		if !isRegular {
+			return nil, nil, errSignatureFormatOnlyRegularSupport
+		}
+
 		recipient, ok := recipient.(minisign.PublicKey)
 		if !ok {
 			return nil, nil, errRecipientUnparsable
@@ -606,12 +612,17 @@ func verify(
 
 func verifyString(
 	src string,
+	isRegular bool,
 	signatureFormat string,
 	recipient interface{},
 	signature string,
 ) error {
 	switch signatureFormat {
 	case signatureFormatMinisignKey:
+		if !isRegular {
+			return errSignatureFormatOnlyRegularSupport
+		}
+
 		recipient, ok := recipient.(minisign.PublicKey)
 		if !ok {
 			return errRecipientUnparsable
