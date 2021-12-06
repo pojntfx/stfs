@@ -147,7 +147,7 @@ func (p *MetadataPersister) GetHeaderDirectChildren(ctx context.Context, name st
 
 	if err := queries.Raw(
 		fmt.Sprintf(
-			`select %v, %v, %v, %v, %v, %v, %v, %v, %v, %v, %v, %v, %v, %v, %v, %v, %v, %v,
+			`select %v, %v, %v, %v, %v, %v, %v, %v, %v, %v, %v, %v, %v, %v, %v, %v, %v, %v, %v, %v,
     length(replace(%v, ?, '')) - length(replace(replace(%v, ?, ''), '/', '')) as depth
 from %v
 where %v like ?
@@ -160,7 +160,9 @@ where %v like ?
     )
     and not %v in ('', '.', '/', './')`,
 			models.HeaderColumns.Record,
+			models.HeaderColumns.Lastknownrecord,
 			models.HeaderColumns.Block,
+			models.HeaderColumns.Lastknownblock,
 			models.HeaderColumns.Typeflag,
 			models.HeaderColumns.Name,
 			models.HeaderColumns.Linkname,
@@ -237,10 +239,10 @@ func (p *MetadataPersister) GetLastIndexedRecordAndBlock(ctx context.Context, re
 	if err := queries.Raw(
 		fmt.Sprintf(
 			`select %v, %v, ((%v*$1)+%v) as location from %v order by location desc limit 1`,
-			models.HeaderColumns.Record,
-			models.HeaderColumns.Block,
-			models.HeaderColumns.Record,
-			models.HeaderColumns.Block,
+			models.HeaderColumns.Lastknownrecord,
+			models.HeaderColumns.Lastknownblock,
+			models.HeaderColumns.Lastknownrecord,
+			models.HeaderColumns.Lastknownblock,
 			models.TableNames.Headers,
 		),
 		recordSize,
@@ -252,5 +254,5 @@ func (p *MetadataPersister) GetLastIndexedRecordAndBlock(ctx context.Context, re
 		return 0, 0, err
 	}
 
-	return header.Record, header.Block, nil
+	return header.Lastknownrecord, header.Lastknownblock, nil
 }

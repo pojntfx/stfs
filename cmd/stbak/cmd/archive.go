@@ -174,11 +174,16 @@ var archiveCmd = &cobra.Command{
 			viper.GetBool(overwriteFlag),
 
 			func(hdr *tar.Header, i int) error {
-				if len(hdrs) <= i {
+				// Ignore the first header, which is the last header which we already indexed
+				if i == 0 {
+					return nil
+				}
+
+				if len(hdrs) <= i-1 {
 					return errMissingTarHeader
 				}
 
-				*hdr = *hdrs[i]
+				*hdr = *hdrs[i-1]
 
 				return nil
 			},
@@ -372,7 +377,7 @@ func archive(
 			first = false
 		}
 
-		if err := formatting.PrintCSV(formatting.GetTARHeaderAsCSV(-1, -1, hdr)); err != nil {
+		if err := formatting.PrintCSV(formatting.GetTARHeaderAsCSV(-1, -1, -1, -1, hdr)); err != nil {
 			return err
 		}
 

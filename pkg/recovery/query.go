@@ -107,7 +107,7 @@ func Query(
 				}
 			}
 
-			if err := formatting.PrintCSV(formatting.GetTARHeaderAsCSV(record, block, hdr)); err != nil {
+			if err := formatting.PrintCSV(formatting.GetTARHeaderAsCSV(record, -1, block, -1, hdr)); err != nil {
 				return []*tar.Header{}, err
 			}
 
@@ -196,7 +196,7 @@ func Query(
 				}
 			}
 
-			if err := formatting.PrintCSV(formatting.GetTARHeaderAsCSV(record, block, hdr)); err != nil {
+			if err := formatting.PrintCSV(formatting.GetTARHeaderAsCSV(record, -1, block, -1, hdr)); err != nil {
 				return []*tar.Header{}, err
 			}
 

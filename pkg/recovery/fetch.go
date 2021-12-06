@@ -77,7 +77,7 @@ func Fetch(
 			return err
 		}
 
-		if err := formatting.PrintCSV(formatting.GetTARHeaderAsCSV(int64(record), int64(block), hdr)); err != nil {
+		if err := formatting.PrintCSV(formatting.GetTARHeaderAsCSV(int64(record), -1, int64(block), -1, hdr)); err != nil {
 			return err
 		}
 	}
