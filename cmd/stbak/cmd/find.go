@@ -1,12 +1,7 @@
 package cmd
 
 import (
-	"context"
-	"regexp"
-
-	"github.com/pojntfx/stfs/internal/converters"
-	"github.com/pojntfx/stfs/internal/formatting"
-	"github.com/pojntfx/stfs/internal/persisters"
+	"github.com/pojntfx/stfs/pkg/inventory"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 	"github.com/volatiletech/sqlboiler/v4/boil"
@@ -29,36 +24,14 @@ var findCmd = &cobra.Command{
 			boil.DebugMode = true
 		}
 
-		metadataPersister := persisters.NewMetadataPersister(viper.GetString(metadataFlag))
-		if err := metadataPersister.Open(); err != nil {
+		if _, err := inventory.Find(
+			inventory.MetadataConfig{
+				Metadata: viper.GetString(metadataFlag),
+			},
+
+			viper.GetString(expressionFlag),
+		); err != nil {
 			return err
-		}
-
-		headers, err := metadataPersister.GetHeaders(context.Background())
-		if err != nil {
-			return err
-		}
-
-		first := true
-		for _, dbhdr := range headers {
-			if regexp.MustCompile(viper.GetString(expressionFlag)).Match([]byte(dbhdr.Name)) {
-				if first {
-					if err := formatting.PrintCSV(formatting.TARHeaderCSV); err != nil {
-						return err
-					}
-
-					first = false
-				}
-
-				hdr, err := converters.DBHeaderToTarHeader(dbhdr)
-				if err != nil {
-					return err
-				}
-
-				if err := formatting.PrintCSV(formatting.GetTARHeaderAsCSV(dbhdr.Record, dbhdr.Block, hdr)); err != nil {
-					return err
-				}
-			}
 		}
 
 		return nil
