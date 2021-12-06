@@ -9,7 +9,10 @@ import (
 
 	"github.com/pojntfx/stfs/internal/controllers"
 	"github.com/pojntfx/stfs/internal/counters"
+	"github.com/pojntfx/stfs/internal/encryption"
 	"github.com/pojntfx/stfs/internal/formatting"
+	"github.com/pojntfx/stfs/internal/keys"
+	"github.com/pojntfx/stfs/internal/signature"
 	"github.com/pojntfx/stfs/internal/tape"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
@@ -44,7 +47,7 @@ var recoveryQueryCmd = &cobra.Command{
 			return err
 		}
 
-		recipient, err := parseSignerRecipient(viper.GetString(signatureFlag), pubkey)
+		recipient, err := keys.ParseSignerRecipient(viper.GetString(signatureFlag), pubkey)
 		if err != nil {
 			return err
 		}
@@ -54,7 +57,7 @@ var recoveryQueryCmd = &cobra.Command{
 			return err
 		}
 
-		identity, err := parseIdentity(viper.GetString(encryptionFlag), privkey, viper.GetString(passwordFlag))
+		identity, err := keys.ParseIdentity(viper.GetString(encryptionFlag), privkey, viper.GetString(passwordFlag))
 		if err != nil {
 			return err
 		}
@@ -148,11 +151,11 @@ func query(
 				break
 			}
 
-			if err := decryptHeader(hdr, encryptionFormat, identity); err != nil {
+			if err := encryption.DecryptHeader(hdr, encryptionFormat, identity); err != nil {
 				return err
 			}
 
-			if err := verifyHeader(hdr, isRegular, signatureFormat, recipient); err != nil {
+			if err := signature.VerifyHeader(hdr, isRegular, signatureFormat, recipient); err != nil {
 				return err
 			}
 
@@ -235,11 +238,11 @@ func query(
 				}
 			}
 
-			if err := decryptHeader(hdr, encryptionFormat, identity); err != nil {
+			if err := encryption.DecryptHeader(hdr, encryptionFormat, identity); err != nil {
 				return err
 			}
 
-			if err := verifyHeader(hdr, isRegular, signatureFormat, recipient); err != nil {
+			if err := signature.VerifyHeader(hdr, isRegular, signatureFormat, recipient); err != nil {
 				return err
 			}
 

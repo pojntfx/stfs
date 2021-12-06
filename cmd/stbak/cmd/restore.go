@@ -11,7 +11,10 @@ import (
 	"github.com/pojntfx/stfs/internal/converters"
 	models "github.com/pojntfx/stfs/internal/db/sqlite/models/metadata"
 	"github.com/pojntfx/stfs/internal/formatting"
+	"github.com/pojntfx/stfs/internal/keys"
 	"github.com/pojntfx/stfs/internal/persisters"
+	"github.com/pojntfx/stfs/pkg/config"
+	"github.com/pojntfx/stfs/pkg/recovery"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 	"github.com/volatiletech/sqlboiler/v4/boil"
@@ -55,7 +58,7 @@ var restoreCmd = &cobra.Command{
 			return err
 		}
 
-		recipient, err := parseSignerRecipient(viper.GetString(signatureFlag), pubkey)
+		recipient, err := keys.ParseSignerRecipient(viper.GetString(signatureFlag), pubkey)
 		if err != nil {
 			return err
 		}
@@ -65,7 +68,7 @@ var restoreCmd = &cobra.Command{
 			return err
 		}
 
-		identity, err := parseIdentity(viper.GetString(encryptionFlag), privkey, viper.GetString(passwordFlag))
+		identity, err := keys.ParseIdentity(viper.GetString(encryptionFlag), privkey, viper.GetString(passwordFlag))
 		if err != nil {
 			return err
 		}
@@ -126,19 +129,29 @@ var restoreCmd = &cobra.Command{
 				}
 			}
 
-			if err := restoreFromRecordAndBlock(
-				viper.GetString(driveFlag),
+			if err := recovery.Fetch(
+				config.StateConfig{
+					Drive:    viper.GetString(driveFlag),
+					Metadata: viper.GetString(metadataFlag),
+				},
+				config.PipeConfig{
+					Compression: viper.GetString(compressionFlag),
+					Encryption:  viper.GetString(encryptionFlag),
+					Signature:   viper.GetString(signatureFlag),
+				},
+				config.CryptoConfig{
+					Recipient: recipient,
+					Identity:  identity,
+					Password:  viper.GetString(passwordFlag),
+				},
+
 				viper.GetInt(recordSizeFlag),
 				int(dbhdr.Record),
 				int(dbhdr.Block),
 				dst,
 				false,
+
 				false,
-				viper.GetString(compressionFlag),
-				viper.GetString(encryptionFlag),
-				identity,
-				viper.GetString(signatureFlag),
-				recipient,
 			); err != nil {
 				return err
 			}

@@ -30,6 +30,7 @@ import (
 	"github.com/pojntfx/stfs/internal/controllers"
 	"github.com/pojntfx/stfs/internal/counters"
 	"github.com/pojntfx/stfs/internal/formatting"
+	"github.com/pojntfx/stfs/internal/keys"
 	"github.com/pojntfx/stfs/internal/noop"
 	"github.com/pojntfx/stfs/internal/pax"
 	"github.com/pojntfx/stfs/internal/persisters"
@@ -130,7 +131,7 @@ var archiveCmd = &cobra.Command{
 			return err
 		}
 
-		identity, err := parseSignerIdentity(viper.GetString(signatureFlag), privkey, viper.GetString(passwordFlag))
+		identity, err := keys.ParseSignerIdentity(viper.GetString(signatureFlag), privkey, viper.GetString(passwordFlag))
 		if err != nil {
 			return err
 		}
@@ -622,23 +623,6 @@ func encrypt(
 		return noop.AddClose(dst), nil
 	default:
 		return nil, errUnsupportedEncryptionFormat
-	}
-}
-
-func parseSignerIdentity(
-	signatureFormat string,
-	privkey []byte,
-	password string,
-) (interface{}, error) {
-	switch signatureFormat {
-	case signatureFormatMinisignKey:
-		return minisign.DecryptKey(password, privkey)
-	case signatureFormatPGPKey:
-		return parseIdentity(signatureFormat, privkey, password)
-	case noneKey:
-		return privkey, nil
-	default:
-		return nil, errUnsupportedSignatureFormat
 	}
 }
 

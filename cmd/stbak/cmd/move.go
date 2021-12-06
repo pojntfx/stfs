@@ -8,6 +8,7 @@ import (
 	"github.com/pojntfx/stfs/internal/converters"
 	models "github.com/pojntfx/stfs/internal/db/sqlite/models/metadata"
 	"github.com/pojntfx/stfs/internal/formatting"
+	"github.com/pojntfx/stfs/internal/keys"
 	"github.com/pojntfx/stfs/internal/pax"
 	"github.com/pojntfx/stfs/internal/persisters"
 	"github.com/spf13/cobra"
@@ -54,7 +55,7 @@ var moveCmd = &cobra.Command{
 			return err
 		}
 
-		identity, err := parseSignerIdentity(viper.GetString(signatureFlag), privkey, viper.GetString(passwordFlag))
+		identity, err := keys.ParseSignerIdentity(viper.GetString(signatureFlag), privkey, viper.GetString(passwordFlag))
 		if err != nil {
 			return err
 		}

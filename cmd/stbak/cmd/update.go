@@ -14,6 +14,7 @@ import (
 	"github.com/pojntfx/stfs/internal/controllers"
 	"github.com/pojntfx/stfs/internal/counters"
 	"github.com/pojntfx/stfs/internal/formatting"
+	"github.com/pojntfx/stfs/internal/keys"
 	"github.com/pojntfx/stfs/internal/pax"
 	"github.com/pojntfx/stfs/internal/persisters"
 	"github.com/pojntfx/stfs/pkg/config"
@@ -76,7 +77,7 @@ var updateCmd = &cobra.Command{
 			return err
 		}
 
-		identity, err := parseSignerIdentity(viper.GetString(signatureFlag), privkey, viper.GetString(passwordFlag))
+		identity, err := keys.ParseSignerIdentity(viper.GetString(signatureFlag), privkey, viper.GetString(passwordFlag))
 		if err != nil {
 			return err
 		}
