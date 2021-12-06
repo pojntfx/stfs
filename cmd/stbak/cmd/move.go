@@ -150,7 +150,7 @@ func move(
 
 		dirty = true
 
-		if err := formatting.PrintCSV(formatting.GetTARHeaderAsCSV(-1, -1, hdr)); err != nil {
+		if err := formatting.PrintCSV(formatting.GetTARHeaderAsCSV(-1, -1, -1, -1, hdr)); err != nil {
 			return err
 		}
 	}

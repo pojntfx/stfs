@@ -120,6 +120,7 @@ var updateCmd = &cobra.Command{
 			false,
 
 			func(hdr *tar.Header, i int) error {
+				// Ignore the first header, which is the last header which we already indexed
 				if i == 0 {
 					return nil
 				}
@@ -279,7 +280,7 @@ func update(
 		if replacesContent {
 			hdr.PAXRecords[pax.STFSRecordReplacesContent] = pax.STFSRecordReplacesContentTrue
 
-			if err := formatting.PrintCSV(formatting.GetTARHeaderAsCSV(-1, -1, hdr)); err != nil {
+			if err := formatting.PrintCSV(formatting.GetTARHeaderAsCSV(-1, -1, -1, -1, hdr)); err != nil {
 				return err
 			}
 
@@ -353,7 +354,7 @@ func update(
 		} else {
 			hdr.Size = 0 // Don't try to seek after the record
 
-			if err := formatting.PrintCSV(formatting.GetTARHeaderAsCSV(-1, -1, hdr)); err != nil {
+			if err := formatting.PrintCSV(formatting.GetTARHeaderAsCSV(-1, -1, -1, -1, hdr)); err != nil {
 				return err
 			}
 

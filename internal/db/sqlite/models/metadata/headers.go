@@ -22,107 +22,117 @@ import (
 
 // Header is an object representing the database table.
 type Header struct {
-	Record     int64     `boil:"record" json:"record" toml:"record" yaml:"record"`
-	Block      int64     `boil:"block" json:"block" toml:"block" yaml:"block"`
-	Typeflag   int64     `boil:"typeflag" json:"typeflag" toml:"typeflag" yaml:"typeflag"`
-	Name       string    `boil:"name" json:"name" toml:"name" yaml:"name"`
-	Linkname   string    `boil:"linkname" json:"linkname" toml:"linkname" yaml:"linkname"`
-	Size       int64     `boil:"size" json:"size" toml:"size" yaml:"size"`
-	Mode       int64     `boil:"mode" json:"mode" toml:"mode" yaml:"mode"`
-	UID        int64     `boil:"uid" json:"uid" toml:"uid" yaml:"uid"`
-	Gid        int64     `boil:"gid" json:"gid" toml:"gid" yaml:"gid"`
-	Uname      string    `boil:"uname" json:"uname" toml:"uname" yaml:"uname"`
-	Gname      string    `boil:"gname" json:"gname" toml:"gname" yaml:"gname"`
-	Modtime    time.Time `boil:"modtime" json:"modtime" toml:"modtime" yaml:"modtime"`
-	Accesstime time.Time `boil:"accesstime" json:"accesstime" toml:"accesstime" yaml:"accesstime"`
-	Changetime time.Time `boil:"changetime" json:"changetime" toml:"changetime" yaml:"changetime"`
-	Devmajor   int64     `boil:"devmajor" json:"devmajor" toml:"devmajor" yaml:"devmajor"`
-	Devminor   int64     `boil:"devminor" json:"devminor" toml:"devminor" yaml:"devminor"`
-	Paxrecords string    `boil:"paxrecords" json:"paxrecords" toml:"paxrecords" yaml:"paxrecords"`
-	Format     int64     `boil:"format" json:"format" toml:"format" yaml:"format"`
+	Record          int64     `boil:"record" json:"record" toml:"record" yaml:"record"`
+	Lastknownrecord int64     `boil:"lastknownrecord" json:"lastknownrecord" toml:"lastknownrecord" yaml:"lastknownrecord"`
+	Block           int64     `boil:"block" json:"block" toml:"block" yaml:"block"`
+	Lastknownblock  int64     `boil:"lastknownblock" json:"lastknownblock" toml:"lastknownblock" yaml:"lastknownblock"`
+	Typeflag        int64     `boil:"typeflag" json:"typeflag" toml:"typeflag" yaml:"typeflag"`
+	Name            string    `boil:"name" json:"name" toml:"name" yaml:"name"`
+	Linkname        string    `boil:"linkname" json:"linkname" toml:"linkname" yaml:"linkname"`
+	Size            int64     `boil:"size" json:"size" toml:"size" yaml:"size"`
+	Mode            int64     `boil:"mode" json:"mode" toml:"mode" yaml:"mode"`
+	UID             int64     `boil:"uid" json:"uid" toml:"uid" yaml:"uid"`
+	Gid             int64     `boil:"gid" json:"gid" toml:"gid" yaml:"gid"`
+	Uname           string    `boil:"uname" json:"uname" toml:"uname" yaml:"uname"`
+	Gname           string    `boil:"gname" json:"gname" toml:"gname" yaml:"gname"`
+	Modtime         time.Time `boil:"modtime" json:"modtime" toml:"modtime" yaml:"modtime"`
+	Accesstime      time.Time `boil:"accesstime" json:"accesstime" toml:"accesstime" yaml:"accesstime"`
+	Changetime      time.Time `boil:"changetime" json:"changetime" toml:"changetime" yaml:"changetime"`
+	Devmajor        int64     `boil:"devmajor" json:"devmajor" toml:"devmajor" yaml:"devmajor"`
+	Devminor        int64     `boil:"devminor" json:"devminor" toml:"devminor" yaml:"devminor"`
+	Paxrecords      string    `boil:"paxrecords" json:"paxrecords" toml:"paxrecords" yaml:"paxrecords"`
+	Format          int64     `boil:"format" json:"format" toml:"format" yaml:"format"`
 
 	R *headerR `boil:"-" json:"-" toml:"-" yaml:"-"`
 	L headerL  `boil:"-" json:"-" toml:"-" yaml:"-"`
 }
 
 var HeaderColumns = struct {
-	Record     string
-	Block      string
-	Typeflag   string
-	Name       string
-	Linkname   string
-	Size       string
-	Mode       string
-	UID        string
-	Gid        string
-	Uname      string
-	Gname      string
-	Modtime    string
-	Accesstime string
-	Changetime string
-	Devmajor   string
-	Devminor   string
-	Paxrecords string
-	Format     string
+	Record          string
+	Lastknownrecord string
+	Block           string
+	Lastknownblock  string
+	Typeflag        string
+	Name            string
+	Linkname        string
+	Size            string
+	Mode            string
+	UID             string
+	Gid             string
+	Uname           string
+	Gname           string
+	Modtime         string
+	Accesstime      string
+	Changetime      string
+	Devmajor        string
+	Devminor        string
+	Paxrecords      string
+	Format          string
 }{
-	Record:     "record",
-	Block:      "block",
-	Typeflag:   "typeflag",
-	Name:       "name",
-	Linkname:   "linkname",
-	Size:       "size",
-	Mode:       "mode",
-	UID:        "uid",
-	Gid:        "gid",
-	Uname:      "uname",
-	Gname:      "gname",
-	Modtime:    "modtime",
-	Accesstime: "accesstime",
-	Changetime: "changetime",
-	Devmajor:   "devmajor",
-	Devminor:   "devminor",
-	Paxrecords: "paxrecords",
-	Format:     "format",
+	Record:          "record",
+	Lastknownrecord: "lastknownrecord",
+	Block:           "block",
+	Lastknownblock:  "lastknownblock",
+	Typeflag:        "typeflag",
+	Name:            "name",
+	Linkname:        "linkname",
+	Size:            "size",
+	Mode:            "mode",
+	UID:             "uid",
+	Gid:             "gid",
+	Uname:           "uname",
+	Gname:           "gname",
+	Modtime:         "modtime",
+	Accesstime:      "accesstime",
+	Changetime:      "changetime",
+	Devmajor:        "devmajor",
+	Devminor:        "devminor",
+	Paxrecords:      "paxrecords",
+	Format:          "format",
 }
 
 var HeaderTableColumns = struct {
-	Record     string
-	Block      string
-	Typeflag   string
-	Name       string
-	Linkname   string
-	Size       string
-	Mode       string
-	UID        string
-	Gid        string
-	Uname      string
-	Gname      string
-	Modtime    string
-	Accesstime string
-	Changetime string
-	Devmajor   string
-	Devminor   string
-	Paxrecords string
-	Format     string
+	Record          string
+	Lastknownrecord string
+	Block           string
+	Lastknownblock  string
+	Typeflag        string
+	Name            string
+	Linkname        string
+	Size            string
+	Mode            string
+	UID             string
+	Gid             string
+	Uname           string
+	Gname           string
+	Modtime         string
+	Accesstime      string
+	Changetime      string
+	Devmajor        string
+	Devminor        string
+	Paxrecords      string
+	Format          string
 }{
-	Record:     "headers.record",
-	Block:      "headers.block",
-	Typeflag:   "headers.typeflag",
-	Name:       "headers.name",
-	Linkname:   "headers.linkname",
-	Size:       "headers.size",
-	Mode:       "headers.mode",
-	UID:        "headers.uid",
-	Gid:        "headers.gid",
-	Uname:      "headers.uname",
-	Gname:      "headers.gname",
-	Modtime:    "headers.modtime",
-	Accesstime: "headers.accesstime",
-	Changetime: "headers.changetime",
-	Devmajor:   "headers.devmajor",
-	Devminor:   "headers.devminor",
-	Paxrecords: "headers.paxrecords",
-	Format:     "headers.format",
+	Record:          "headers.record",
+	Lastknownrecord: "headers.lastknownrecord",
+	Block:           "headers.block",
+	Lastknownblock:  "headers.lastknownblock",
+	Typeflag:        "headers.typeflag",
+	Name:            "headers.name",
+	Linkname:        "headers.linkname",
+	Size:            "headers.size",
+	Mode:            "headers.mode",
+	UID:             "headers.uid",
+	Gid:             "headers.gid",
+	Uname:           "headers.uname",
+	Gname:           "headers.gname",
+	Modtime:         "headers.modtime",
+	Accesstime:      "headers.accesstime",
+	Changetime:      "headers.changetime",
+	Devmajor:        "headers.devmajor",
+	Devminor:        "headers.devminor",
+	Paxrecords:      "headers.paxrecords",
+	Format:          "headers.format",
 }
 
 // Generated where
@@ -172,43 +182,47 @@ func (w whereHelpertime_Time) GTE(x time.Time) qm.QueryMod {
 }
 
 var HeaderWhere = struct {
-	Record     whereHelperint64
-	Block      whereHelperint64
-	Typeflag   whereHelperint64
-	Name       whereHelperstring
-	Linkname   whereHelperstring
-	Size       whereHelperint64
-	Mode       whereHelperint64
-	UID        whereHelperint64
-	Gid        whereHelperint64
-	Uname      whereHelperstring
-	Gname      whereHelperstring
-	Modtime    whereHelpertime_Time
-	Accesstime whereHelpertime_Time
-	Changetime whereHelpertime_Time
-	Devmajor   whereHelperint64
-	Devminor   whereHelperint64
-	Paxrecords whereHelperstring
-	Format     whereHelperint64
+	Record          whereHelperint64
+	Lastknownrecord whereHelperint64
+	Block           whereHelperint64
+	Lastknownblock  whereHelperint64
+	Typeflag        whereHelperint64
+	Name            whereHelperstring
+	Linkname        whereHelperstring
+	Size            whereHelperint64
+	Mode            whereHelperint64
+	UID             whereHelperint64
+	Gid             whereHelperint64
+	Uname           whereHelperstring
+	Gname           whereHelperstring
+	Modtime         whereHelpertime_Time
+	Accesstime      whereHelpertime_Time
+	Changetime      whereHelpertime_Time
+	Devmajor        whereHelperint64
+	Devminor        whereHelperint64
+	Paxrecords      whereHelperstring
+	Format          whereHelperint64
 }{
-	Record:     whereHelperint64{field: "\"headers\".\"record\""},
-	Block:      whereHelperint64{field: "\"headers\".\"block\""},
-	Typeflag:   whereHelperint64{field: "\"headers\".\"typeflag\""},
-	Name:       whereHelperstring{field: "\"headers\".\"name\""},
-	Linkname:   whereHelperstring{field: "\"headers\".\"linkname\""},
-	Size:       whereHelperint64{field: "\"headers\".\"size\""},
-	Mode:       whereHelperint64{field: "\"headers\".\"mode\""},
-	UID:        whereHelperint64{field: "\"headers\".\"uid\""},
-	Gid:        whereHelperint64{field: "\"headers\".\"gid\""},
-	Uname:      whereHelperstring{field: "\"headers\".\"uname\""},
-	Gname:      whereHelperstring{field: "\"headers\".\"gname\""},
-	Modtime:    whereHelpertime_Time{field: "\"headers\".\"modtime\""},
-	Accesstime: whereHelpertime_Time{field: "\"headers\".\"accesstime\""},
-	Changetime: whereHelpertime_Time{field: "\"headers\".\"changetime\""},
-	Devmajor:   whereHelperint64{field: "\"headers\".\"devmajor\""},
-	Devminor:   whereHelperint64{field: "\"headers\".\"devminor\""},
-	Paxrecords: whereHelperstring{field: "\"headers\".\"paxrecords\""},
-	Format:     whereHelperint64{field: "\"headers\".\"format\""},
+	Record:          whereHelperint64{field: "\"headers\".\"record\""},
+	Lastknownrecord: whereHelperint64{field: "\"headers\".\"lastknownrecord\""},
+	Block:           whereHelperint64{field: "\"headers\".\"block\""},
+	Lastknownblock:  whereHelperint64{field: "\"headers\".\"lastknownblock\""},
+	Typeflag:        whereHelperint64{field: "\"headers\".\"typeflag\""},
+	Name:            whereHelperstring{field: "\"headers\".\"name\""},
+	Linkname:        whereHelperstring{field: "\"headers\".\"linkname\""},
+	Size:            whereHelperint64{field: "\"headers\".\"size\""},
+	Mode:            whereHelperint64{field: "\"headers\".\"mode\""},
+	UID:             whereHelperint64{field: "\"headers\".\"uid\""},
+	Gid:             whereHelperint64{field: "\"headers\".\"gid\""},
+	Uname:           whereHelperstring{field: "\"headers\".\"uname\""},
+	Gname:           whereHelperstring{field: "\"headers\".\"gname\""},
+	Modtime:         whereHelpertime_Time{field: "\"headers\".\"modtime\""},
+	Accesstime:      whereHelpertime_Time{field: "\"headers\".\"accesstime\""},
+	Changetime:      whereHelpertime_Time{field: "\"headers\".\"changetime\""},
+	Devmajor:        whereHelperint64{field: "\"headers\".\"devmajor\""},
+	Devminor:        whereHelperint64{field: "\"headers\".\"devminor\""},
+	Paxrecords:      whereHelperstring{field: "\"headers\".\"paxrecords\""},
+	Format:          whereHelperint64{field: "\"headers\".\"format\""},
 }
 
 // HeaderRels is where relationship names are stored.
@@ -228,8 +242,8 @@ func (*headerR) NewStruct() *headerR {
 type headerL struct{}
 
 var (
-	headerAllColumns            = []string{"record", "block", "typeflag", "name", "linkname", "size", "mode", "uid", "gid", "uname", "gname", "modtime", "accesstime", "changetime", "devmajor", "devminor", "paxrecords", "format"}
-	headerColumnsWithoutDefault = []string{"record", "block", "typeflag", "name", "linkname", "size", "mode", "uid", "gid", "uname", "gname", "modtime", "accesstime", "changetime", "devmajor", "devminor", "paxrecords", "format"}
+	headerAllColumns            = []string{"record", "lastknownrecord", "block", "lastknownblock", "typeflag", "name", "linkname", "size", "mode", "uid", "gid", "uname", "gname", "modtime", "accesstime", "changetime", "devmajor", "devminor", "paxrecords", "format"}
+	headerColumnsWithoutDefault = []string{"record", "lastknownrecord", "block", "lastknownblock", "typeflag", "name", "linkname", "size", "mode", "uid", "gid", "uname", "gname", "modtime", "accesstime", "changetime", "devmajor", "devminor", "paxrecords", "format"}
 	headerColumnsWithDefault    = []string{}
 	headerPrimaryKeyColumns     = []string{"name"}
 )

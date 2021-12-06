@@ -112,7 +112,7 @@ var restoreCmd = &cobra.Command{
 				return err
 			}
 
-			if err := formatting.PrintCSV(formatting.GetTARHeaderAsCSV(dbhdr.Record, dbhdr.Block, hdr)); err != nil {
+			if err := formatting.PrintCSV(formatting.GetTARHeaderAsCSV(dbhdr.Record, dbhdr.Lastknownrecord, dbhdr.Block, dbhdr.Lastknownblock, hdr)); err != nil {
 				return err
 			}
 

@@ -2,8 +2,12 @@
 create table headers (
     -- Record of this header on the tape
     record integer not null,
+    -- Record of the last update header of this header on the tape
+    lastknownrecord integer not null,
     -- Block of this header in the record
     block integer not null,
+    -- Block of the last update header of this header in the record
+    lastknownblock integer not null,
     -- Typeflag is the type of header entry.
     -- The zero value is automatically promoted to either TypeReg or TypeDir
     -- depending on the presence of a trailing slash in Name.

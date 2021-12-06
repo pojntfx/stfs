@@ -279,7 +279,7 @@ func indexHeader(
 		hdr.Name = newName
 	}
 
-	if err := formatting.PrintCSV(formatting.GetTARHeaderAsCSV(record, block, hdr)); err != nil {
+	if err := formatting.PrintCSV(formatting.GetTARHeaderAsCSV(record, -1, block, -1, hdr)); err != nil {
 		return err
 	}
 
@@ -297,7 +297,7 @@ func indexHeader(
 
 		switch stfsAction {
 		case pax.STFSRecordActionCreate:
-			dbhdr, err := converters.TarHeaderToDBHeader(record, block, hdr)
+			dbhdr, err := converters.TarHeaderToDBHeader(record, record, block, block, hdr)
 			if err != nil {
 				return err
 			}
@@ -320,7 +320,7 @@ func indexHeader(
 			var newHdr *models.Header
 			if replacesContent, ok := hdr.PAXRecords[pax.STFSRecordReplacesContent]; ok && replacesContent == pax.STFSRecordReplacesContentTrue {
 				// Content & metadata update; use the new record & block
-				h, err := converters.TarHeaderToDBHeader(record, block, hdr)
+				h, err := converters.TarHeaderToDBHeader(record, record, block, block, hdr)
 				if err != nil {
 					return err
 				}
@@ -333,7 +333,7 @@ func indexHeader(
 					return err
 				}
 
-				h, err := converters.TarHeaderToDBHeader(oldHdr.Record, oldHdr.Block, hdr)
+				h, err := converters.TarHeaderToDBHeader(oldHdr.Record, record, oldHdr.Block, block, hdr)
 				if err != nil {
 					return err
 				}
