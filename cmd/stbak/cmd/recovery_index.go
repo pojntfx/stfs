@@ -77,7 +77,6 @@ var recoveryIndexCmd = &cobra.Command{
 			viper.GetInt(blockFlag),
 			viper.GetBool(overwriteFlag),
 
-			0,
 			func(hdr *tar.Header, i int) error {
 				return encryption.DecryptHeader(hdr, viper.GetString(encryptionFlag), identity)
 			},
