@@ -3,6 +3,9 @@ package cmd
 import (
 	"archive/tar"
 
+	"github.com/pojntfx/stfs/internal/encryption"
+	"github.com/pojntfx/stfs/internal/keys"
+	"github.com/pojntfx/stfs/internal/signature"
 	"github.com/pojntfx/stfs/pkg/config"
 	"github.com/pojntfx/stfs/pkg/recovery"
 	"github.com/spf13/cobra"
@@ -38,7 +41,7 @@ var recoveryIndexCmd = &cobra.Command{
 			return err
 		}
 
-		recipient, err := parseSignerRecipient(viper.GetString(signatureFlag), pubkey)
+		recipient, err := keys.ParseSignerRecipient(viper.GetString(signatureFlag), pubkey)
 		if err != nil {
 			return err
 		}
@@ -48,7 +51,7 @@ var recoveryIndexCmd = &cobra.Command{
 			return err
 		}
 
-		identity, err := parseIdentity(viper.GetString(encryptionFlag), privkey, viper.GetString(passwordFlag))
+		identity, err := keys.ParseIdentity(viper.GetString(encryptionFlag), privkey, viper.GetString(passwordFlag))
 		if err != nil {
 			return err
 		}
@@ -76,10 +79,10 @@ var recoveryIndexCmd = &cobra.Command{
 
 			0,
 			func(hdr *tar.Header, i int) error {
-				return decryptHeader(hdr, viper.GetString(encryptionFlag), identity)
+				return encryption.DecryptHeader(hdr, viper.GetString(encryptionFlag), identity)
 			},
 			func(hdr *tar.Header, isRegular bool) error {
-				return verifyHeader(hdr, isRegular, viper.GetString(signatureFlag), recipient)
+				return signature.VerifyHeader(hdr, isRegular, viper.GetString(signatureFlag), recipient)
 			},
 		)
 	},
