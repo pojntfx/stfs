@@ -9,8 +9,8 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/pojntfx/stfs/pkg/db/sqlite/migrations/metadata"
-	models "github.com/pojntfx/stfs/pkg/db/sqlite/models/metadata"
+	"github.com/pojntfx/stfs/internal/db/sqlite/migrations/metadata"
+	models "github.com/pojntfx/stfs/internal/db/sqlite/models/metadata"
 	migrate "github.com/rubenv/sql-migrate"
 	"github.com/volatiletech/sqlboiler/v4/boil"
 	"github.com/volatiletech/sqlboiler/v4/queries"

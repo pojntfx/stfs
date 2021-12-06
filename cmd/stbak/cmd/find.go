@@ -4,9 +4,9 @@ import (
 	"context"
 	"regexp"
 
-	"github.com/pojntfx/stfs/pkg/converters"
-	"github.com/pojntfx/stfs/pkg/formatting"
-	"github.com/pojntfx/stfs/pkg/persisters"
+	"github.com/pojntfx/stfs/internal/converters"
+	"github.com/pojntfx/stfs/internal/formatting"
+	"github.com/pojntfx/stfs/internal/persisters"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 	"github.com/volatiletech/sqlboiler/v4/boil"

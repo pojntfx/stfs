@@ -4,7 +4,7 @@ import (
 	"archive/tar"
 	"encoding/json"
 
-	models "github.com/pojntfx/stfs/pkg/db/sqlite/models/metadata"
+	models "github.com/pojntfx/stfs/internal/db/sqlite/models/metadata"
 )
 
 func DBHeaderToTarHeader(dbhdr *models.Header) (*tar.Header, error) {
