@@ -1,11 +1,7 @@
 package cmd
 
 import (
-	"context"
-
-	"github.com/pojntfx/stfs/internal/converters"
-	"github.com/pojntfx/stfs/internal/formatting"
-	"github.com/pojntfx/stfs/internal/persisters"
+	"github.com/pojntfx/stfs/pkg/inventory"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 	"github.com/volatiletech/sqlboiler/v4/boil"
@@ -24,31 +20,14 @@ var listCmd = &cobra.Command{
 			boil.DebugMode = true
 		}
 
-		metadataPersister := persisters.NewMetadataPersister(viper.GetString(metadataFlag))
-		if err := metadataPersister.Open(); err != nil {
+		if _, err := inventory.List(
+			inventory.MetadataConfig{
+				Metadata: viper.GetString(metadataFlag),
+			},
+
+			viper.GetString(nameFlag),
+		); err != nil {
 			return err
-		}
-
-		headers, err := metadataPersister.GetHeaderDirectChildren(context.Background(), viper.GetString(nameFlag))
-		if err != nil {
-			return err
-		}
-
-		for i, dbhdr := range headers {
-			if i == 0 {
-				if err := formatting.PrintCSV(formatting.TARHeaderCSV); err != nil {
-					return err
-				}
-			}
-
-			hdr, err := converters.DBHeaderToTarHeader(dbhdr)
-			if err != nil {
-				return err
-			}
-
-			if err := formatting.PrintCSV(formatting.GetTARHeaderAsCSV(dbhdr.Record, dbhdr.Block, hdr)); err != nil {
-				return err
-			}
 		}
 
 		return nil
