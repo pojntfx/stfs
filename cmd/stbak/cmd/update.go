@@ -119,13 +119,16 @@ var updateCmd = &cobra.Command{
 			int(lastIndexedBlock),
 			false,
 
-			1,
 			func(hdr *tar.Header, i int) error {
-				if len(hdrs) <= i {
+				if i == 0 {
+					return nil
+				}
+
+				if len(hdrs) <= i-1 {
 					return errMissingTarHeader
 				}
 
-				*hdr = *hdrs[i]
+				*hdr = *hdrs[i-1]
 
 				return nil
 			},

@@ -32,7 +32,6 @@ func Index(
 	block int,
 	overwrite bool,
 
-	offset int,
 	decryptHeader func(
 		hdr *tar.Header,
 		i int,
@@ -129,18 +128,16 @@ func Index(
 				break
 			}
 
-			if i >= offset {
-				if err := decryptHeader(hdr, i-offset); err != nil {
-					return err
-				}
+			if err := decryptHeader(hdr, i); err != nil {
+				return err
+			}
 
-				if err := verifyHeader(hdr, isRegular); err != nil {
-					return err
-				}
+			if err := verifyHeader(hdr, isRegular); err != nil {
+				return err
+			}
 
-				if err := indexHeader(record, block, hdr, metadataPersister, pipes.Compression, pipes.Encryption); err != nil {
-					return nil
-				}
+			if err := indexHeader(record, block, hdr, metadataPersister, pipes.Compression, pipes.Encryption); err != nil {
+				return nil
 			}
 
 			curr, err := f.Seek(0, io.SeekCurrent)
@@ -215,18 +212,16 @@ func Index(
 				}
 			}
 
-			if i >= offset {
-				if err := decryptHeader(hdr, i-offset); err != nil {
-					return err
-				}
+			if err := decryptHeader(hdr, i); err != nil {
+				return err
+			}
 
-				if err := verifyHeader(hdr, isRegular); err != nil {
-					return err
-				}
+			if err := verifyHeader(hdr, isRegular); err != nil {
+				return err
+			}
 
-				if err := indexHeader(record, block, hdr, metadataPersister, pipes.Compression, pipes.Encryption); err != nil {
-					return nil
-				}
+			if err := indexHeader(record, block, hdr, metadataPersister, pipes.Compression, pipes.Encryption); err != nil {
+				return nil
 			}
 
 			curr = int64(counter.BytesRead)

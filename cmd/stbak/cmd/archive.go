@@ -173,7 +173,6 @@ var archiveCmd = &cobra.Command{
 			int(lastIndexedBlock),
 			viper.GetBool(overwriteFlag),
 
-			0,
 			func(hdr *tar.Header, i int) error {
 				if len(hdrs) <= i {
 					return errMissingTarHeader
