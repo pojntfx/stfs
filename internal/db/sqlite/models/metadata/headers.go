@@ -26,6 +26,7 @@ type Header struct {
 	Lastknownrecord int64     `boil:"lastknownrecord" json:"lastknownrecord" toml:"lastknownrecord" yaml:"lastknownrecord"`
 	Block           int64     `boil:"block" json:"block" toml:"block" yaml:"block"`
 	Lastknownblock  int64     `boil:"lastknownblock" json:"lastknownblock" toml:"lastknownblock" yaml:"lastknownblock"`
+	Deleted         int64     `boil:"deleted" json:"deleted" toml:"deleted" yaml:"deleted"`
 	Typeflag        int64     `boil:"typeflag" json:"typeflag" toml:"typeflag" yaml:"typeflag"`
 	Name            string    `boil:"name" json:"name" toml:"name" yaml:"name"`
 	Linkname        string    `boil:"linkname" json:"linkname" toml:"linkname" yaml:"linkname"`
@@ -52,6 +53,7 @@ var HeaderColumns = struct {
 	Lastknownrecord string
 	Block           string
 	Lastknownblock  string
+	Deleted         string
 	Typeflag        string
 	Name            string
 	Linkname        string
@@ -73,6 +75,7 @@ var HeaderColumns = struct {
 	Lastknownrecord: "lastknownrecord",
 	Block:           "block",
 	Lastknownblock:  "lastknownblock",
+	Deleted:         "deleted",
 	Typeflag:        "typeflag",
 	Name:            "name",
 	Linkname:        "linkname",
@@ -96,6 +99,7 @@ var HeaderTableColumns = struct {
 	Lastknownrecord string
 	Block           string
 	Lastknownblock  string
+	Deleted         string
 	Typeflag        string
 	Name            string
 	Linkname        string
@@ -117,6 +121,7 @@ var HeaderTableColumns = struct {
 	Lastknownrecord: "headers.lastknownrecord",
 	Block:           "headers.block",
 	Lastknownblock:  "headers.lastknownblock",
+	Deleted:         "headers.deleted",
 	Typeflag:        "headers.typeflag",
 	Name:            "headers.name",
 	Linkname:        "headers.linkname",
@@ -186,6 +191,7 @@ var HeaderWhere = struct {
 	Lastknownrecord whereHelperint64
 	Block           whereHelperint64
 	Lastknownblock  whereHelperint64
+	Deleted         whereHelperint64
 	Typeflag        whereHelperint64
 	Name            whereHelperstring
 	Linkname        whereHelperstring
@@ -207,6 +213,7 @@ var HeaderWhere = struct {
 	Lastknownrecord: whereHelperint64{field: "\"headers\".\"lastknownrecord\""},
 	Block:           whereHelperint64{field: "\"headers\".\"block\""},
 	Lastknownblock:  whereHelperint64{field: "\"headers\".\"lastknownblock\""},
+	Deleted:         whereHelperint64{field: "\"headers\".\"deleted\""},
 	Typeflag:        whereHelperint64{field: "\"headers\".\"typeflag\""},
 	Name:            whereHelperstring{field: "\"headers\".\"name\""},
 	Linkname:        whereHelperstring{field: "\"headers\".\"linkname\""},
@@ -242,8 +249,8 @@ func (*headerR) NewStruct() *headerR {
 type headerL struct{}
 
 var (
-	headerAllColumns            = []string{"record", "lastknownrecord", "block", "lastknownblock", "typeflag", "name", "linkname", "size", "mode", "uid", "gid", "uname", "gname", "modtime", "accesstime", "changetime", "devmajor", "devminor", "paxrecords", "format"}
-	headerColumnsWithoutDefault = []string{"record", "lastknownrecord", "block", "lastknownblock", "typeflag", "name", "linkname", "size", "mode", "uid", "gid", "uname", "gname", "modtime", "accesstime", "changetime", "devmajor", "devminor", "paxrecords", "format"}
+	headerAllColumns            = []string{"record", "lastknownrecord", "block", "lastknownblock", "deleted", "typeflag", "name", "linkname", "size", "mode", "uid", "gid", "uname", "gname", "modtime", "accesstime", "changetime", "devmajor", "devminor", "paxrecords", "format"}
+	headerColumnsWithoutDefault = []string{"record", "lastknownrecord", "block", "lastknownblock", "deleted", "typeflag", "name", "linkname", "size", "mode", "uid", "gid", "uname", "gname", "modtime", "accesstime", "changetime", "devmajor", "devminor", "paxrecords", "format"}
 	headerColumnsWithDefault    = []string{}
 	headerPrimaryKeyColumns     = []string{"name"}
 )

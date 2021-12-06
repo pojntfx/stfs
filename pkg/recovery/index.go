@@ -306,7 +306,7 @@ func indexHeader(
 				return err
 			}
 		case pax.STFSRecordActionDelete:
-			if _, err := metadataPersister.DeleteHeader(context.Background(), hdr.Name, true); err != nil {
+			if _, err := metadataPersister.DeleteHeader(context.Background(), hdr.Name, record, block, true); err != nil {
 				return err
 			}
 		case pax.STFSRecordActionUpdate:

@@ -8,6 +8,8 @@ create table headers (
     block integer not null,
     -- Block of the last update header of this header in the record
     lastknownblock integer not null,
+    -- If set, the header has been deleted on tape, but `lastknownrecord` and `lastknownblock` are still of relevance
+    deleted integer not null,
     -- Typeflag is the type of header entry.
     -- The zero value is automatically promoted to either TypeReg or TypeDir
     -- depending on the presence of a trailing slash in Name.

@@ -14,6 +14,8 @@ import (
 	"github.com/pojntfx/stfs/internal/keys"
 	"github.com/pojntfx/stfs/internal/pax"
 	"github.com/pojntfx/stfs/internal/persisters"
+	"github.com/pojntfx/stfs/pkg/config"
+	"github.com/pojntfx/stfs/pkg/recovery"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 	"github.com/volatiletech/sqlboiler/v4/boil"
@@ -102,6 +104,11 @@ func delete(
 		return err
 	}
 
+	lastIndexedRecord, lastIndexedBlock, err := metadataPersister.GetLastIndexedRecordAndBlock(context.Background(), viper.GetInt(recordSizeFlag))
+	if err != nil {
+		return err
+	}
+
 	headersToDelete := []*models.Header{}
 	dbhdr, err := metadataPersister.GetHeader(context.Background(), name)
 	if err != nil {
@@ -119,17 +126,18 @@ func delete(
 		headersToDelete = append(headersToDelete, dbhdrs...)
 	}
 
-	// Remove the headers from the index
-	if err := metadataPersister.DeleteHeaders(context.Background(), headersToDelete); err != nil {
-		return nil
-	}
-
 	if err := formatting.PrintCSV(formatting.TARHeaderCSV); err != nil {
 		return err
 	}
 
-	// Append deletion headers to the tape or tar file
+	// Append deletion hdrs to the tape or tar file
+	hdrs := []*tar.Header{}
 	for _, dbhdr := range headersToDelete {
+		// Check if the header hasn't already been deleted; the records will be corrected in the last index step
+		if _, err := metadataPersister.DeleteHeader(context.Background(), dbhdr.Name, -1, -1, false); err != nil {
+			return err
+		}
+
 		hdr, err := converters.DBHeaderToTarHeader(dbhdr)
 		if err != nil {
 			return err
@@ -156,9 +164,49 @@ func delete(
 		if err := formatting.PrintCSV(formatting.GetTARHeaderAsCSV(-1, -1, -1, -1, hdr)); err != nil {
 			return err
 		}
+
+		hdrs = append(hdrs, hdr)
 	}
 
-	return nil
+	return recovery.Index(
+		config.StateConfig{
+			Drive:    viper.GetString(driveFlag),
+			Metadata: viper.GetString(metadataFlag),
+		},
+		config.PipeConfig{
+			Compression: viper.GetString(compressionFlag),
+			Encryption:  viper.GetString(encryptionFlag),
+			Signature:   viper.GetString(signatureFlag),
+		},
+		config.CryptoConfig{
+			Recipient: recipient,
+			Identity:  identity,
+			Password:  viper.GetString(passwordFlag),
+		},
+
+		viper.GetInt(recordSizeFlag),
+		int(lastIndexedRecord),
+		int(lastIndexedBlock),
+		false,
+
+		func(hdr *tar.Header, i int) error {
+			// Ignore the first header, which is the last header which we already indexed
+			if i == 0 {
+				return nil
+			}
+
+			if len(hdrs) <= i-1 {
+				return errMissingTarHeader
+			}
+
+			*hdr = *hdrs[i-1]
+
+			return nil
+		},
+		func(hdr *tar.Header, isRegular bool) error {
+			return nil // We sign above, no need to verify
+		},
+	)
 }
 
 func openTapeWriter(tape string, recordSize int, overwrite bool) (tw *tar.Writer, isRegular bool, cleanup func(dirty *bool) error, err error) {

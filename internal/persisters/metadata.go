@@ -104,7 +104,9 @@ func (p *MetadataPersister) MoveHeaders(ctx context.Context, hdrs models.HeaderS
 }
 
 func (p *MetadataPersister) GetHeaders(ctx context.Context) (models.HeaderSlice, error) {
-	return models.Headers().All(ctx, p.db)
+	return models.Headers(
+		qm.Where(models.HeaderColumns.Deleted+" != 1"),
+	).All(ctx, p.db)
 }
 
 func (p *MetadataPersister) GetHeader(ctx context.Context, name string) (*models.Header, error) {
@@ -114,6 +116,7 @@ func (p *MetadataPersister) GetHeader(ctx context.Context, name string) (*models
 func (p *MetadataPersister) GetHeaderChildren(ctx context.Context, name string) (models.HeaderSlice, error) {
 	return models.Headers(
 		qm.Where(models.HeaderColumns.Name+" like ?", strings.TrimSuffix(name, "/")+"/%"), // Prevent double trailing slashes
+		qm.Where(models.HeaderColumns.Deleted+" != 1"),
 	).All(ctx, p.db)
 }
 
@@ -129,10 +132,11 @@ func (p *MetadataPersister) GetHeaderDirectChildren(ctx context.Context, name st
 
 		if err := queries.Raw(
 			fmt.Sprintf(
-				`select min(length(%v) - length(replace(%v, "/", ""))) as depth from %v`,
+				`select min(length(%v) - length(replace(%v, "/", ""))) as depth from %v where %v != 1`,
 				models.HeaderColumns.Name,
 				models.HeaderColumns.Name,
 				models.TableNames.Headers,
+				models.HeaderColumns.Deleted,
 			),
 		).Bind(ctx, p.db, &depth); err != nil {
 			if err == sql.ErrNoRows {
@@ -147,7 +151,7 @@ func (p *MetadataPersister) GetHeaderDirectChildren(ctx context.Context, name st
 
 	if err := queries.Raw(
 		fmt.Sprintf(
-			`select %v, %v, %v, %v, %v, %v, %v, %v, %v, %v, %v, %v, %v, %v, %v, %v, %v, %v, %v, %v,
+			`select %v, %v, %v, %v, %v, %v, %v, %v, %v, %v, %v, %v, %v, %v, %v, %v, %v, %v, %v, %v, %v,
     length(replace(%v, ?, '')) - length(replace(replace(%v, ?, ''), '/', '')) as depth
 from %v
 where %v like ?
@@ -158,11 +162,13 @@ where %v like ?
             and depth = ?
         )
     )
+	and %v != 1
     and not %v in ('', '.', '/', './')`,
 			models.HeaderColumns.Record,
 			models.HeaderColumns.Lastknownrecord,
 			models.HeaderColumns.Block,
 			models.HeaderColumns.Lastknownblock,
+			models.HeaderColumns.Deleted,
 			models.HeaderColumns.Typeflag,
 			models.HeaderColumns.Name,
 			models.HeaderColumns.Linkname,
@@ -184,6 +190,7 @@ where %v like ?
 			models.TableNames.Headers,
 			models.HeaderColumns.Name,
 			models.HeaderColumns.Name,
+			models.HeaderColumns.Deleted,
 			models.HeaderColumns.Name,
 		),
 		prefix,
@@ -202,7 +209,7 @@ where %v like ?
 	return headers, nil
 }
 
-func (p *MetadataPersister) DeleteHeader(ctx context.Context, name string, ignoreNotExists bool) (*models.Header, error) {
+func (p *MetadataPersister) DeleteHeader(ctx context.Context, name string, lastknownrecord, lastknownblock int64, ignoreNotExists bool) (*models.Header, error) {
 	hdr, err := models.FindHeader(ctx, p.db, name)
 	if err != nil {
 		if err == sql.ErrNoRows && ignoreNotExists {
@@ -212,33 +219,26 @@ func (p *MetadataPersister) DeleteHeader(ctx context.Context, name string, ignor
 		return nil, err
 	}
 
-	if _, err := hdr.Delete(ctx, p.db); err != nil {
+	if hdr != nil && hdr.Deleted == 1 && !ignoreNotExists {
+		return nil, sql.ErrNoRows
+	}
+
+	hdr.Deleted = 1
+	hdr.Lastknownrecord = lastknownrecord
+	hdr.Lastknownblock = lastknownblock
+
+	if _, err := hdr.Update(ctx, p.db, boil.Infer()); err != nil {
 		return nil, err
 	}
 
 	return hdr, nil
 }
 
-func (p *MetadataPersister) DeleteHeaders(ctx context.Context, hdrs models.HeaderSlice) error {
-	tx, err := p.db.BeginTx(ctx, nil)
-	if err != nil {
-		return err
-	}
-
-	for _, hdr := range hdrs {
-		if _, err := hdr.Delete(ctx, tx); err != nil {
-			return err
-		}
-	}
-
-	return tx.Commit()
-}
-
 func (p *MetadataPersister) GetLastIndexedRecordAndBlock(ctx context.Context, recordSize int) (int64, int64, error) {
 	var header models.Header
 	if err := queries.Raw(
 		fmt.Sprintf(
-			`select %v, %v, ((%v*$1)+%v) as location from %v order by location desc limit 1`,
+			`select %v, %v, ((%v*$1)+%v) as location from %v order by location desc limit 1`, // We include deleted headers here as they are still physically on the tape and have to be considered when re-indexing
 			models.HeaderColumns.Lastknownrecord,
 			models.HeaderColumns.Lastknownblock,
 			models.HeaderColumns.Lastknownrecord,
