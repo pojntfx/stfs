@@ -1,9 +1,7 @@
 package cmd
 
 import (
-	"os"
-
-	"github.com/pojntfx/stfs/internal/controllers"
+	"github.com/pojntfx/stfs/pkg/hardware"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 	"github.com/volatiletech/sqlboiler/v4/boil"
@@ -21,13 +19,11 @@ var driveEjectCmd = &cobra.Command{
 			boil.DebugMode = true
 		}
 
-		f, err := os.OpenFile(viper.GetString(driveFlag), os.O_RDONLY, os.ModeCharDevice)
-		if err != nil {
-			return err
-		}
-		defer f.Close()
-
-		return controllers.EjectTape(f)
+		return hardware.Eject(
+			hardware.DriveConfig{
+				Drive: viper.GetString(driveFlag),
+			},
+		)
 	},
 }
 

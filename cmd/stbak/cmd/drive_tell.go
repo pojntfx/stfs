@@ -2,9 +2,8 @@ package cmd
 
 import (
 	"fmt"
-	"os"
 
-	"github.com/pojntfx/stfs/internal/controllers"
+	"github.com/pojntfx/stfs/pkg/hardware"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 	"github.com/volatiletech/sqlboiler/v4/boil"
@@ -22,13 +21,11 @@ var driveTellCmd = &cobra.Command{
 			boil.DebugMode = true
 		}
 
-		f, err := os.OpenFile(viper.GetString(driveFlag), os.O_RDONLY, os.ModeCharDevice)
-		if err != nil {
-			return err
-		}
-		defer f.Close()
-
-		currentRecord, err := controllers.GetCurrentRecordFromTape(f)
+		currentRecord, err := hardware.Tell(
+			hardware.DriveConfig{
+				Drive: viper.GetString(driveFlag),
+			},
+		)
 		if err != nil {
 			return err
 		}
