@@ -10,6 +10,7 @@ import (
 	"github.com/pojntfx/stfs/internal/controllers"
 	"github.com/pojntfx/stfs/internal/counters"
 	"github.com/pojntfx/stfs/internal/formatting"
+	"github.com/pojntfx/stfs/internal/tape"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 	"github.com/volatiletech/sqlboiler/v4/boil"
@@ -72,7 +73,7 @@ var recoveryQueryCmd = &cobra.Command{
 }
 
 func query(
-	tape string,
+	drive string,
 	record int,
 	block int,
 	recordSize int,
@@ -81,7 +82,7 @@ func query(
 	signatureFormat string,
 	recipient interface{},
 ) error {
-	f, isRegular, err := openTapeReadOnly(tape)
+	f, isRegular, err := tape.OpenTapeReadOnly(drive)
 	if err != nil {
 		return err
 	}
