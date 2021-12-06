@@ -16,6 +16,8 @@ import (
 	"github.com/pojntfx/stfs/internal/formatting"
 	"github.com/pojntfx/stfs/internal/pax"
 	"github.com/pojntfx/stfs/internal/persisters"
+	"github.com/pojntfx/stfs/pkg/config"
+	"github.com/pojntfx/stfs/pkg/recovery"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 	"github.com/volatiletech/sqlboiler/v4/boil"
@@ -95,15 +97,28 @@ var updateCmd = &cobra.Command{
 			return err
 		}
 
-		return index(
-			viper.GetString(driveFlag),
-			viper.GetString(metadataFlag),
+		return recovery.Index(
+			config.StateConfig{
+				Drive:    viper.GetString(driveFlag),
+				Metadata: viper.GetString(metadataFlag),
+			},
+			config.PipeConfig{
+				Compression: viper.GetString(compressionFlag),
+				Encryption:  viper.GetString(encryptionFlag),
+				Signature:   viper.GetString(signatureFlag),
+			},
+			config.CryptoConfig{
+				Recipient: recipient,
+				Identity:  identity,
+				Password:  viper.GetString(passwordFlag),
+			},
+
 			viper.GetInt(recordSizeFlag),
 			int(lastIndexedRecord),
 			int(lastIndexedBlock),
 			false,
-			viper.GetString(compressionFlag),
-			viper.GetString(encryptionFlag),
+
+			1,
 			func(hdr *tar.Header, i int) error {
 				if len(hdrs) <= i {
 					return errMissingTarHeader
@@ -113,7 +128,6 @@ var updateCmd = &cobra.Command{
 
 				return nil
 			},
-			1,
 			func(hdr *tar.Header, isRegular bool) error {
 				return nil // We sign above, no need to verify
 			},

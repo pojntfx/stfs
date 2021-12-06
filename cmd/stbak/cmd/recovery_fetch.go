@@ -26,6 +26,7 @@ import (
 	"github.com/pojntfx/stfs/internal/controllers"
 	"github.com/pojntfx/stfs/internal/formatting"
 	"github.com/pojntfx/stfs/internal/pax"
+	"github.com/pojntfx/stfs/internal/tape"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 	"github.com/volatiletech/sqlboiler/v4/boil"
@@ -109,7 +110,7 @@ var recoveryFetchCmd = &cobra.Command{
 }
 
 func restoreFromRecordAndBlock(
-	tape string,
+	drive string,
 	recordSize int,
 	record int,
 	block int,
@@ -122,7 +123,7 @@ func restoreFromRecordAndBlock(
 	signatureFormat string,
 	recipient interface{},
 ) error {
-	f, isRegular, err := openTapeReadOnly(tape)
+	f, isRegular, err := tape.OpenTapeReadOnly(drive)
 	if err != nil {
 		return err
 	}
