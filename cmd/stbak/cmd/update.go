@@ -11,12 +11,17 @@ import (
 	"strconv"
 
 	"github.com/pojntfx/stfs/internal/adapters"
+	"github.com/pojntfx/stfs/internal/compression"
 	"github.com/pojntfx/stfs/internal/controllers"
 	"github.com/pojntfx/stfs/internal/counters"
+	"github.com/pojntfx/stfs/internal/encryption"
 	"github.com/pojntfx/stfs/internal/formatting"
 	"github.com/pojntfx/stfs/internal/keys"
 	"github.com/pojntfx/stfs/internal/pax"
 	"github.com/pojntfx/stfs/internal/persisters"
+	"github.com/pojntfx/stfs/internal/signature"
+	"github.com/pojntfx/stfs/internal/suffix"
+	"github.com/pojntfx/stfs/internal/tape"
 	"github.com/pojntfx/stfs/pkg/config"
 	"github.com/pojntfx/stfs/pkg/recovery"
 	"github.com/spf13/cobra"
@@ -67,7 +72,7 @@ var updateCmd = &cobra.Command{
 			return err
 		}
 
-		recipient, err := parseRecipient(viper.GetString(encryptionFlag), pubkey)
+		recipient, err := keys.ParseRecipient(viper.GetString(encryptionFlag), pubkey)
 		if err != nil {
 			return err
 		}
@@ -141,7 +146,7 @@ var updateCmd = &cobra.Command{
 }
 
 func update(
-	tape string,
+	drive string,
 	recordSize int,
 	src string,
 	replacesContent bool,
@@ -153,7 +158,7 @@ func update(
 	identity interface{},
 ) ([]*tar.Header, error) {
 	dirty := false
-	tw, isRegular, cleanup, err := openTapeWriter(tape, recordSize, false)
+	tw, isRegular, cleanup, err := tape.OpenTapeWriteOnly(drive, recordSize, false)
 	if err != nil {
 		return []*tar.Header{}, err
 	}
@@ -196,12 +201,12 @@ func update(
 				Writer: io.Discard,
 			}
 
-			encryptor, err := encrypt(fileSizeCounter, encryptionFormat, recipient)
+			encryptor, err := encryption.Encrypt(fileSizeCounter, encryptionFormat, recipient)
 			if err != nil {
 				return err
 			}
 
-			compressor, err := compress(
+			compressor, err := compression.Compress(
 				encryptor,
 				compressionFormat,
 				compressionLevel,
@@ -217,7 +222,7 @@ func update(
 				return err
 			}
 
-			signer, sign, err := sign(file, isRegular, signatureFormat, identity)
+			signer, sign, err := signature.Sign(file, isRegular, signatureFormat, identity)
 			if err != nil {
 				return err
 			}
@@ -263,7 +268,7 @@ func update(
 			}
 			hdr.Size = int64(fileSizeCounter.BytesRead)
 
-			hdr.Name, err = addSuffix(hdr.Name, compressionFormat, encryptionFormat)
+			hdr.Name, err = suffix.AddSuffix(hdr.Name, compressionFormat, encryptionFormat)
 			if err != nil {
 				return err
 			}
@@ -287,11 +292,11 @@ func update(
 			hdrToAppend := *hdr
 			headers = append(headers, &hdrToAppend)
 
-			if err := signHeader(hdr, isRegular, signatureFormat, identity); err != nil {
+			if err := signature.SignHeader(hdr, isRegular, signatureFormat, identity); err != nil {
 				return err
 			}
 
-			if err := encryptHeader(hdr, encryptionFormat, recipient); err != nil {
+			if err := encryption.EncryptHeader(hdr, encryptionFormat, recipient); err != nil {
 				return err
 			}
 
@@ -304,12 +309,12 @@ func update(
 			}
 
 			// Compress and write the file
-			encryptor, err := encrypt(tw, encryptionFormat, recipient)
+			encryptor, err := encryption.Encrypt(tw, encryptionFormat, recipient)
 			if err != nil {
 				return err
 			}
 
-			compressor, err := compress(
+			compressor, err := compression.Compress(
 				encryptor,
 				compressionFormat,
 				compressionLevel,
@@ -361,11 +366,11 @@ func update(
 			hdrToAppend := *hdr
 			headers = append(headers, &hdrToAppend)
 
-			if err := signHeader(hdr, isRegular, signatureFormat, identity); err != nil {
+			if err := signature.SignHeader(hdr, isRegular, signatureFormat, identity); err != nil {
 				return err
 			}
 
-			if err := encryptHeader(hdr, encryptionFormat, recipient); err != nil {
+			if err := encryption.EncryptHeader(hdr, encryptionFormat, recipient); err != nil {
 				return err
 			}
 
@@ -384,7 +389,7 @@ func init() {
 	updateCmd.PersistentFlags().IntP(recordSizeFlag, "z", 20, "Amount of 512-bit blocks per record")
 	updateCmd.PersistentFlags().StringP(fromFlag, "f", "", "Path of the file or directory to update")
 	updateCmd.PersistentFlags().BoolP(overwriteFlag, "o", false, "Replace the content on the tape or tar file")
-	updateCmd.PersistentFlags().StringP(compressionLevelFlag, "l", compressionLevelBalanced, fmt.Sprintf("Compression level to use (default %v, available are %v)", compressionLevelBalanced, knownCompressionLevels))
+	updateCmd.PersistentFlags().StringP(compressionLevelFlag, "l", config.CompressionLevelBalanced, fmt.Sprintf("Compression level to use (default %v, available are %v)", config.CompressionLevelBalanced, knownCompressionLevels))
 	updateCmd.PersistentFlags().StringP(recipientFlag, "r", "", "Path to public key of recipient to encrypt for")
 	updateCmd.PersistentFlags().StringP(identityFlag, "i", "", "Path to private key to sign with")
 	updateCmd.PersistentFlags().StringP(passwordFlag, "p", "", "Password for the private key")

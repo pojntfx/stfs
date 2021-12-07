@@ -84,7 +84,7 @@ func Verify(
 			return nil
 		}, nil
 	default:
-		return nil, nil, config.ErrUnsupportedSignatureFormat
+		return nil, nil, config.ErrSignatureFormatUnsupported
 	}
 }
 
@@ -190,6 +190,6 @@ func VerifyString(
 	case config.NoneKey:
 		return nil
 	default:
-		return config.ErrUnsupportedSignatureFormat
+		return config.ErrSignatureFormatUnsupported
 	}
 }

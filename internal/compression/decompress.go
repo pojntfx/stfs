@@ -54,6 +54,6 @@ func Decompress(
 	case config.NoneKey:
 		return io.NopCloser(src), nil
 	default:
-		return nil, config.ErrUnsupportedCompressionFormat
+		return nil, config.ErrCompressionFormatUnsupported
 	}
 }

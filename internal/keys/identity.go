@@ -65,7 +65,7 @@ func ParseIdentity(
 	case config.NoneKey:
 		return privkey, nil
 	default:
-		return nil, config.ErrUnsupportedEncryptionFormat
+		return nil, config.ErrEncryptionFormatUnsupported
 	}
 }
 
@@ -82,6 +82,6 @@ func ParseSignerIdentity(
 	case config.NoneKey:
 		return privkey, nil
 	default:
-		return nil, config.ErrUnsupportedSignatureFormat
+		return nil, config.ErrSignatureFormatUnsupported
 	}
 }

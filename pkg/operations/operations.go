@@ -1,21 +1,8 @@
 package operations
 
 import (
-	"archive/tar"
-
 	"github.com/pojntfx/stfs/pkg/config"
 )
-
-func Archive(
-	state config.StateConfig,
-	pipes config.PipeConfig,
-	crypto config.CryptoConfig,
-
-	recordSize int,
-	from string,
-	overwrite bool,
-	compressionLevel string,
-) ([]*tar.Header, error)
 
 func Restore(
 	state config.StateConfig,
@@ -26,7 +13,9 @@ func Restore(
 	from string,
 	to string,
 	flatten bool,
-) error
+) error {
+	return nil
+}
 
 func Update(
 	state config.StateConfig,
@@ -37,7 +26,9 @@ func Update(
 	from string,
 	overwrite bool,
 	compressionLevel string,
-) error
+) error {
+	return nil
+}
 
 func Delete(
 	state config.StateConfig,
@@ -46,7 +37,9 @@ func Delete(
 
 	recordSize int,
 	name string,
-) error
+) error {
+	return nil
+}
 
 func Move(
 	state config.StateConfig,
@@ -56,4 +49,6 @@ func Move(
 	recordSize int,
 	from string,
 	to string,
-) error
+) error {
+	return nil
+}

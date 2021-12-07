@@ -16,4 +16,8 @@ const (
 
 	SignatureFormatMinisignKey = "minisign"
 	SignatureFormatPGPKey      = "pgp"
+
+	CompressionLevelFastest  = "fastest"
+	CompressionLevelBalanced = "balanced"
+	CompressionLevelSmallest = "smallest"
 )
