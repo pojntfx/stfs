@@ -133,11 +133,6 @@ func delete(
 	// Append deletion hdrs to the tape or tar file
 	hdrs := []*tar.Header{}
 	for _, dbhdr := range headersToDelete {
-		// Check if the header hasn't already been deleted; the records will be corrected in the last index step
-		if _, err := metadataPersister.DeleteHeader(context.Background(), dbhdr.Name, -1, -1, false); err != nil {
-			return err
-		}
-
 		hdr, err := converters.DBHeaderToTarHeader(dbhdr)
 		if err != nil {
 			return err

@@ -95,7 +95,10 @@ func (p *MetadataPersister) GetHeaders(ctx context.Context) (models.HeaderSlice,
 }
 
 func (p *MetadataPersister) GetHeader(ctx context.Context, name string) (*models.Header, error) {
-	return models.FindHeader(ctx, p.db, name)
+	return models.Headers(
+		qm.Where(models.HeaderColumns.Name+" = ?", name),
+		qm.Where(models.HeaderColumns.Deleted+" != 1"),
+	).One(ctx, p.db)
 }
 
 func (p *MetadataPersister) GetHeaderChildren(ctx context.Context, name string) (models.HeaderSlice, error) {
@@ -194,18 +197,14 @@ where %v like ?
 	return headers, nil
 }
 
-func (p *MetadataPersister) DeleteHeader(ctx context.Context, name string, lastknownrecord, lastknownblock int64, ignoreNotExists bool) (*models.Header, error) {
+func (p *MetadataPersister) DeleteHeader(ctx context.Context, name string, lastknownrecord, lastknownblock int64) (*models.Header, error) {
 	hdr, err := models.FindHeader(ctx, p.db, name)
 	if err != nil {
-		if err == sql.ErrNoRows && ignoreNotExists {
+		if err == sql.ErrNoRows {
 			return nil, nil
 		}
 
 		return nil, err
-	}
-
-	if hdr != nil && hdr.Deleted == 1 && !ignoreNotExists {
-		return nil, sql.ErrNoRows
 	}
 
 	hdr.Deleted = 1
