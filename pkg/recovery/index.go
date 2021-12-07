@@ -4,6 +4,7 @@ import (
 	"archive/tar"
 	"bufio"
 	"context"
+	"database/sql"
 	"io"
 	"io/ioutil"
 	"math"
@@ -111,7 +112,6 @@ func Index(
 					if err != nil {
 						if err == io.EOF {
 							// EOF
-
 							break
 						}
 
@@ -137,7 +137,7 @@ func Index(
 			}
 
 			if err := indexHeader(record, block, hdr, metadataPersister, pipes.Compression, pipes.Encryption); err != nil {
-				return nil
+				return err
 			}
 
 			curr, err := f.Seek(0, io.SeekCurrent)
@@ -221,7 +221,7 @@ func Index(
 			}
 
 			if err := indexHeader(record, block, hdr, metadataPersister, pipes.Compression, pipes.Encryption); err != nil {
-				return nil
+				return err
 			}
 
 			curr = int64(counter.BytesRead)
@@ -326,28 +326,35 @@ func indexHeader(
 				}
 
 				newHdr = h
+
+				if err := metadataPersister.UpdateHeaderMetadata(context.Background(), newHdr); err != nil {
+					return err
+				}
 			} else {
 				// Metadata-only update; use the old record & block
 				oldHdr, err := metadataPersister.GetHeader(context.Background(), oldName)
-				if err != nil {
-					return err
+				if err == nil {
+					h, err := converters.TarHeaderToDBHeader(oldHdr.Record, record, oldHdr.Block, block, hdr)
+					if err != nil {
+						return err
+					}
+
+					newHdr = h
+
+					if err := metadataPersister.UpdateHeaderMetadata(context.Background(), newHdr); err != nil {
+						return err
+					}
 				}
 
-				h, err := converters.TarHeaderToDBHeader(oldHdr.Record, record, oldHdr.Block, block, hdr)
-				if err != nil {
+				// To support ignoring previous `Move` operations, we need to ignore non-existent headers here, as moving changes the primary keys
+				if err != nil && err != sql.ErrNoRows {
 					return err
 				}
-
-				newHdr = h
-			}
-
-			if err := metadataPersister.UpdateHeaderMetadata(context.Background(), newHdr); err != nil {
-				return err
 			}
 
 			if moveAfterEdits {
-				// Move header
-				if err := metadataPersister.MoveHeader(context.Background(), oldName, hdr.Name); err != nil {
+				// Move header (will be a no-op if the header has been moved before)
+				if err := metadataPersister.MoveHeader(context.Background(), oldName, hdr.Name, record, block); err != nil {
 					return err
 				}
 			}

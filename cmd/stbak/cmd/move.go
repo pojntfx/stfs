@@ -11,6 +11,8 @@ import (
 	"github.com/pojntfx/stfs/internal/keys"
 	"github.com/pojntfx/stfs/internal/pax"
 	"github.com/pojntfx/stfs/internal/persisters"
+	"github.com/pojntfx/stfs/pkg/config"
+	"github.com/pojntfx/stfs/pkg/recovery"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 	"github.com/volatiletech/sqlboiler/v4/boil"
@@ -97,6 +99,11 @@ func move(
 		return err
 	}
 
+	lastIndexedRecord, lastIndexedBlock, err := metadataPersister.GetLastIndexedRecordAndBlock(context.Background(), viper.GetInt(recordSizeFlag))
+	if err != nil {
+		return err
+	}
+
 	headersToMove := []*models.Header{}
 	dbhdr, err := metadataPersister.GetHeader(context.Background(), src)
 	if err != nil {
@@ -114,16 +121,12 @@ func move(
 		headersToMove = append(headersToMove, dbhdrs...)
 	}
 
-	// Move the headers in the index
-	if err := metadataPersister.MoveHeaders(context.Background(), headersToMove, src, dst); err != nil {
-		return nil
-	}
-
 	if err := formatting.PrintCSV(formatting.TARHeaderCSV); err != nil {
 		return err
 	}
 
 	// Append move headers to the tape or tar file
+	hdrs := []*tar.Header{}
 	for _, dbhdr := range headersToMove {
 		hdr, err := converters.DBHeaderToTarHeader(dbhdr)
 		if err != nil {
@@ -153,9 +156,49 @@ func move(
 		if err := formatting.PrintCSV(formatting.GetTARHeaderAsCSV(-1, -1, -1, -1, hdr)); err != nil {
 			return err
 		}
+
+		hdrs = append(hdrs, hdr)
 	}
 
-	return nil
+	return recovery.Index(
+		config.StateConfig{
+			Drive:    viper.GetString(driveFlag),
+			Metadata: viper.GetString(metadataFlag),
+		},
+		config.PipeConfig{
+			Compression: viper.GetString(compressionFlag),
+			Encryption:  viper.GetString(encryptionFlag),
+			Signature:   viper.GetString(signatureFlag),
+		},
+		config.CryptoConfig{
+			Recipient: recipient,
+			Identity:  identity,
+			Password:  viper.GetString(passwordFlag),
+		},
+
+		viper.GetInt(recordSizeFlag),
+		int(lastIndexedRecord),
+		int(lastIndexedBlock),
+		false,
+
+		func(hdr *tar.Header, i int) error {
+			// Ignore the first header, which is the last header which we already indexed
+			if i == 0 {
+				return nil
+			}
+
+			if len(hdrs) <= i-1 {
+				return errMissingTarHeader
+			}
+
+			*hdr = *hdrs[i-1]
+
+			return nil
+		},
+		func(hdr *tar.Header, isRegular bool) error {
+			return nil // We sign above, no need to verify
+		},
+	)
 }
 
 func init() {
