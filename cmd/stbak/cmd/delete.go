@@ -1,20 +1,9 @@
 package cmd
 
 import (
-	"archive/tar"
-	"context"
-
-	"github.com/pojntfx/stfs/internal/converters"
-	models "github.com/pojntfx/stfs/internal/db/sqlite/models/metadata"
-	"github.com/pojntfx/stfs/internal/encryption"
-	"github.com/pojntfx/stfs/internal/formatting"
 	"github.com/pojntfx/stfs/internal/keys"
-	"github.com/pojntfx/stfs/internal/pax"
-	"github.com/pojntfx/stfs/internal/persisters"
-	"github.com/pojntfx/stfs/internal/signature"
-	"github.com/pojntfx/stfs/internal/tape"
 	"github.com/pojntfx/stfs/pkg/config"
-	"github.com/pojntfx/stfs/pkg/recovery"
+	"github.com/pojntfx/stfs/pkg/operations"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 	"github.com/volatiletech/sqlboiler/v4/boil"
@@ -68,139 +57,26 @@ var deleteCmd = &cobra.Command{
 			return err
 		}
 
-		return delete(
-			viper.GetString(driveFlag),
+		return operations.Delete(
+			config.StateConfig{
+				Drive:    viper.GetString(driveFlag),
+				Metadata: viper.GetString(metadataFlag),
+			},
+			config.PipeConfig{
+				Compression: viper.GetString(compressionFlag),
+				Encryption:  viper.GetString(encryptionFlag),
+				Signature:   viper.GetString(signatureFlag),
+			},
+			config.CryptoConfig{
+				Recipient: recipient,
+				Identity:  identity,
+				Password:  viper.GetString(passwordFlag),
+			},
+
 			viper.GetInt(recordSizeFlag),
-			viper.GetString(metadataFlag),
 			viper.GetString(nameFlag),
-			viper.GetString(encryptionFlag),
-			recipient,
-			viper.GetString(signatureFlag),
-			identity,
 		)
 	},
-}
-
-func delete(
-	drive string,
-	recordSize int,
-	metadata string,
-	name string,
-	encryptionFormat string,
-	recipient interface{},
-	signatureFormat string,
-	identity interface{},
-) error {
-	dirty := false
-	tw, isRegular, cleanup, err := tape.OpenTapeWriteOnly(drive, recordSize, false)
-	if err != nil {
-		return err
-	}
-	defer cleanup(&dirty)
-
-	metadataPersister := persisters.NewMetadataPersister(metadata)
-	if err := metadataPersister.Open(); err != nil {
-		return err
-	}
-
-	lastIndexedRecord, lastIndexedBlock, err := metadataPersister.GetLastIndexedRecordAndBlock(context.Background(), viper.GetInt(recordSizeFlag))
-	if err != nil {
-		return err
-	}
-
-	headersToDelete := []*models.Header{}
-	dbhdr, err := metadataPersister.GetHeader(context.Background(), name)
-	if err != nil {
-		return err
-	}
-	headersToDelete = append(headersToDelete, dbhdr)
-
-	// If the header refers to a directory, get it's children
-	if dbhdr.Typeflag == tar.TypeDir {
-		dbhdrs, err := metadataPersister.GetHeaderChildren(context.Background(), name)
-		if err != nil {
-			return err
-		}
-
-		headersToDelete = append(headersToDelete, dbhdrs...)
-	}
-
-	if err := formatting.PrintCSV(formatting.TARHeaderCSV); err != nil {
-		return err
-	}
-
-	// Append deletion hdrs to the tape or tar file
-	hdrs := []*tar.Header{}
-	for _, dbhdr := range headersToDelete {
-		hdr, err := converters.DBHeaderToTarHeader(dbhdr)
-		if err != nil {
-			return err
-		}
-
-		hdr.Size = 0 // Don't try to seek after the record
-		hdr.PAXRecords[pax.STFSRecordVersion] = pax.STFSRecordVersion1
-		hdr.PAXRecords[pax.STFSRecordAction] = pax.STFSRecordActionDelete
-
-		if err := signature.SignHeader(hdr, isRegular, signatureFormat, identity); err != nil {
-			return err
-		}
-
-		if err := encryption.EncryptHeader(hdr, encryptionFormat, recipient); err != nil {
-			return err
-		}
-
-		if err := tw.WriteHeader(hdr); err != nil {
-			return err
-		}
-
-		dirty = true
-
-		if err := formatting.PrintCSV(formatting.GetTARHeaderAsCSV(-1, -1, -1, -1, hdr)); err != nil {
-			return err
-		}
-
-		hdrs = append(hdrs, hdr)
-	}
-
-	return recovery.Index(
-		config.StateConfig{
-			Drive:    viper.GetString(driveFlag),
-			Metadata: viper.GetString(metadataFlag),
-		},
-		config.PipeConfig{
-			Compression: viper.GetString(compressionFlag),
-			Encryption:  viper.GetString(encryptionFlag),
-			Signature:   viper.GetString(signatureFlag),
-		},
-		config.CryptoConfig{
-			Recipient: recipient,
-			Identity:  identity,
-			Password:  viper.GetString(passwordFlag),
-		},
-
-		viper.GetInt(recordSizeFlag),
-		int(lastIndexedRecord),
-		int(lastIndexedBlock),
-		false,
-
-		func(hdr *tar.Header, i int) error {
-			// Ignore the first header, which is the last header which we already indexed
-			if i == 0 {
-				return nil
-			}
-
-			if len(hdrs) <= i-1 {
-				return errMissingTarHeader
-			}
-
-			*hdr = *hdrs[i-1]
-
-			return nil
-		},
-		func(hdr *tar.Header, isRegular bool) error {
-			return nil // We sign above, no need to verify
-		},
-	)
 }
 
 func init() {
