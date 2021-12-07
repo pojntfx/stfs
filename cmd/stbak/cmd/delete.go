@@ -2,18 +2,17 @@ package cmd
 
 import (
 	"archive/tar"
-	"bufio"
 	"context"
-	"os"
 
-	"github.com/pojntfx/stfs/internal/controllers"
 	"github.com/pojntfx/stfs/internal/converters"
-	"github.com/pojntfx/stfs/internal/counters"
 	models "github.com/pojntfx/stfs/internal/db/sqlite/models/metadata"
+	"github.com/pojntfx/stfs/internal/encryption"
 	"github.com/pojntfx/stfs/internal/formatting"
 	"github.com/pojntfx/stfs/internal/keys"
 	"github.com/pojntfx/stfs/internal/pax"
 	"github.com/pojntfx/stfs/internal/persisters"
+	"github.com/pojntfx/stfs/internal/signature"
+	"github.com/pojntfx/stfs/internal/tape"
 	"github.com/pojntfx/stfs/pkg/config"
 	"github.com/pojntfx/stfs/pkg/recovery"
 	"github.com/spf13/cobra"
@@ -54,7 +53,7 @@ var deleteCmd = &cobra.Command{
 			return err
 		}
 
-		recipient, err := parseRecipient(viper.GetString(encryptionFlag), pubkey)
+		recipient, err := keys.ParseRecipient(viper.GetString(encryptionFlag), pubkey)
 		if err != nil {
 			return err
 		}
@@ -83,7 +82,7 @@ var deleteCmd = &cobra.Command{
 }
 
 func delete(
-	tape string,
+	drive string,
 	recordSize int,
 	metadata string,
 	name string,
@@ -93,7 +92,7 @@ func delete(
 	identity interface{},
 ) error {
 	dirty := false
-	tw, isRegular, cleanup, err := openTapeWriter(tape, recordSize, false)
+	tw, isRegular, cleanup, err := tape.OpenTapeWriteOnly(drive, recordSize, false)
 	if err != nil {
 		return err
 	}
@@ -142,11 +141,11 @@ func delete(
 		hdr.PAXRecords[pax.STFSRecordVersion] = pax.STFSRecordVersion1
 		hdr.PAXRecords[pax.STFSRecordAction] = pax.STFSRecordActionDelete
 
-		if err := signHeader(hdr, isRegular, signatureFormat, identity); err != nil {
+		if err := signature.SignHeader(hdr, isRegular, signatureFormat, identity); err != nil {
 			return err
 		}
 
-		if err := encryptHeader(hdr, encryptionFormat, recipient); err != nil {
+		if err := encryption.EncryptHeader(hdr, encryptionFormat, recipient); err != nil {
 			return err
 		}
 
@@ -202,75 +201,6 @@ func delete(
 			return nil // We sign above, no need to verify
 		},
 	)
-}
-
-func openTapeWriter(tape string, recordSize int, overwrite bool) (tw *tar.Writer, isRegular bool, cleanup func(dirty *bool) error, err error) {
-	stat, err := os.Stat(tape)
-	if err == nil {
-		isRegular = stat.Mode().IsRegular()
-	} else {
-		if os.IsNotExist(err) {
-			isRegular = true
-		} else {
-			return nil, false, nil, err
-		}
-	}
-
-	var f *os.File
-	if isRegular {
-		f, err = os.OpenFile(tape, os.O_APPEND|os.O_WRONLY|os.O_CREATE, 0600)
-		if err != nil {
-			return nil, false, nil, err
-		}
-
-		// No need to go to end manually due to `os.O_APPEND`
-	} else {
-		f, err = os.OpenFile(tape, os.O_APPEND|os.O_WRONLY, os.ModeCharDevice)
-		if err != nil {
-			return nil, false, nil, err
-		}
-
-		if !overwrite {
-			// Go to end of tape
-			if err := controllers.GoToEndOfTape(f); err != nil {
-				return nil, false, nil, err
-			}
-		}
-	}
-
-	var bw *bufio.Writer
-	var counter *counters.CounterWriter
-	if isRegular {
-		tw = tar.NewWriter(f)
-	} else {
-		bw = bufio.NewWriterSize(f, controllers.BlockSize*recordSize)
-		counter = &counters.CounterWriter{Writer: bw, BytesRead: 0}
-		tw = tar.NewWriter(counter)
-	}
-
-	return tw, isRegular, func(dirty *bool) error {
-		// Only write the trailer if we wrote to the archive
-		if *dirty {
-			if err := tw.Close(); err != nil {
-				return err
-			}
-
-			if !isRegular {
-				if controllers.BlockSize*recordSize-counter.BytesRead > 0 {
-					// Fill the rest of the record with zeros
-					if _, err := bw.Write(make([]byte, controllers.BlockSize*recordSize-counter.BytesRead)); err != nil {
-						return err
-					}
-				}
-
-				if err := bw.Flush(); err != nil {
-					return err
-				}
-			}
-		}
-
-		return f.Close()
-	}, nil
 }
 
 func init() {

@@ -7,10 +7,13 @@ import (
 
 	"github.com/pojntfx/stfs/internal/converters"
 	models "github.com/pojntfx/stfs/internal/db/sqlite/models/metadata"
+	"github.com/pojntfx/stfs/internal/encryption"
 	"github.com/pojntfx/stfs/internal/formatting"
 	"github.com/pojntfx/stfs/internal/keys"
 	"github.com/pojntfx/stfs/internal/pax"
 	"github.com/pojntfx/stfs/internal/persisters"
+	"github.com/pojntfx/stfs/internal/signature"
+	"github.com/pojntfx/stfs/internal/tape"
 	"github.com/pojntfx/stfs/pkg/config"
 	"github.com/pojntfx/stfs/pkg/recovery"
 	"github.com/spf13/cobra"
@@ -47,7 +50,7 @@ var moveCmd = &cobra.Command{
 			return err
 		}
 
-		recipient, err := parseRecipient(viper.GetString(encryptionFlag), pubkey)
+		recipient, err := keys.ParseRecipient(viper.GetString(encryptionFlag), pubkey)
 		if err != nil {
 			return err
 		}
@@ -77,7 +80,7 @@ var moveCmd = &cobra.Command{
 }
 
 func move(
-	tape string,
+	drive string,
 	recordSize int,
 	metadata string,
 	src string,
@@ -88,7 +91,7 @@ func move(
 	identity interface{},
 ) error {
 	dirty := false
-	tw, isRegular, cleanup, err := openTapeWriter(tape, recordSize, false)
+	tw, isRegular, cleanup, err := tape.OpenTapeWriteOnly(drive, recordSize, false)
 	if err != nil {
 		return err
 	}
@@ -139,11 +142,11 @@ func move(
 		hdr.PAXRecords[pax.STFSRecordAction] = pax.STFSRecordActionUpdate
 		hdr.PAXRecords[pax.STFSRecordReplacesName] = dbhdr.Name
 
-		if err := signHeader(hdr, isRegular, signatureFormat, identity); err != nil {
+		if err := signature.SignHeader(hdr, isRegular, signatureFormat, identity); err != nil {
 			return err
 		}
 
-		if err := encryptHeader(hdr, encryptionFormat, recipient); err != nil {
+		if err := encryption.EncryptHeader(hdr, encryptionFormat, recipient); err != nil {
 			return err
 		}
 

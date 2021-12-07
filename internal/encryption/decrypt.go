@@ -46,7 +46,7 @@ func Decrypt(
 	case config.NoneKey:
 		return io.NopCloser(src), nil
 	default:
-		return nil, config.ErrUnsupportedEncryptionFormat
+		return nil, config.ErrEncryptionFormatUnsupported
 	}
 }
 
@@ -136,6 +136,6 @@ func DecryptString(
 	case config.NoneKey:
 		return src, nil
 	default:
-		return "", config.ErrUnsupportedEncryptionFormat
+		return "", config.ErrEncryptionFormatUnsupported
 	}
 }

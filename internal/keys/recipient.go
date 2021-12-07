@@ -21,7 +21,7 @@ func ParseRecipient(
 	case config.NoneKey:
 		return pubkey, nil
 	default:
-		return nil, config.ErrUnsupportedEncryptionFormat
+		return nil, config.ErrEncryptionFormatUnsupported
 	}
 }
 
@@ -42,6 +42,6 @@ func ParseSignerRecipient(
 	case config.NoneKey:
 		return pubkey, nil
 	default:
-		return nil, config.ErrUnsupportedSignatureFormat
+		return nil, config.ErrSignatureFormatUnsupported
 	}
 }

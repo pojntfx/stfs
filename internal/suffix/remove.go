@@ -14,7 +14,7 @@ func RemoveSuffix(name string, compressionFormat string, encryptionFormat string
 		name = strings.TrimSuffix(name, EncryptionFormatPGPSuffix)
 	case config.NoneKey:
 	default:
-		return "", config.ErrUnsupportedEncryptionFormat
+		return "", config.ErrEncryptionFormatUnsupported
 	}
 
 	switch compressionFormat {
@@ -34,7 +34,7 @@ func RemoveSuffix(name string, compressionFormat string, encryptionFormat string
 		name = strings.TrimSuffix(name, CompressionFormatBzip2Suffix)
 	case config.NoneKey:
 	default:
-		return "", config.ErrUnsupportedCompressionFormat
+		return "", config.ErrCompressionFormatUnsupported
 	}
 
 	return name, nil
