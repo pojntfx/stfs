@@ -9,20 +9,15 @@ import (
 	"github.com/pojntfx/stfs/pkg/utility"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
-	"github.com/volatiletech/sqlboiler/v4/boil"
 )
 
 var keygenCmd = &cobra.Command{
 	Use:     "keygen",
 	Aliases: []string{"key", "k"},
-	Short:   "Restore a file or directory from tape or tar file",
+	Short:   "Generate a encryption or signature key",
 	RunE: func(cmd *cobra.Command, args []string) error {
 		if err := viper.BindPFlags(cmd.PersistentFlags()); err != nil {
 			return err
-		}
-
-		if viper.GetBool(verboseFlag) {
-			boil.DebugMode = true
 		}
 
 		pubkey, privkey, err := utility.Keygen(

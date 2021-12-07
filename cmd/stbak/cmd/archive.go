@@ -3,11 +3,9 @@ package cmd
 import (
 	"archive/tar"
 	"context"
-	"errors"
 	"fmt"
-	"io/ioutil"
-	"os"
 
+	"github.com/pojntfx/stfs/internal/compression"
 	"github.com/pojntfx/stfs/internal/keys"
 	"github.com/pojntfx/stfs/internal/persisters"
 	"github.com/pojntfx/stfs/pkg/config"
@@ -23,29 +21,9 @@ const (
 	fromFlag             = "from"
 	overwriteFlag        = "overwrite"
 	compressionLevelFlag = "compression-level"
-
-	recipientFlag = "recipient"
-	identityFlag  = "identity"
-	passwordFlag  = "password"
-)
-
-var (
-	knownCompressionLevels = []string{config.CompressionLevelFastest, config.CompressionLevelBalanced, config.CompressionLevelSmallest}
-
-	errUnknownCompressionLevel     = errors.New("unknown compression level")
-	errUnsupportedCompressionLevel = errors.New("unsupported compression level")
-
-	errKeyNotAccessible = errors.New("key not found or accessible")
-
-	errMissingTarHeader = errors.New("tar header is missing")
-
-	errRecipientUnparsable = errors.New("recipient could not be parsed")
-
-	errCompressionFormatRequiresLargerRecordSize = errors.New("this compression format requires a larger record size")
-
-	errCompressionFormatOnlyRegularSupport = errors.New("this compression format only supports regular files, not i.e. tape drives")
-
-	errSignatureFormatOnlyRegularSupport = errors.New("this signature format only supports regular files, not i.e. tape drives")
+	recipientFlag        = "recipient"
+	identityFlag         = "identity"
+	passwordFlag         = "password"
 )
 
 var archiveCmd = &cobra.Command{
@@ -57,15 +35,15 @@ var archiveCmd = &cobra.Command{
 			return err
 		}
 
-		if err := checkCompressionLevel(viper.GetString(compressionLevelFlag)); err != nil {
+		if err := compression.CheckCompressionLevel(viper.GetString(compressionLevelFlag)); err != nil {
 			return err
 		}
 
-		if err := checkKeyAccessible(viper.GetString(encryptionFlag), viper.GetString(recipientFlag)); err != nil {
+		if err := keys.CheckKeyAccessible(viper.GetString(encryptionFlag), viper.GetString(recipientFlag)); err != nil {
 			return err
 		}
 
-		return checkKeyAccessible(viper.GetString(signatureFlag), viper.GetString(identityFlag))
+		return keys.CheckKeyAccessible(viper.GetString(signatureFlag), viper.GetString(identityFlag))
 	},
 	RunE: func(cmd *cobra.Command, args []string) error {
 		if viper.GetBool(verboseFlag) {
@@ -89,7 +67,7 @@ var archiveCmd = &cobra.Command{
 			lastIndexedBlock = b
 		}
 
-		pubkey, err := readKey(viper.GetString(encryptionFlag), viper.GetString(recipientFlag))
+		pubkey, err := keys.ReadKey(viper.GetString(encryptionFlag), viper.GetString(recipientFlag))
 		if err != nil {
 			return err
 		}
@@ -99,7 +77,7 @@ var archiveCmd = &cobra.Command{
 			return err
 		}
 
-		privkey, err := readKey(viper.GetString(signatureFlag), viper.GetString(identityFlag))
+		privkey, err := keys.ReadKey(viper.GetString(signatureFlag), viper.GetString(identityFlag))
 		if err != nil {
 			return err
 		}
@@ -130,6 +108,9 @@ var archiveCmd = &cobra.Command{
 			viper.GetBool(overwriteFlag),
 			viper.GetString(compressionLevelFlag),
 		)
+		if err != nil {
+			return nil
+		}
 
 		return recovery.Index(
 			config.StateConfig{
@@ -159,7 +140,7 @@ var archiveCmd = &cobra.Command{
 				}
 
 				if len(hdrs) <= i-1 {
-					return errMissingTarHeader
+					return config.ErrMissingTarHeader
 				}
 
 				*hdr = *hdrs[i-1]
@@ -173,47 +154,11 @@ var archiveCmd = &cobra.Command{
 	},
 }
 
-func checkKeyAccessible(encryptionFormat string, pathToKey string) error {
-	if encryptionFormat == noneKey {
-		return nil
-	}
-
-	if _, err := os.Stat(pathToKey); err != nil {
-		return errKeyNotAccessible
-	}
-
-	return nil
-}
-
-func readKey(encryptionFormat string, pathToKey string) ([]byte, error) {
-	if encryptionFormat == noneKey {
-		return []byte{}, nil
-	}
-
-	return ioutil.ReadFile(pathToKey)
-}
-
-func checkCompressionLevel(compressionLevel string) error {
-	compressionLevelIsKnown := false
-
-	for _, candidate := range knownCompressionLevels {
-		if compressionLevel == candidate {
-			compressionLevelIsKnown = true
-		}
-	}
-
-	if !compressionLevelIsKnown {
-		return errUnknownCompressionLevel
-	}
-
-	return nil
-}
-
 func init() {
 	archiveCmd.PersistentFlags().IntP(recordSizeFlag, "z", 20, "Amount of 512-bit blocks per record")
 	archiveCmd.PersistentFlags().StringP(fromFlag, "f", ".", "File or directory to archive")
 	archiveCmd.PersistentFlags().BoolP(overwriteFlag, "o", false, "Start writing from the start instead of from the end of the tape or tar file")
-	archiveCmd.PersistentFlags().StringP(compressionLevelFlag, "l", config.CompressionLevelBalanced, fmt.Sprintf("Compression level to use (default %v, available are %v)", config.CompressionLevelBalanced, knownCompressionLevels))
+	archiveCmd.PersistentFlags().StringP(compressionLevelFlag, "l", config.CompressionLevelBalanced, fmt.Sprintf("Compression level to use (default %v, available are %v)", config.CompressionLevelBalanced, config.KnownCompressionLevels))
 	archiveCmd.PersistentFlags().StringP(recipientFlag, "r", "", "Path to public key of recipient to encrypt for")
 	archiveCmd.PersistentFlags().StringP(identityFlag, "i", "", "Path to private key to sign with")
 	archiveCmd.PersistentFlags().StringP(passwordFlag, "p", "", "Password for the private key")

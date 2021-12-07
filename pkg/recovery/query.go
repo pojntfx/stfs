@@ -14,10 +14,11 @@ import (
 	"github.com/pojntfx/stfs/internal/signature"
 	"github.com/pojntfx/stfs/internal/tape"
 	"github.com/pojntfx/stfs/pkg/config"
+	"github.com/pojntfx/stfs/pkg/hardware"
 )
 
 func Query(
-	state config.StateConfig,
+	state hardware.DriveConfig,
 	pipes config.PipeConfig,
 	crypto config.CryptoConfig,
 

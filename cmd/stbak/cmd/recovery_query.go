@@ -3,10 +3,10 @@ package cmd
 import (
 	"github.com/pojntfx/stfs/internal/keys"
 	"github.com/pojntfx/stfs/pkg/config"
+	"github.com/pojntfx/stfs/pkg/hardware"
 	"github.com/pojntfx/stfs/pkg/recovery"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
-	"github.com/volatiletech/sqlboiler/v4/boil"
 )
 
 var recoveryQueryCmd = &cobra.Command{
@@ -17,22 +17,14 @@ var recoveryQueryCmd = &cobra.Command{
 			return err
 		}
 
-		if err := checkKeyAccessible(viper.GetString(encryptionFlag), viper.GetString(identityFlag)); err != nil {
+		if err := keys.CheckKeyAccessible(viper.GetString(encryptionFlag), viper.GetString(identityFlag)); err != nil {
 			return err
 		}
 
-		return checkKeyAccessible(viper.GetString(signatureFlag), viper.GetString(recipientFlag))
+		return keys.CheckKeyAccessible(viper.GetString(signatureFlag), viper.GetString(recipientFlag))
 	},
 	RunE: func(cmd *cobra.Command, args []string) error {
-		if err := viper.BindPFlags(cmd.PersistentFlags()); err != nil {
-			return err
-		}
-
-		if viper.GetBool(verboseFlag) {
-			boil.DebugMode = true
-		}
-
-		pubkey, err := readKey(viper.GetString(signatureFlag), viper.GetString(recipientFlag))
+		pubkey, err := keys.ReadKey(viper.GetString(signatureFlag), viper.GetString(recipientFlag))
 		if err != nil {
 			return err
 		}
@@ -42,7 +34,7 @@ var recoveryQueryCmd = &cobra.Command{
 			return err
 		}
 
-		privkey, err := readKey(viper.GetString(encryptionFlag), viper.GetString(identityFlag))
+		privkey, err := keys.ReadKey(viper.GetString(encryptionFlag), viper.GetString(identityFlag))
 		if err != nil {
 			return err
 		}
@@ -53,9 +45,8 @@ var recoveryQueryCmd = &cobra.Command{
 		}
 
 		if _, err := recovery.Query(
-			config.StateConfig{
-				Drive:    viper.GetString(driveFlag),
-				Metadata: viper.GetString(metadataFlag),
+			hardware.DriveConfig{
+				Drive: viper.GetString(driveFlag),
 			},
 			config.PipeConfig{
 				Compression: viper.GetString(compressionFlag),

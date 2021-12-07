@@ -5,6 +5,7 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/pojntfx/stfs/internal/compression"
 	"github.com/pojntfx/stfs/internal/keys"
 	"github.com/pojntfx/stfs/internal/persisters"
 	"github.com/pojntfx/stfs/pkg/config"
@@ -24,15 +25,15 @@ var updateCmd = &cobra.Command{
 			return err
 		}
 
-		if err := checkCompressionLevel(viper.GetString(compressionLevelFlag)); err != nil {
+		if err := compression.CheckCompressionLevel(viper.GetString(compressionLevelFlag)); err != nil {
 			return err
 		}
 
-		if err := checkKeyAccessible(viper.GetString(encryptionFlag), viper.GetString(recipientFlag)); err != nil {
+		if err := keys.CheckKeyAccessible(viper.GetString(encryptionFlag), viper.GetString(recipientFlag)); err != nil {
 			return err
 		}
 
-		return checkKeyAccessible(viper.GetString(signatureFlag), viper.GetString(identityFlag))
+		return keys.CheckKeyAccessible(viper.GetString(signatureFlag), viper.GetString(identityFlag))
 	},
 	RunE: func(cmd *cobra.Command, args []string) error {
 		if err := viper.BindPFlags(cmd.PersistentFlags()); err != nil {
@@ -53,7 +54,7 @@ var updateCmd = &cobra.Command{
 			return err
 		}
 
-		pubkey, err := readKey(viper.GetString(encryptionFlag), viper.GetString(recipientFlag))
+		pubkey, err := keys.ReadKey(viper.GetString(encryptionFlag), viper.GetString(recipientFlag))
 		if err != nil {
 			return err
 		}
@@ -63,7 +64,7 @@ var updateCmd = &cobra.Command{
 			return err
 		}
 
-		privkey, err := readKey(viper.GetString(signatureFlag), viper.GetString(identityFlag))
+		privkey, err := keys.ReadKey(viper.GetString(signatureFlag), viper.GetString(identityFlag))
 		if err != nil {
 			return err
 		}
@@ -126,7 +127,7 @@ var updateCmd = &cobra.Command{
 				}
 
 				if len(hdrs) <= i-1 {
-					return errMissingTarHeader
+					return config.ErrMissingTarHeader
 				}
 
 				*hdr = *hdrs[i-1]
@@ -144,7 +145,7 @@ func init() {
 	updateCmd.PersistentFlags().IntP(recordSizeFlag, "z", 20, "Amount of 512-bit blocks per record")
 	updateCmd.PersistentFlags().StringP(fromFlag, "f", "", "Path of the file or directory to update")
 	updateCmd.PersistentFlags().BoolP(overwriteFlag, "o", false, "Replace the content on the tape or tar file")
-	updateCmd.PersistentFlags().StringP(compressionLevelFlag, "l", config.CompressionLevelBalanced, fmt.Sprintf("Compression level to use (default %v, available are %v)", config.CompressionLevelBalanced, knownCompressionLevels))
+	updateCmd.PersistentFlags().StringP(compressionLevelFlag, "l", config.CompressionLevelBalanced, fmt.Sprintf("Compression level to use (default %v, available are %v)", config.CompressionLevelBalanced, config.KnownCompressionLevels))
 	updateCmd.PersistentFlags().StringP(recipientFlag, "r", "", "Path to public key of recipient to encrypt for")
 	updateCmd.PersistentFlags().StringP(identityFlag, "i", "", "Path to private key to sign with")
 	updateCmd.PersistentFlags().StringP(passwordFlag, "p", "", "Password for the private key")

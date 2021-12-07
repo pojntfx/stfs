@@ -1,75 +1,26 @@
 package cmd
 
 import (
-	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
 
+	"github.com/pojntfx/stfs/internal/compression"
+	"github.com/pojntfx/stfs/internal/encryption"
+	"github.com/pojntfx/stfs/internal/signature"
+	"github.com/pojntfx/stfs/pkg/config"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 )
 
 const (
-	driveFlag    = "drive"
-	metadataFlag = "metadata"
-	verboseFlag  = "verbose"
-
+	driveFlag       = "drive"
+	metadataFlag    = "metadata"
+	verboseFlag     = "verbose"
 	compressionFlag = "compression"
-
-	noneKey = "none"
-
-	compressionFormatGZipKey    = "gzip"
-	compressionFormatGZipSuffix = ".gz"
-
-	compressionFormatParallelGZipKey = "parallelgzip"
-
-	compressionFormatLZ4Key    = "lz4"
-	compressionFormatLZ4Suffix = ".lz4"
-
-	compressionFormatZStandardKey    = "zstandard"
-	compressionFormatZStandardSuffix = ".zst"
-
-	compressionFormatBrotliKey    = "brotli"
-	compressionFormatBrotliSuffix = ".br"
-
-	compressionFormatBzip2Key    = "bzip2"
-	compressionFormatBzip2Suffix = ".bz2"
-
-	compressionFormatBzip2ParallelKey = "parallelbzip2"
-
-	encryptionFlag = "encryption"
-
-	encryptionFormatAgeKey    = "age"
-	encryptionFormatAgeSuffix = ".age"
-
-	encryptionFormatPGPKey    = "pgp"
-	encryptionFormatPGPSuffix = ".pgp"
-
-	signatureFlag = "signature"
-
-	signatureFormatMinisignKey = "minisign"
-
-	signatureFormatPGPKey = "pgp"
-)
-
-var (
-	knownCompressionFormats = []string{noneKey, compressionFormatGZipKey, compressionFormatParallelGZipKey, compressionFormatLZ4Key, compressionFormatZStandardKey, compressionFormatBrotliKey, compressionFormatBzip2Key, compressionFormatBzip2ParallelKey}
-
-	errUnknownCompressionFormat     = errors.New("unknown compression format")
-	errUnsupportedCompressionFormat = errors.New("unsupported compression format")
-
-	knownEncryptionFormats = []string{noneKey, encryptionFormatAgeKey, encryptionFormatPGPKey}
-
-	errUnknownEncryptionFormat     = errors.New("unknown encryption format")
-	errUnsupportedEncryptionFormat = errors.New("unsupported encryption format")
-	errKeygenForFormatUnsupported  = errors.New("can not generate keys for this format")
-
-	knownSignatureFormats = []string{noneKey, signatureFormatMinisignKey, signatureFormatPGPKey}
-
-	errUnknownSignatureFormat     = errors.New("unknown signature format")
-	errUnsupportedSignatureFormat = errors.New("unsupported signature format")
+	encryptionFlag  = "encryption"
+	signatureFlag   = "signature"
 )
 
 var rootCmd = &cobra.Command{
@@ -83,46 +34,15 @@ https://github.com/pojntfx/stfs`,
 		viper.SetEnvPrefix("stbak")
 		viper.SetEnvKeyReplacer(strings.NewReplacer("-", "_", ".", "_"))
 
-		compressionFormatIsKnown := false
-		compressionFormat := viper.GetString(compressionFlag)
-
-		for _, candidate := range knownCompressionFormats {
-			if compressionFormat == candidate {
-				compressionFormatIsKnown = true
-			}
+		if err := compression.CheckCompressionFormat(viper.GetString(compressionFlag)); err != nil {
+			return err
 		}
 
-		if !compressionFormatIsKnown {
-			return errUnknownCompressionFormat
+		if err := encryption.CheckEncryptionFormat(viper.GetString(encryptionFlag)); err != nil {
+			return err
 		}
 
-		encryptionFormatIsKnown := false
-		encryptionFormat := viper.GetString(encryptionFlag)
-
-		for _, candidate := range knownEncryptionFormats {
-			if encryptionFormat == candidate {
-				encryptionFormatIsKnown = true
-			}
-		}
-
-		if !encryptionFormatIsKnown {
-			return errUnknownEncryptionFormat
-		}
-
-		signatureFormatIsKnown := false
-		signatureFormat := viper.GetString(signatureFlag)
-
-		for _, candidate := range knownSignatureFormats {
-			if signatureFormat == candidate {
-				signatureFormatIsKnown = true
-			}
-		}
-
-		if !signatureFormatIsKnown {
-			return errUnknownSignatureFormat
-		}
-
-		return nil
+		return signature.CheckSignatureFormat(viper.GetString(signatureFlag))
 	},
 }
 
@@ -137,9 +57,9 @@ func Execute() {
 	rootCmd.PersistentFlags().StringP(driveFlag, "d", "/dev/nst0", "Tape or tar file to use")
 	rootCmd.PersistentFlags().StringP(metadataFlag, "m", metadataPath, "Metadata database to use")
 	rootCmd.PersistentFlags().BoolP(verboseFlag, "v", false, "Enable verbose logging")
-	rootCmd.PersistentFlags().StringP(compressionFlag, "c", noneKey, fmt.Sprintf("Compression format to use (default %v, available are %v)", noneKey, knownCompressionFormats))
-	rootCmd.PersistentFlags().StringP(encryptionFlag, "e", noneKey, fmt.Sprintf("Encryption format to use (default %v, available are %v)", noneKey, knownEncryptionFormats))
-	rootCmd.PersistentFlags().StringP(signatureFlag, "s", noneKey, fmt.Sprintf("Signature format to use (default %v, available are %v)", noneKey, knownSignatureFormats))
+	rootCmd.PersistentFlags().StringP(compressionFlag, "c", config.NoneKey, fmt.Sprintf("Compression format to use (default %v, available are %v)", config.NoneKey, config.KnownCompressionFormats))
+	rootCmd.PersistentFlags().StringP(encryptionFlag, "e", config.NoneKey, fmt.Sprintf("Encryption format to use (default %v, available are %v)", config.NoneKey, config.KnownEncryptionFormats))
+	rootCmd.PersistentFlags().StringP(signatureFlag, "s", config.NoneKey, fmt.Sprintf("Signature format to use (default %v, available are %v)", config.NoneKey, config.KnownSignatureFormats))
 
 	if err := viper.BindPFlags(rootCmd.PersistentFlags()); err != nil {
 		panic(err)

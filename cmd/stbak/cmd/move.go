@@ -18,22 +18,18 @@ var moveCmd = &cobra.Command{
 			return err
 		}
 
-		if err := checkKeyAccessible(viper.GetString(encryptionFlag), viper.GetString(recipientFlag)); err != nil {
+		if err := keys.CheckKeyAccessible(viper.GetString(encryptionFlag), viper.GetString(recipientFlag)); err != nil {
 			return err
 		}
 
-		return checkKeyAccessible(viper.GetString(signatureFlag), viper.GetString(identityFlag))
+		return keys.CheckKeyAccessible(viper.GetString(signatureFlag), viper.GetString(identityFlag))
 	},
 	RunE: func(cmd *cobra.Command, args []string) error {
-		if err := viper.BindPFlags(cmd.PersistentFlags()); err != nil {
-			return err
-		}
-
 		if viper.GetBool(verboseFlag) {
 			boil.DebugMode = true
 		}
 
-		pubkey, err := readKey(viper.GetString(encryptionFlag), viper.GetString(recipientFlag))
+		pubkey, err := keys.ReadKey(viper.GetString(encryptionFlag), viper.GetString(recipientFlag))
 		if err != nil {
 			return err
 		}
@@ -43,7 +39,7 @@ var moveCmd = &cobra.Command{
 			return err
 		}
 
-		privkey, err := readKey(viper.GetString(signatureFlag), viper.GetString(identityFlag))
+		privkey, err := keys.ReadKey(viper.GetString(signatureFlag), viper.GetString(identityFlag))
 		if err != nil {
 			return err
 		}

@@ -21,3 +21,13 @@ const (
 	CompressionLevelBalanced = "balanced"
 	CompressionLevelSmallest = "smallest"
 )
+
+var (
+	KnownCompressionLevels = []string{CompressionLevelFastest, CompressionLevelBalanced, CompressionLevelSmallest}
+
+	KnownCompressionFormats = []string{NoneKey, CompressionFormatGZipKey, CompressionFormatParallelGZipKey, CompressionFormatLZ4Key, CompressionFormatZStandardKey, CompressionFormatBrotliKey, CompressionFormatBzip2Key, CompressionFormatBzip2ParallelKey}
+
+	KnownEncryptionFormats = []string{NoneKey, EncryptionFormatAgeKey, EncryptionFormatPGPKey}
+
+	KnownSignatureFormats = []string{NoneKey, SignatureFormatMinisignKey, SignatureFormatPGPKey}
+)

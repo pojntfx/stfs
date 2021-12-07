@@ -13,6 +13,7 @@ import (
 	"github.com/pojntfx/stfs/internal/formatting"
 	"github.com/pojntfx/stfs/internal/persisters"
 	"github.com/pojntfx/stfs/pkg/config"
+	"github.com/pojntfx/stfs/pkg/hardware"
 	"github.com/pojntfx/stfs/pkg/recovery"
 )
 
@@ -88,7 +89,9 @@ func Restore(
 		}
 
 		if err := recovery.Fetch(
-			state,
+			hardware.DriveConfig{
+				Drive: state.Drive,
+			},
 			pipes,
 			crypto,
 
