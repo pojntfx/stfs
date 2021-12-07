@@ -4,19 +4,6 @@ import (
 	"github.com/pojntfx/stfs/pkg/config"
 )
 
-func Restore(
-	state config.StateConfig,
-	pipes config.PipeConfig,
-	crypto config.CryptoConfig,
-
-	recordSize int,
-	from string,
-	to string,
-	flatten bool,
-) error {
-	return nil
-}
-
 func Update(
 	state config.StateConfig,
 	pipes config.PipeConfig,
