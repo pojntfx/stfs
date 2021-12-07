@@ -12,6 +12,7 @@ import (
 	"github.com/pojntfx/stfs/pkg/config"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
+	"github.com/volatiletech/sqlboiler/v4/boil"
 )
 
 const (
@@ -33,6 +34,14 @@ https://github.com/pojntfx/stfs`,
 	PersistentPreRunE: func(cmd *cobra.Command, args []string) error {
 		viper.SetEnvPrefix("stbak")
 		viper.SetEnvKeyReplacer(strings.NewReplacer("-", "_", ".", "_"))
+
+		if err := viper.BindPFlags(cmd.PersistentFlags()); err != nil {
+			return err
+		}
+
+		if viper.GetBool(verboseFlag) {
+			boil.DebugMode = true
+		}
 
 		if err := compression.CheckCompressionFormat(viper.GetString(compressionFlag)); err != nil {
 			return err

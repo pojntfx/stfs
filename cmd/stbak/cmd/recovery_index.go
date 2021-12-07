@@ -10,7 +10,6 @@ import (
 	"github.com/pojntfx/stfs/pkg/recovery"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
-	"github.com/volatiletech/sqlboiler/v4/boil"
 )
 
 var recoveryIndexCmd = &cobra.Command{
@@ -28,10 +27,6 @@ var recoveryIndexCmd = &cobra.Command{
 		return keys.CheckKeyAccessible(viper.GetString(signatureFlag), viper.GetString(recipientFlag))
 	},
 	RunE: func(cmd *cobra.Command, args []string) error {
-		if viper.GetBool(verboseFlag) {
-			boil.DebugMode = true
-		}
-
 		pubkey, err := keys.ReadKey(viper.GetString(signatureFlag), viper.GetString(recipientFlag))
 		if err != nil {
 			return err
