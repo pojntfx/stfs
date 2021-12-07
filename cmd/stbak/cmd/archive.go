@@ -13,7 +13,6 @@ import (
 	"github.com/pojntfx/stfs/pkg/recovery"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
-	"github.com/volatiletech/sqlboiler/v4/boil"
 )
 
 const (
@@ -46,10 +45,6 @@ var archiveCmd = &cobra.Command{
 		return keys.CheckKeyAccessible(viper.GetString(signatureFlag), viper.GetString(identityFlag))
 	},
 	RunE: func(cmd *cobra.Command, args []string) error {
-		if viper.GetBool(verboseFlag) {
-			boil.DebugMode = true
-		}
-
 		metadataPersister := persisters.NewMetadataPersister(viper.GetString(metadataFlag))
 		if err := metadataPersister.Open(); err != nil {
 			return err

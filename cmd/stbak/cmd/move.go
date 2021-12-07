@@ -6,7 +6,6 @@ import (
 	"github.com/pojntfx/stfs/pkg/operations"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
-	"github.com/volatiletech/sqlboiler/v4/boil"
 )
 
 var moveCmd = &cobra.Command{
@@ -25,10 +24,6 @@ var moveCmd = &cobra.Command{
 		return keys.CheckKeyAccessible(viper.GetString(signatureFlag), viper.GetString(identityFlag))
 	},
 	RunE: func(cmd *cobra.Command, args []string) error {
-		if viper.GetBool(verboseFlag) {
-			boil.DebugMode = true
-		}
-
 		pubkey, err := keys.ReadKey(viper.GetString(encryptionFlag), viper.GetString(recipientFlag))
 		if err != nil {
 			return err
