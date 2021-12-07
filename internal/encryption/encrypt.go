@@ -8,10 +8,10 @@ import (
 	"io"
 
 	"filippo.io/age"
+	"github.com/ProtonMail/go-crypto/openpgp"
 	"github.com/pojntfx/stfs/internal/noop"
 	"github.com/pojntfx/stfs/internal/pax"
 	"github.com/pojntfx/stfs/pkg/config"
-	"golang.org/x/crypto/openpgp"
 )
 
 func Encrypt(
