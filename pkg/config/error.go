@@ -21,4 +21,6 @@ var (
 	ErrCompressionFormatOnlyRegularSupport       = errors.New("this compression format only supports regular files, not i.e. tape drives")
 	ErrCompressionFormatRequiresLargerRecordSize = errors.New("this compression format requires a larger record size")
 	ErrCompressionLevelUnsupported               = errors.New("compression level is unsupported")
+
+	ErrMissingTarHeader = errors.New("tar header is missing")
 )
