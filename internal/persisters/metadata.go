@@ -66,41 +66,26 @@ func (p *MetadataPersister) UpdateHeaderMetadata(ctx context.Context, dbhdr *mod
 	return nil
 }
 
-func (p *MetadataPersister) moveHeader(ctx context.Context, tx boil.ContextExecutor, oldName string, newName string) error {
+func (p *MetadataPersister) MoveHeader(ctx context.Context, oldName string, newName string, lastknownrecord, lastknownblock int64) error {
 	// We can't do this with `dbhdr.Update` because we are renaming the primary key
 	if _, err := queries.Raw(
 		fmt.Sprintf(
-			` update %v set %v = ? where %v = ?;`,
+			` update %v set %v = ?, %v = ?, %v = ? where %v = ?;`,
 			models.TableNames.Headers,
 			models.HeaderColumns.Name,
+			models.HeaderColumns.Lastknownrecord,
+			models.HeaderColumns.Lastknownblock,
 			models.HeaderColumns.Name,
 		),
 		newName,
+		lastknownrecord,
+		lastknownblock,
 		oldName,
-	).ExecContext(ctx, tx); err != nil {
+	).ExecContext(ctx, p.db); err != nil {
 		return err
 	}
 
 	return nil
-}
-
-func (p *MetadataPersister) MoveHeader(ctx context.Context, oldName string, newName string) error {
-	return p.moveHeader(ctx, p.db, oldName, newName)
-}
-
-func (p *MetadataPersister) MoveHeaders(ctx context.Context, hdrs models.HeaderSlice, oldName string, newName string) error {
-	tx, err := p.db.BeginTx(ctx, nil)
-	if err != nil {
-		return err
-	}
-
-	for _, hdr := range hdrs {
-		if err := p.moveHeader(ctx, tx, hdr.Name, strings.TrimSuffix(newName, "/")+strings.TrimPrefix(hdr.Name, strings.TrimSuffix(oldName, "/"))); err != nil {
-			return err
-		}
-	}
-
-	return tx.Commit()
 }
 
 func (p *MetadataPersister) GetHeaders(ctx context.Context) (models.HeaderSlice, error) {
