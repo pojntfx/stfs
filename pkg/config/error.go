@@ -15,4 +15,6 @@ var (
 	ErrSignatureFormatOnlyRegularSupport = errors.New("this signature format only supports regular files, not i.e. tape drives")
 	ErrSignatureInvalid                  = errors.New("signature invalid")
 	ErrSignatureMissing                  = errors.New("signature missing")
+
+	ErrKeygenForFormatUnsupported = errors.New("can not generate keys for this format")
 )
