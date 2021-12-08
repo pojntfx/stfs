@@ -20,7 +20,7 @@ var keygenCmd = &cobra.Command{
 			return err
 		}
 
-		pubkey, privkey, err := utility.Keygen(
+		privkey, pubkey, err := utility.Keygen(
 			config.PipeConfig{
 				Compression: viper.GetString(compressionFlag),
 				Encryption:  viper.GetString(encryptionFlag),

@@ -6,7 +6,7 @@ var (
 	ErrEncryptionFormatUnknown     = errors.New("unknown encryption format")
 	ErrEncryptionFormatUnsupported = errors.New("unsupported encryption format")
 
-	ErrIdentityUnparsable  = errors.New("recipient could not be parsed")
+	ErrIdentityUnparsable  = errors.New("identity could not be parsed")
 	ErrRecipientUnparsable = errors.New("recipient could not be parsed")
 
 	ErrEmbeddedHeaderMissing = errors.New("embedded header is missing")
