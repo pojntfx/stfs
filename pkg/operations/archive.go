@@ -129,7 +129,7 @@ func Archive(
 
 			compressor, err := compression.Compress(
 				encryptor,
-				pipes.Encryption,
+				pipes.Compression,
 				compressionLevel,
 				isRegular,
 				recordSize,
