@@ -10,7 +10,7 @@ import (
 	"aead.dev/minisign"
 	"github.com/ProtonMail/go-crypto/openpgp"
 	"github.com/ProtonMail/go-crypto/openpgp/packet"
-	"github.com/pojntfx/stfs/internal/pax"
+	"github.com/pojntfx/stfs/internal/records"
 	"github.com/pojntfx/stfs/pkg/config"
 )
 
@@ -102,12 +102,12 @@ func VerifyHeader(
 		return config.ErrEmbeddedHeaderMissing
 	}
 
-	embeddedHeader, ok := hdr.PAXRecords[pax.STFSRecordEmbeddedHeader]
+	embeddedHeader, ok := hdr.PAXRecords[records.STFSRecordEmbeddedHeader]
 	if !ok {
 		return config.ErrEmbeddedHeaderMissing
 	}
 
-	signature, ok := hdr.PAXRecords[pax.STFSRecordSignature]
+	signature, ok := hdr.PAXRecords[records.STFSRecordSignature]
 	if !ok {
 		return config.ErrSignatureMissing
 	}

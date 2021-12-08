@@ -8,14 +8,15 @@ import (
 	"path/filepath"
 	"strconv"
 
-	"github.com/pojntfx/stfs/internal/adapters"
 	"github.com/pojntfx/stfs/internal/compression"
-	"github.com/pojntfx/stfs/internal/controllers"
-	"github.com/pojntfx/stfs/internal/counters"
+	"github.com/pojntfx/stfs/internal/converters"
 	"github.com/pojntfx/stfs/internal/encryption"
 	"github.com/pojntfx/stfs/internal/formatting"
-	"github.com/pojntfx/stfs/internal/pax"
+	"github.com/pojntfx/stfs/internal/ioext"
+	"github.com/pojntfx/stfs/internal/mtio"
+	"github.com/pojntfx/stfs/internal/records"
 	"github.com/pojntfx/stfs/internal/signature"
+	"github.com/pojntfx/stfs/internal/statext"
 	"github.com/pojntfx/stfs/internal/suffix"
 	"github.com/pojntfx/stfs/internal/tape"
 	"github.com/pojntfx/stfs/pkg/config"
@@ -57,7 +58,7 @@ func Update(
 			return err
 		}
 
-		if err := adapters.EnhanceHeader(path, hdr); err != nil {
+		if err := statext.EnhanceHeader(path, hdr); err != nil {
 			return err
 		}
 
@@ -66,12 +67,12 @@ func Update(
 		if hdr.PAXRecords == nil {
 			hdr.PAXRecords = map[string]string{}
 		}
-		hdr.PAXRecords[pax.STFSRecordVersion] = pax.STFSRecordVersion1
-		hdr.PAXRecords[pax.STFSRecordAction] = pax.STFSRecordActionUpdate
+		hdr.PAXRecords[records.STFSRecordVersion] = records.STFSRecordVersion1
+		hdr.PAXRecords[records.STFSRecordAction] = records.STFSRecordActionUpdate
 
 		if info.Mode().IsRegular() && overwrite {
 			// Get the compressed size for the header
-			fileSizeCounter := &counters.CounterWriter{
+			fileSizeCounter := &ioext.CounterWriter{
 				Writer: io.Discard,
 			}
 
@@ -106,7 +107,7 @@ func Update(
 					return err
 				}
 			} else {
-				buf := make([]byte, controllers.BlockSize*recordSize)
+				buf := make([]byte, mtio.BlockSize*recordSize)
 				if _, err := io.CopyBuffer(compressor, signer, buf); err != nil {
 					return err
 				}
@@ -131,14 +132,14 @@ func Update(
 			if hdr.PAXRecords == nil {
 				hdr.PAXRecords = map[string]string{}
 			}
-			hdr.PAXRecords[pax.STFSRecordUncompressedSize] = strconv.Itoa(int(hdr.Size))
+			hdr.PAXRecords[records.STFSRecordUncompressedSize] = strconv.Itoa(int(hdr.Size))
 			signature, err := sign()
 			if err != nil {
 				return err
 			}
 
 			if signature != "" {
-				hdr.PAXRecords[pax.STFSRecordSignature] = signature
+				hdr.PAXRecords[records.STFSRecordSignature] = signature
 			}
 			hdr.Size = int64(fileSizeCounter.BytesRead)
 
@@ -157,9 +158,9 @@ func Update(
 		}
 
 		if overwrite {
-			hdr.PAXRecords[pax.STFSRecordReplacesContent] = pax.STFSRecordReplacesContentTrue
+			hdr.PAXRecords[records.STFSRecordReplacesContent] = records.STFSRecordReplacesContentTrue
 
-			if err := formatting.PrintCSV(formatting.GetTARHeaderAsCSV(-1, -1, -1, -1, hdr)); err != nil {
+			if err := formatting.PrintCSV(converters.TARHeaderToCSV(-1, -1, -1, -1, hdr)); err != nil {
 				return err
 			}
 
@@ -209,7 +210,7 @@ func Update(
 					return err
 				}
 			} else {
-				buf := make([]byte, controllers.BlockSize*recordSize)
+				buf := make([]byte, mtio.BlockSize*recordSize)
 				if _, err := io.CopyBuffer(compressor, file, buf); err != nil {
 					return err
 				}
@@ -233,7 +234,7 @@ func Update(
 		} else {
 			hdr.Size = 0 // Don't try to seek after the record
 
-			if err := formatting.PrintCSV(formatting.GetTARHeaderAsCSV(-1, -1, -1, -1, hdr)); err != nil {
+			if err := formatting.PrintCSV(converters.TARHeaderToCSV(-1, -1, -1, -1, hdr)); err != nil {
 				return err
 			}
 

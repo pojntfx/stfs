@@ -10,8 +10,8 @@ import (
 	"github.com/klauspost/compress/zstd"
 	"github.com/klauspost/pgzip"
 	"github.com/pierrec/lz4/v4"
-	"github.com/pojntfx/stfs/internal/controllers"
-	"github.com/pojntfx/stfs/internal/noop"
+	"github.com/pojntfx/stfs/internal/ioext"
+	"github.com/pojntfx/stfs/internal/mtio"
 	"github.com/pojntfx/stfs/pkg/config"
 )
 
@@ -21,14 +21,14 @@ func Compress(
 	compressionLevel string,
 	isRegular bool,
 	recordSize int,
-) (noop.Flusher, error) {
+) (ioext.Flusher, error) {
 	switch compressionFormat {
 	case config.CompressionFormatGZipKey:
 		fallthrough
 	case config.CompressionFormatParallelGZipKey:
 		if compressionFormat == config.CompressionFormatGZipKey {
 			if !isRegular {
-				maxSize := getNearestPowerOf2Lower(controllers.BlockSize * recordSize)
+				maxSize := getNearestPowerOf2Lower(mtio.BlockSize * recordSize)
 
 				if maxSize < 65535 { // See https://www.daylight.com/meetings/mug00/Sayle/gzip.html#:~:text=Stored%20blocks%20are%20allowed%20to,size%20of%20the%20gzip%20header.
 					return nil, config.ErrCompressionFormatRequiresLargerRecordSize
@@ -82,7 +82,7 @@ func Compress(
 
 		opts := []lz4.Option{lz4.CompressionLevelOption(l), lz4.ConcurrencyOption(-1)}
 		if !isRegular {
-			maxSize := getNearestPowerOf2Lower(controllers.BlockSize * recordSize)
+			maxSize := getNearestPowerOf2Lower(mtio.BlockSize * recordSize)
 
 			if uint32(maxSize) < uint32(lz4.Block64Kb) {
 				return nil, config.ErrCompressionFormatRequiresLargerRecordSize
@@ -104,7 +104,7 @@ func Compress(
 			return nil, err
 		}
 
-		return noop.AddFlush(lz), nil
+		return ioext.AddFlush(lz), nil
 	case config.CompressionFormatZStandardKey:
 		l := zstd.SpeedDefault
 		switch compressionLevel {
@@ -120,7 +120,7 @@ func Compress(
 
 		opts := []zstd.EOption{zstd.WithEncoderLevel(l)}
 		if !isRegular {
-			opts = append(opts, zstd.WithWindowSize(getNearestPowerOf2Lower(controllers.BlockSize*recordSize)))
+			opts = append(opts, zstd.WithWindowSize(getNearestPowerOf2Lower(mtio.BlockSize*recordSize)))
 		}
 
 		zz, err := zstd.NewWriter(dst, opts...)
@@ -171,9 +171,9 @@ func Compress(
 			return nil, err
 		}
 
-		return noop.AddFlush(bz), nil
+		return ioext.AddFlush(bz), nil
 	case config.NoneKey:
-		return noop.AddFlush(noop.AddClose(dst)), nil
+		return ioext.AddFlush(ioext.AddClose(dst)), nil
 	default:
 		return nil, config.ErrCompressionFormatUnsupported
 	}

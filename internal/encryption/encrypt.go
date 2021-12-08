@@ -9,8 +9,8 @@ import (
 
 	"filippo.io/age"
 	"github.com/ProtonMail/go-crypto/openpgp"
-	"github.com/pojntfx/stfs/internal/noop"
-	"github.com/pojntfx/stfs/internal/pax"
+	"github.com/pojntfx/stfs/internal/ioext"
+	"github.com/pojntfx/stfs/internal/records"
 	"github.com/pojntfx/stfs/pkg/config"
 )
 
@@ -35,7 +35,7 @@ func Encrypt(
 
 		return openpgp.Encrypt(dst, recipient, nil, nil, nil)
 	case config.NoneKey:
-		return noop.AddClose(dst), nil
+		return ioext.AddClose(dst), nil
 	default:
 		return nil, config.ErrEncryptionFormatUnsupported
 	}
@@ -61,7 +61,7 @@ func EncryptHeader(
 		return err
 	}
 
-	newHdr.PAXRecords[pax.STFSRecordEmbeddedHeader], err = EncryptString(string(wrappedHeader), encryptionFormat, recipient)
+	newHdr.PAXRecords[records.STFSRecordEmbeddedHeader], err = EncryptString(string(wrappedHeader), encryptionFormat, recipient)
 	if err != nil {
 		return err
 	}

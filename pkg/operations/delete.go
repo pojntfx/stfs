@@ -8,8 +8,8 @@ import (
 	models "github.com/pojntfx/stfs/internal/db/sqlite/models/metadata"
 	"github.com/pojntfx/stfs/internal/encryption"
 	"github.com/pojntfx/stfs/internal/formatting"
-	"github.com/pojntfx/stfs/internal/pax"
 	"github.com/pojntfx/stfs/internal/persisters"
+	"github.com/pojntfx/stfs/internal/records"
 	"github.com/pojntfx/stfs/internal/signature"
 	"github.com/pojntfx/stfs/internal/tape"
 	"github.com/pojntfx/stfs/pkg/config"
@@ -71,8 +71,8 @@ func Delete(
 		}
 
 		hdr.Size = 0 // Don't try to seek after the record
-		hdr.PAXRecords[pax.STFSRecordVersion] = pax.STFSRecordVersion1
-		hdr.PAXRecords[pax.STFSRecordAction] = pax.STFSRecordActionDelete
+		hdr.PAXRecords[records.STFSRecordVersion] = records.STFSRecordVersion1
+		hdr.PAXRecords[records.STFSRecordAction] = records.STFSRecordActionDelete
 
 		if err := signature.SignHeader(hdr, isRegular, pipes.Signature, crypto.Identity); err != nil {
 			return err
@@ -88,7 +88,7 @@ func Delete(
 
 		dirty = true
 
-		if err := formatting.PrintCSV(formatting.GetTARHeaderAsCSV(-1, -1, -1, -1, hdr)); err != nil {
+		if err := formatting.PrintCSV(converters.TARHeaderToCSV(-1, -1, -1, -1, hdr)); err != nil {
 			return err
 		}
 

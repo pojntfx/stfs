@@ -3,7 +3,7 @@ package hardware
 import (
 	"os"
 
-	"github.com/pojntfx/stfs/internal/controllers"
+	"github.com/pojntfx/stfs/internal/mtio"
 )
 
 func Eject(
@@ -15,5 +15,5 @@ func Eject(
 	}
 	defer f.Close()
 
-	return controllers.EjectTape(f)
+	return mtio.EjectTape(f)
 }

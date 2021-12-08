@@ -8,10 +8,11 @@ import (
 	"path/filepath"
 
 	"github.com/pojntfx/stfs/internal/compression"
-	"github.com/pojntfx/stfs/internal/controllers"
+	"github.com/pojntfx/stfs/internal/converters"
 	"github.com/pojntfx/stfs/internal/encryption"
 	"github.com/pojntfx/stfs/internal/formatting"
-	"github.com/pojntfx/stfs/internal/pax"
+	"github.com/pojntfx/stfs/internal/mtio"
+	"github.com/pojntfx/stfs/internal/records"
 	"github.com/pojntfx/stfs/internal/signature"
 	"github.com/pojntfx/stfs/internal/tape"
 	"github.com/pojntfx/stfs/pkg/config"
@@ -40,20 +41,20 @@ func Fetch(
 	var tr *tar.Reader
 	if isRegular {
 		// Seek to record and block
-		if _, err := f.Seek(int64((recordSize*controllers.BlockSize*record)+block*controllers.BlockSize), io.SeekStart); err != nil {
+		if _, err := f.Seek(int64((recordSize*mtio.BlockSize*record)+block*mtio.BlockSize), io.SeekStart); err != nil {
 			return err
 		}
 
 		tr = tar.NewReader(f)
 	} else {
 		// Seek to record
-		if err := controllers.SeekToRecordOnTape(f, int32(record)); err != nil {
+		if err := mtio.SeekToRecordOnTape(f, int32(record)); err != nil {
 			return err
 		}
 
 		// Seek to block
-		br := bufio.NewReaderSize(f, controllers.BlockSize*recordSize)
-		if _, err := br.Read(make([]byte, block*controllers.BlockSize)); err != nil {
+		br := bufio.NewReaderSize(f, mtio.BlockSize*recordSize)
+		if _, err := br.Read(make([]byte, block*mtio.BlockSize)); err != nil {
 			return err
 		}
 
@@ -78,7 +79,7 @@ func Fetch(
 			return err
 		}
 
-		if err := formatting.PrintCSV(formatting.GetTARHeaderAsCSV(int64(record), -1, int64(block), -1, hdr)); err != nil {
+		if err := formatting.PrintCSV(converters.TARHeaderToCSV(int64(record), -1, int64(block), -1, hdr)); err != nil {
 			return err
 		}
 	}
@@ -122,7 +123,7 @@ func Fetch(
 
 		sig := ""
 		if hdr.PAXRecords != nil {
-			if s, ok := hdr.PAXRecords[pax.STFSRecordSignature]; ok {
+			if s, ok := hdr.PAXRecords[records.STFSRecordSignature]; ok {
 				sig = s
 			}
 		}

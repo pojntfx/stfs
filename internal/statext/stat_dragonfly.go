@@ -1,6 +1,6 @@
-//go:build dragonfly || openbsd || (linux && mips64) || (linux && mips) || (linux && mipsle) || (linux && mips64le)
+//go:build dragonfly
 
-package adapters
+package statext
 
 import (
 	"archive/tar"

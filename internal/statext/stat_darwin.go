@@ -1,6 +1,6 @@
 //go:build darwin
 
-package adapters
+package statext
 
 import (
 	"archive/tar"

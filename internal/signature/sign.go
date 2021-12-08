@@ -10,7 +10,7 @@ import (
 	"aead.dev/minisign"
 	"github.com/ProtonMail/go-crypto/openpgp"
 	"github.com/ProtonMail/go-crypto/openpgp/packet"
-	"github.com/pojntfx/stfs/internal/pax"
+	"github.com/pojntfx/stfs/internal/records"
 	"github.com/pojntfx/stfs/pkg/config"
 )
 
@@ -106,8 +106,8 @@ func SignHeader(
 		return err
 	}
 
-	newHdr.PAXRecords[pax.STFSRecordEmbeddedHeader] = string(wrappedHeader)
-	newHdr.PAXRecords[pax.STFSRecordSignature], err = SignString(newHdr.PAXRecords[pax.STFSRecordEmbeddedHeader], isRegular, signatureFormat, identity)
+	newHdr.PAXRecords[records.STFSRecordEmbeddedHeader] = string(wrappedHeader)
+	newHdr.PAXRecords[records.STFSRecordSignature], err = SignString(newHdr.PAXRecords[records.STFSRecordEmbeddedHeader], isRegular, signatureFormat, identity)
 	if err != nil {
 		return err
 	}

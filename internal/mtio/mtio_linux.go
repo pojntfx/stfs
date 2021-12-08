@@ -1,4 +1,6 @@
-package controllers
+//go:build linux
+
+package mtio
 
 import (
 	"os"
@@ -15,8 +17,6 @@ const (
 	mtOffl = 7  // Rewind and put the drive offline (eject?)
 	mtEom  = 12 // Goto end of recorded media (for appending files)
 	mtSeek = 22 // Seek to block
-
-	BlockSize = 512
 )
 
 // position is struct for MTIOCPOS
@@ -29,6 +29,20 @@ type operation struct {
 	op    int16 // Operation ID
 	pad   int16 // Padding to match C structures
 	count int32 // Operation count
+}
+
+func GetCurrentRecordFromTape(f *os.File) (int64, error) {
+	pos := &position{}
+	if _, _, err := syscall.Syscall(
+		syscall.SYS_IOCTL,
+		f.Fd(),
+		mtioCpos,
+		uintptr(unsafe.Pointer(pos)),
+	); err != 0 {
+		return 0, err
+	}
+
+	return pos.blkNo, nil
 }
 
 func GoToEndOfTape(f *os.File) error {
@@ -66,18 +80,21 @@ func GoToNextFileOnTape(f *os.File) error {
 	return nil
 }
 
-func GetCurrentRecordFromTape(f *os.File) (int64, error) {
-	pos := &position{}
+func EjectTape(f *os.File) error {
 	if _, _, err := syscall.Syscall(
 		syscall.SYS_IOCTL,
 		f.Fd(),
-		mtioCpos,
-		uintptr(unsafe.Pointer(pos)),
+		mtioCtop,
+		uintptr(unsafe.Pointer(
+			&operation{
+				op: mtOffl,
+			},
+		)),
 	); err != 0 {
-		return 0, err
+		return err
 	}
 
-	return pos.blkNo, nil
+	return nil
 }
 
 func SeekToRecordOnTape(f *os.File, record int32) error {
@@ -89,23 +106,6 @@ func SeekToRecordOnTape(f *os.File, record int32) error {
 			&operation{
 				op:    mtSeek,
 				count: record,
-			},
-		)),
-	); err != 0 {
-		return err
-	}
-
-	return nil
-}
-
-func EjectTape(f *os.File) error {
-	if _, _, err := syscall.Syscall(
-		syscall.SYS_IOCTL,
-		f.Fd(),
-		mtioCtop,
-		uintptr(unsafe.Pointer(
-			&operation{
-				op: mtOffl,
 			},
 		)),
 	); err != 0 {
