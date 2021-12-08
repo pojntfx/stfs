@@ -1,6 +1,6 @@
-//go:build freebsd || netbsd
+//go:build freebsd
 
-package adapters
+package statext
 
 import (
 	"archive/tar"

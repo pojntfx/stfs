@@ -71,7 +71,7 @@ func Restore(
 			return err
 		}
 
-		if err := formatting.PrintCSV(formatting.GetTARHeaderAsCSV(dbhdr.Record, dbhdr.Lastknownrecord, dbhdr.Block, dbhdr.Lastknownblock, hdr)); err != nil {
+		if err := formatting.PrintCSV(converters.TARHeaderToCSV(dbhdr.Record, dbhdr.Lastknownrecord, dbhdr.Block, dbhdr.Lastknownblock, hdr)); err != nil {
 			return err
 		}
 

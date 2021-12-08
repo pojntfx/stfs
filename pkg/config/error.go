@@ -27,4 +27,6 @@ var (
 	ErrCompressionLevelUnknown                   = errors.New("unknown compression level")
 
 	ErrMissingTarHeader = errors.New("tar header is missing")
+
+	ErrDrivesUnsupported = errors.New("this system does not support tape drives")
 )

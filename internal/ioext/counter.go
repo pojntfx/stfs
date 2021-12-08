@@ -1,4 +1,4 @@
-package counters
+package ioext
 
 import "io"
 

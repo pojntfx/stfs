@@ -1,6 +1,6 @@
-//go:build !(freebsd || darwin || dragonfly || js || netbsd || openbsd || windows || (linux && mips64) || (linux && mips) || (linux && mipsle) || (linux && mips64le))
+//go:build (linux && amd64) || (linux && 386) || (linux && arm) || (linux && arm64) || (linux && ppc64) || (linux && ppc64le) || (linux && riscv64) || (linux && s390x)
 
-package adapters
+package statext
 
 import (
 	"archive/tar"

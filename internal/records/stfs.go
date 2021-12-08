@@ -1,4 +1,4 @@
-package pax
+package records
 
 import "errors"
 

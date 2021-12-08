@@ -9,7 +9,7 @@ import (
 
 	"filippo.io/age"
 	"github.com/ProtonMail/go-crypto/openpgp"
-	"github.com/pojntfx/stfs/internal/pax"
+	"github.com/pojntfx/stfs/internal/records"
 	"github.com/pojntfx/stfs/pkg/config"
 )
 
@@ -63,7 +63,7 @@ func DecryptHeader(
 		return config.ErrEmbeddedHeaderMissing
 	}
 
-	encryptedEmbeddedHeader, ok := hdr.PAXRecords[pax.STFSRecordEmbeddedHeader]
+	encryptedEmbeddedHeader, ok := hdr.PAXRecords[records.STFSRecordEmbeddedHeader]
 	if !ok {
 		return config.ErrEmbeddedHeaderMissing
 	}

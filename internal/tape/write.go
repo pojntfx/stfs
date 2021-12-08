@@ -5,8 +5,8 @@ import (
 	"bufio"
 	"os"
 
-	"github.com/pojntfx/stfs/internal/controllers"
-	"github.com/pojntfx/stfs/internal/counters"
+	"github.com/pojntfx/stfs/internal/ioext"
+	"github.com/pojntfx/stfs/internal/mtio"
 )
 
 func OpenTapeWriteOnly(drive string, recordSize int, overwrite bool) (tw *tar.Writer, isRegular bool, cleanup func(dirty *bool) error, err error) {
@@ -37,19 +37,19 @@ func OpenTapeWriteOnly(drive string, recordSize int, overwrite bool) (tw *tar.Wr
 
 		if !overwrite {
 			// Go to end of tape
-			if err := controllers.GoToEndOfTape(f); err != nil {
+			if err := mtio.GoToEndOfTape(f); err != nil {
 				return nil, false, nil, err
 			}
 		}
 	}
 
 	var bw *bufio.Writer
-	var counter *counters.CounterWriter
+	var counter *ioext.CounterWriter
 	if isRegular {
 		tw = tar.NewWriter(f)
 	} else {
-		bw = bufio.NewWriterSize(f, controllers.BlockSize*recordSize)
-		counter = &counters.CounterWriter{Writer: bw, BytesRead: 0}
+		bw = bufio.NewWriterSize(f, mtio.BlockSize*recordSize)
+		counter = &ioext.CounterWriter{Writer: bw, BytesRead: 0}
 		tw = tar.NewWriter(counter)
 	}
 
@@ -61,9 +61,9 @@ func OpenTapeWriteOnly(drive string, recordSize int, overwrite bool) (tw *tar.Wr
 			}
 
 			if !isRegular {
-				if controllers.BlockSize*recordSize-counter.BytesRead > 0 {
+				if mtio.BlockSize*recordSize-counter.BytesRead > 0 {
 					// Fill the rest of the record with zeros
-					if _, err := bw.Write(make([]byte, controllers.BlockSize*recordSize-counter.BytesRead)); err != nil {
+					if _, err := bw.Write(make([]byte, mtio.BlockSize*recordSize-counter.BytesRead)); err != nil {
 						return err
 					}
 				}

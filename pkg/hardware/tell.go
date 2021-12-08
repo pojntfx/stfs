@@ -3,7 +3,7 @@ package hardware
 import (
 	"os"
 
-	"github.com/pojntfx/stfs/internal/controllers"
+	"github.com/pojntfx/stfs/internal/mtio"
 )
 
 func Tell(
@@ -15,5 +15,5 @@ func Tell(
 	}
 	defer f.Close()
 
-	return controllers.GetCurrentRecordFromTape(f)
+	return mtio.GetCurrentRecordFromTape(f)
 }
