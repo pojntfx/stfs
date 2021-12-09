@@ -360,10 +360,10 @@ func indexHeader(
 			}
 
 		default:
-			return records.ErrUnsupportedAction
+			return config.ErrSTFSActionUnsupported
 		}
 	default:
-		return records.ErrUnsupportedVersion
+		return config.ErrSTFSVersionUnsupported
 	}
 
 	return nil

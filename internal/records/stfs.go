@@ -1,7 +1,5 @@
 package records
 
-import "errors"
-
 const (
 	STFSPrefix = "STFS."
 
@@ -24,9 +22,4 @@ const (
 	STFSRecordSignature = STFSPrefix + "Signature"
 
 	STFSRecordEmbeddedHeader = STFSPrefix + "EmbeddedHeader"
-)
-
-var (
-	ErrUnsupportedVersion = errors.New("unsupported STFS version")
-	ErrUnsupportedAction  = errors.New("unsupported STFS action")
 )

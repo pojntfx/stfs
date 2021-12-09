@@ -60,12 +60,12 @@ func DecryptHeader(
 	}
 
 	if hdr.PAXRecords == nil {
-		return config.ErrEmbeddedHeaderMissing
+		return config.ErrTarHeaderEmbeddedMissing
 	}
 
 	encryptedEmbeddedHeader, ok := hdr.PAXRecords[records.STFSRecordEmbeddedHeader]
 	if !ok {
-		return config.ErrEmbeddedHeaderMissing
+		return config.ErrTarHeaderEmbeddedMissing
 	}
 
 	embeddedHeader, err := DecryptString(encryptedEmbeddedHeader, encryptionFormat, identity)

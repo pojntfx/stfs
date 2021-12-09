@@ -116,7 +116,7 @@ func Move(
 			}
 
 			if len(hdrs) <= i-1 {
-				return config.ErrMissingTarHeader
+				return config.ErrTarHeaderMissing
 			}
 
 			*hdr = *hdrs[i-1]
