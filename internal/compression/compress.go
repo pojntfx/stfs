@@ -51,7 +51,7 @@ func Compress(
 		}
 
 		if !isRegular {
-			return nil, config.ErrCompressionFormatOnlyRegularSupport // "device or resource busy"
+			return nil, config.ErrCompressionFormatRegularOnly // "device or resource busy"
 		}
 
 		l := pgzip.DefaultCompression
@@ -131,7 +131,7 @@ func Compress(
 		return zz, nil
 	case config.CompressionFormatBrotliKey:
 		if !isRegular {
-			return nil, config.ErrCompressionFormatOnlyRegularSupport // "cannot allocate memory"
+			return nil, config.ErrCompressionFormatRegularOnly // "cannot allocate memory"
 		}
 
 		l := brotli.DefaultCompression

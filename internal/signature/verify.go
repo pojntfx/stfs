@@ -24,7 +24,7 @@ func Verify(
 	switch signatureFormat {
 	case config.SignatureFormatMinisignKey:
 		if !isRegular {
-			return nil, nil, config.ErrSignatureFormatOnlyRegularSupport
+			return nil, nil, config.ErrSignatureFormatRegularOnly
 		}
 
 		recipient, ok := recipient.(minisign.PublicKey)
@@ -99,12 +99,12 @@ func VerifyHeader(
 	}
 
 	if hdr.PAXRecords == nil {
-		return config.ErrEmbeddedHeaderMissing
+		return config.ErrTarHeaderEmbeddedMissing
 	}
 
 	embeddedHeader, ok := hdr.PAXRecords[records.STFSRecordEmbeddedHeader]
 	if !ok {
-		return config.ErrEmbeddedHeaderMissing
+		return config.ErrTarHeaderEmbeddedMissing
 	}
 
 	signature, ok := hdr.PAXRecords[records.STFSRecordSignature]
@@ -136,7 +136,7 @@ func VerifyString(
 	switch signatureFormat {
 	case config.SignatureFormatMinisignKey:
 		if !isRegular {
-			return config.ErrSignatureFormatOnlyRegularSupport
+			return config.ErrSignatureFormatRegularOnly
 		}
 
 		recipient, ok := recipient.(minisign.PublicKey)

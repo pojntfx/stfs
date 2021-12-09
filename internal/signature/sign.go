@@ -23,7 +23,7 @@ func Sign(
 	switch signatureFormat {
 	case config.SignatureFormatMinisignKey:
 		if !isRegular {
-			return nil, nil, config.ErrSignatureFormatOnlyRegularSupport
+			return nil, nil, config.ErrSignatureFormatRegularOnly
 		}
 
 		identity, ok := identity.(minisign.PrivateKey)
@@ -126,7 +126,7 @@ func SignString(
 	switch signatureFormat {
 	case config.SignatureFormatMinisignKey:
 		if !isRegular {
-			return "", config.ErrSignatureFormatOnlyRegularSupport
+			return "", config.ErrSignatureFormatRegularOnly
 		}
 
 		identity, ok := identity.(minisign.PrivateKey)

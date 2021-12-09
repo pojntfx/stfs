@@ -34,7 +34,7 @@ func Keygen(
 		privkey = priv
 		pubkey = pub
 	} else {
-		return []byte{}, []byte{}, config.ErrKeygenForFormatUnsupported
+		return []byte{}, []byte{}, config.ErrKeygenFormatUnsupported
 	}
 
 	return privkey, pubkey, nil
@@ -106,7 +106,7 @@ func generateEncryptionKey(
 
 		return priv, pub, nil
 	default:
-		return []byte{}, []byte{}, config.ErrKeygenForFormatUnsupported
+		return []byte{}, []byte{}, config.ErrKeygenFormatUnsupported
 	}
 }
 
@@ -130,6 +130,6 @@ func generateSignatureKey(
 	case config.SignatureFormatPGPKey:
 		return generateEncryptionKey(signatureFormat, password)
 	default:
-		return []byte{}, []byte{}, config.ErrKeygenForFormatUnsupported
+		return []byte{}, []byte{}, config.ErrKeygenFormatUnsupported
 	}
 }
