@@ -8,9 +8,7 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/pojntfx/stfs/internal/converters"
 	models "github.com/pojntfx/stfs/internal/db/sqlite/models/metadata"
-	"github.com/pojntfx/stfs/internal/formatting"
 	"github.com/pojntfx/stfs/internal/persisters"
 	"github.com/pojntfx/stfs/pkg/config"
 	"github.com/pojntfx/stfs/pkg/hardware"
@@ -26,6 +24,8 @@ func Restore(
 	from string,
 	to string,
 	flatten bool,
+
+	onHeader func(hdr *models.Header),
 ) error {
 	metadataPersister := persisters.NewMetadataPersister(state.Metadata)
 	if err := metadataPersister.Open(); err != nil {
@@ -59,20 +59,9 @@ func Restore(
 		headersToRestore = append(headersToRestore, dbhdrs...)
 	}
 
-	for i, dbhdr := range headersToRestore {
-		if i == 0 {
-			if err := formatting.PrintCSV(formatting.TARHeaderCSV); err != nil {
-				return err
-			}
-		}
-
-		hdr, err := converters.DBHeaderToTarHeader(dbhdr)
-		if err != nil {
-			return err
-		}
-
-		if err := formatting.PrintCSV(converters.TARHeaderToCSV(dbhdr.Record, dbhdr.Lastknownrecord, dbhdr.Block, dbhdr.Lastknownblock, hdr)); err != nil {
-			return err
+	for _, dbhdr := range headersToRestore {
+		if onHeader != nil {
+			onHeader(dbhdr)
 		}
 
 		dst := dbhdr.Name
@@ -101,7 +90,7 @@ func Restore(
 			dst,
 			false,
 
-			false,
+			nil,
 		); err != nil {
 			return err
 		}

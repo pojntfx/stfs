@@ -6,7 +6,7 @@ import (
 	"regexp"
 
 	"github.com/pojntfx/stfs/internal/converters"
-	"github.com/pojntfx/stfs/internal/formatting"
+	models "github.com/pojntfx/stfs/internal/db/sqlite/models/metadata"
 	"github.com/pojntfx/stfs/internal/persisters"
 )
 
@@ -14,6 +14,8 @@ func Find(
 	state MetadataConfig,
 
 	expression string,
+
+	onHeader func(hdr *models.Header),
 ) ([]*tar.Header, error) {
 	metadataPersister := persisters.NewMetadataPersister(state.Metadata)
 	if err := metadataPersister.Open(); err != nil {
@@ -26,24 +28,15 @@ func Find(
 	}
 
 	headers := []*tar.Header{}
-	first := true
 	for _, dbhdr := range dbHdrs {
 		if regexp.MustCompile(expression).Match([]byte(dbhdr.Name)) {
-			if first {
-				if err := formatting.PrintCSV(formatting.TARHeaderCSV); err != nil {
-					return []*tar.Header{}, err
-				}
-
-				first = false
-			}
-
 			hdr, err := converters.DBHeaderToTarHeader(dbhdr)
 			if err != nil {
 				return []*tar.Header{}, err
 			}
 
-			if err := formatting.PrintCSV(converters.TARHeaderToCSV(dbhdr.Record, dbhdr.Lastknownrecord, dbhdr.Block, dbhdr.Lastknownblock, hdr)); err != nil {
-				return []*tar.Header{}, err
+			if onHeader != nil {
+				onHeader(dbhdr)
 			}
 
 			headers = append(headers, hdr)

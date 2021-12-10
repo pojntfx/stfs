@@ -7,6 +7,7 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
+	"log"
 	"strings"
 
 	"github.com/pojntfx/stfs/internal/db/sqlite/migrations/metadata"
@@ -136,6 +137,8 @@ func (p *MetadataPersister) GetHeaderDirectChildren(ctx context.Context, name st
 
 		rootDepth = int(depth.Depth)
 	}
+
+	log.Println(rootDepth)
 
 	if err := queries.Raw(
 		fmt.Sprintf(

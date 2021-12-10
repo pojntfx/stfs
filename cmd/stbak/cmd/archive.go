@@ -7,6 +7,7 @@ import (
 
 	"github.com/pojntfx/stfs/internal/compression"
 	"github.com/pojntfx/stfs/internal/keys"
+	"github.com/pojntfx/stfs/internal/logging"
 	"github.com/pojntfx/stfs/internal/persisters"
 	"github.com/pojntfx/stfs/pkg/config"
 	"github.com/pojntfx/stfs/pkg/operations"
@@ -102,6 +103,8 @@ var archiveCmd = &cobra.Command{
 			viper.GetString(fromFlag),
 			viper.GetBool(overwriteFlag),
 			viper.GetString(compressionLevelFlag),
+
+			logging.NewLogger().PrintHeader,
 		)
 		if err != nil {
 			return nil
@@ -145,6 +148,8 @@ var archiveCmd = &cobra.Command{
 			func(hdr *tar.Header, isRegular bool) error {
 				return nil // We sign above, no need to verify
 			},
+
+			logging.NewLogger().PrintHeader,
 		)
 	},
 }

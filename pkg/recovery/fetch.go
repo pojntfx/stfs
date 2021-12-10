@@ -9,8 +9,8 @@ import (
 
 	"github.com/pojntfx/stfs/internal/compression"
 	"github.com/pojntfx/stfs/internal/converters"
+	models "github.com/pojntfx/stfs/internal/db/sqlite/models/metadata"
 	"github.com/pojntfx/stfs/internal/encryption"
-	"github.com/pojntfx/stfs/internal/formatting"
 	"github.com/pojntfx/stfs/internal/mtio"
 	"github.com/pojntfx/stfs/internal/records"
 	"github.com/pojntfx/stfs/internal/signature"
@@ -30,7 +30,7 @@ func Fetch(
 	to string,
 	preview bool,
 
-	showHeader bool,
+	onHeader func(hdr *models.Header),
 ) error {
 	f, isRegular, err := tape.OpenTapeReadOnly(state.Drive)
 	if err != nil {
@@ -74,14 +74,13 @@ func Fetch(
 		return err
 	}
 
-	if showHeader {
-		if err := formatting.PrintCSV(formatting.TARHeaderCSV); err != nil {
+	if onHeader != nil {
+		dbhdr, err := converters.TarHeaderToDBHeader(int64(record), -1, int64(block), -1, hdr)
+		if err != nil {
 			return err
 		}
 
-		if err := formatting.PrintCSV(converters.TARHeaderToCSV(int64(record), -1, int64(block), -1, hdr)); err != nil {
-			return err
-		}
+		onHeader(dbhdr)
 	}
 
 	if !preview {

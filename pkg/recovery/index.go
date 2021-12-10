@@ -13,7 +13,6 @@ import (
 
 	"github.com/pojntfx/stfs/internal/converters"
 	models "github.com/pojntfx/stfs/internal/db/sqlite/models/metadata"
-	"github.com/pojntfx/stfs/internal/formatting"
 	"github.com/pojntfx/stfs/internal/ioext"
 	"github.com/pojntfx/stfs/internal/mtio"
 	"github.com/pojntfx/stfs/internal/persisters"
@@ -41,6 +40,8 @@ func Index(
 		hdr *tar.Header,
 		isRegular bool,
 	) error,
+
+	onHeader func(hdr *models.Header),
 ) error {
 	if overwrite {
 		f, err := os.OpenFile(state.Metadata, os.O_WRONLY|os.O_CREATE, 0600)
@@ -136,7 +137,7 @@ func Index(
 				return err
 			}
 
-			if err := indexHeader(record, block, hdr, metadataPersister, pipes.Compression, pipes.Encryption); err != nil {
+			if err := indexHeader(record, block, hdr, metadataPersister, pipes.Compression, pipes.Encryption, onHeader); err != nil {
 				return err
 			}
 
@@ -220,7 +221,7 @@ func Index(
 				return err
 			}
 
-			if err := indexHeader(record, block, hdr, metadataPersister, pipes.Compression, pipes.Encryption); err != nil {
+			if err := indexHeader(record, block, hdr, metadataPersister, pipes.Compression, pipes.Encryption, onHeader); err != nil {
 				return err
 			}
 
@@ -254,13 +255,8 @@ func indexHeader(
 	metadataPersister *persisters.MetadataPersister,
 	compressionFormat string,
 	encryptionFormat string,
+	onHeader func(hdr *models.Header),
 ) error {
-	if record == 0 && block == 0 {
-		if err := formatting.PrintCSV(formatting.TARHeaderCSV); err != nil {
-			return err
-		}
-	}
-
 	uncompressedSize, ok := hdr.PAXRecords[records.STFSRecordUncompressedSize]
 	if ok {
 		size, err := strconv.Atoi(uncompressedSize)
@@ -279,8 +275,13 @@ func indexHeader(
 		hdr.Name = newName
 	}
 
-	if err := formatting.PrintCSV(converters.TARHeaderToCSV(record, -1, block, -1, hdr)); err != nil {
-		return err
+	if onHeader != nil {
+		dbhdr, err := converters.TarHeaderToDBHeader(record, -1, block, -1, hdr)
+		if err != nil {
+			return err
+		}
+
+		onHeader(dbhdr)
 	}
 
 	stfsVersion, ok := hdr.PAXRecords[records.STFSRecordVersion]

@@ -10,8 +10,8 @@ import (
 
 	"github.com/pojntfx/stfs/internal/compression"
 	"github.com/pojntfx/stfs/internal/converters"
+	models "github.com/pojntfx/stfs/internal/db/sqlite/models/metadata"
 	"github.com/pojntfx/stfs/internal/encryption"
-	"github.com/pojntfx/stfs/internal/formatting"
 	"github.com/pojntfx/stfs/internal/ioext"
 	"github.com/pojntfx/stfs/internal/mtio"
 	"github.com/pojntfx/stfs/internal/records"
@@ -31,6 +31,8 @@ func Update(
 	from string,
 	overwrite bool,
 	compressionLevel string,
+
+	onHeader func(hdr *models.Header),
 ) ([]*tar.Header, error) {
 	dirty := false
 	tw, isRegular, cleanup, err := tape.OpenTapeWriteOnly(state.Drive, recordSize, false)
@@ -40,7 +42,6 @@ func Update(
 	defer cleanup(&dirty)
 
 	headers := []*tar.Header{}
-	first := true
 	return headers, filepath.Walk(from, func(path string, info fs.FileInfo, err error) error {
 		if err != nil {
 			return err
@@ -149,19 +150,16 @@ func Update(
 			}
 		}
 
-		if first {
-			if err := formatting.PrintCSV(formatting.TARHeaderCSV); err != nil {
-				return err
-			}
-
-			first = false
-		}
-
 		if overwrite {
 			hdr.PAXRecords[records.STFSRecordReplacesContent] = records.STFSRecordReplacesContentTrue
 
-			if err := formatting.PrintCSV(converters.TARHeaderToCSV(-1, -1, -1, -1, hdr)); err != nil {
-				return err
+			if onHeader != nil {
+				dbhdr, err := converters.TarHeaderToDBHeader(-1, -1, -1, -1, hdr)
+				if err != nil {
+					return err
+				}
+
+				onHeader(dbhdr)
 			}
 
 			hdrToAppend := *hdr
@@ -234,8 +232,13 @@ func Update(
 		} else {
 			hdr.Size = 0 // Don't try to seek after the record
 
-			if err := formatting.PrintCSV(converters.TARHeaderToCSV(-1, -1, -1, -1, hdr)); err != nil {
-				return err
+			if onHeader != nil {
+				dbhdr, err := converters.TarHeaderToDBHeader(-1, -1, -1, -1, hdr)
+				if err != nil {
+					return err
+				}
+
+				onHeader(dbhdr)
 			}
 
 			hdrToAppend := *hdr

@@ -2,6 +2,7 @@ package cmd
 
 import (
 	"github.com/pojntfx/stfs/internal/keys"
+	"github.com/pojntfx/stfs/internal/logging"
 	"github.com/pojntfx/stfs/pkg/config"
 	"github.com/pojntfx/stfs/pkg/operations"
 	"github.com/spf13/cobra"
@@ -68,6 +69,8 @@ var restoreCmd = &cobra.Command{
 			viper.GetString(fromFlag),
 			viper.GetString(toFlag),
 			viper.GetBool(flattenFlag),
+
+			logging.NewLogger().PrintHeader,
 		)
 	},
 }
