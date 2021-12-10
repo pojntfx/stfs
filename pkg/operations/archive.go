@@ -2,11 +2,13 @@ package operations
 
 import (
 	"archive/tar"
+	"errors"
 	"io"
 	"io/fs"
 	"os"
 	"path/filepath"
 	"strconv"
+	"strings"
 
 	"github.com/pojntfx/stfs/internal/compression"
 	"github.com/pojntfx/stfs/internal/converters"
@@ -20,6 +22,10 @@ import (
 	"github.com/pojntfx/stfs/internal/suffix"
 	"github.com/pojntfx/stfs/internal/tape"
 	"github.com/pojntfx/stfs/pkg/config"
+)
+
+var (
+	errSocketsNotSupported = errors.New("archive/tar: sockets not supported")
 )
 
 func Archive(
@@ -107,6 +113,11 @@ func Archive(
 
 		hdr, err := tar.FileInfoHeader(info, link)
 		if err != nil {
+			// Skip sockets
+			if strings.Contains(err.Error(), errSocketsNotSupported.Error()) {
+				return nil
+			}
+
 			return err
 		}
 
@@ -220,6 +231,8 @@ func Archive(
 			return err
 		}
 
+		dirty = true
+
 		if !info.Mode().IsRegular() {
 			return nil
 		}
@@ -272,8 +285,6 @@ func Archive(
 		if err := encryptor.Close(); err != nil {
 			return err
 		}
-
-		dirty = true
 
 		return nil
 	})
