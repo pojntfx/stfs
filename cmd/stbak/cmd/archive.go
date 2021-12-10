@@ -107,7 +107,7 @@ var archiveCmd = &cobra.Command{
 			logging.NewLogger().PrintHeader,
 		)
 		if err != nil {
-			return nil
+			return err
 		}
 
 		return recovery.Index(
@@ -130,18 +130,14 @@ var archiveCmd = &cobra.Command{
 			int(lastIndexedRecord),
 			int(lastIndexedBlock),
 			viper.GetBool(overwriteFlag),
+			1, // Ignore the first header, which is the last header which we already indexed
 
 			func(hdr *tar.Header, i int) error {
-				// Ignore the first header, which is the last header which we already indexed
-				if i == 0 {
-					return nil
-				}
-
-				if len(hdrs) <= i-1 {
+				if len(hdrs) <= i {
 					return config.ErrTarHeaderMissing
 				}
 
-				*hdr = *hdrs[i-1]
+				*hdr = *hdrs[i]
 
 				return nil
 			},

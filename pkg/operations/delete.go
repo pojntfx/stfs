@@ -106,18 +106,14 @@ func Delete(
 		int(lastIndexedRecord),
 		int(lastIndexedBlock),
 		false,
+		1, // Ignore the first header, which is the last header which we already indexed
 
 		func(hdr *tar.Header, i int) error {
-			// Ignore the first header, which is the last header which we already indexed
-			if i == 0 {
-				return nil
-			}
-
-			if len(hdrs) <= i-1 {
+			if len(hdrs) <= i {
 				return config.ErrTarHeaderMissing
 			}
 
-			*hdr = *hdrs[i-1]
+			*hdr = *hdrs[i]
 
 			return nil
 		},
