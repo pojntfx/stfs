@@ -8,7 +8,6 @@ import (
 	"github.com/pojntfx/stfs/internal/converters"
 	models "github.com/pojntfx/stfs/internal/db/sqlite/models/metadata"
 	"github.com/pojntfx/stfs/internal/encryption"
-	"github.com/pojntfx/stfs/internal/formatting"
 	"github.com/pojntfx/stfs/internal/persisters"
 	"github.com/pojntfx/stfs/internal/records"
 	"github.com/pojntfx/stfs/internal/signature"
@@ -25,6 +24,8 @@ func Move(
 	recordSize int,
 	from string,
 	to string,
+
+	onHeader func(hdr *models.Header),
 ) error {
 	dirty := false
 	tw, isRegular, cleanup, err := tape.OpenTapeWriteOnly(state.Drive, recordSize, false)
@@ -60,10 +61,6 @@ func Move(
 		headersToMove = append(headersToMove, dbhdrs...)
 	}
 
-	if err := formatting.PrintCSV(formatting.TARHeaderCSV); err != nil {
-		return err
-	}
-
 	// Append move headers to the tape or tar file
 	hdrs := []*tar.Header{}
 	for _, dbhdr := range headersToMove {
@@ -92,8 +89,13 @@ func Move(
 
 		dirty = true
 
-		if err := formatting.PrintCSV(converters.TARHeaderToCSV(-1, -1, -1, -1, hdr)); err != nil {
-			return err
+		if onHeader != nil {
+			dbhdr, err := converters.TarHeaderToDBHeader(-1, -1, -1, -1, hdr)
+			if err != nil {
+				return err
+			}
+
+			onHeader(dbhdr)
 		}
 
 		hdrs = append(hdrs, hdr)
@@ -126,5 +128,7 @@ func Move(
 		func(hdr *tar.Header, isRegular bool) error {
 			return nil // We sign above, no need to verify
 		},
+
+		onHeader,
 	)
 }

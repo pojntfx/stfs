@@ -1,6 +1,7 @@
 package cmd
 
 import (
+	"github.com/pojntfx/stfs/internal/logging"
 	"github.com/pojntfx/stfs/pkg/inventory"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
@@ -21,6 +22,8 @@ var listCmd = &cobra.Command{
 			},
 
 			viper.GetString(nameFlag),
+
+			logging.NewLogger().PrintHeader,
 		); err != nil {
 			return err
 		}

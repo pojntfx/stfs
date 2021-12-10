@@ -5,6 +5,7 @@ import (
 
 	"github.com/pojntfx/stfs/internal/encryption"
 	"github.com/pojntfx/stfs/internal/keys"
+	"github.com/pojntfx/stfs/internal/logging"
 	"github.com/pojntfx/stfs/internal/signature"
 	"github.com/pojntfx/stfs/pkg/config"
 	"github.com/pojntfx/stfs/pkg/recovery"
@@ -74,6 +75,8 @@ var recoveryIndexCmd = &cobra.Command{
 			func(hdr *tar.Header, isRegular bool) error {
 				return signature.VerifyHeader(hdr, isRegular, viper.GetString(signatureFlag), recipient)
 			},
+
+			logging.NewLogger().PrintHeader,
 		)
 	},
 }

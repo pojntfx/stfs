@@ -8,8 +8,8 @@ import (
 	"math"
 
 	"github.com/pojntfx/stfs/internal/converters"
+	models "github.com/pojntfx/stfs/internal/db/sqlite/models/metadata"
 	"github.com/pojntfx/stfs/internal/encryption"
-	"github.com/pojntfx/stfs/internal/formatting"
 	"github.com/pojntfx/stfs/internal/ioext"
 	"github.com/pojntfx/stfs/internal/mtio"
 	"github.com/pojntfx/stfs/internal/signature"
@@ -26,6 +26,8 @@ func Query(
 	recordSize int,
 	record int,
 	block int,
+
+	onHeader func(hdr *models.Header),
 ) ([]*tar.Header, error) {
 	f, isRegular, err := tape.OpenTapeReadOnly(state.Drive)
 	if err != nil {
@@ -103,14 +105,13 @@ func Query(
 				return []*tar.Header{}, err
 			}
 
-			if record == 0 && block == 0 {
-				if err := formatting.PrintCSV(formatting.TARHeaderCSV); err != nil {
+			if onHeader != nil {
+				dbhdr, err := converters.TarHeaderToDBHeader(record, -1, block, -1, hdr)
+				if err != nil {
 					return []*tar.Header{}, err
 				}
-			}
 
-			if err := formatting.PrintCSV(converters.TARHeaderToCSV(record, -1, block, -1, hdr)); err != nil {
-				return []*tar.Header{}, err
+				onHeader(dbhdr)
 			}
 
 			headers = append(headers, hdr)
@@ -192,14 +193,13 @@ func Query(
 				return []*tar.Header{}, err
 			}
 
-			if record == 0 && block == 0 {
-				if err := formatting.PrintCSV(formatting.TARHeaderCSV); err != nil {
+			if onHeader != nil {
+				dbhdr, err := converters.TarHeaderToDBHeader(record, -1, block, -1, hdr)
+				if err != nil {
 					return []*tar.Header{}, err
 				}
-			}
 
-			if err := formatting.PrintCSV(converters.TARHeaderToCSV(record, -1, block, -1, hdr)); err != nil {
-				return []*tar.Header{}, err
+				onHeader(dbhdr)
 			}
 
 			headers = append(headers, hdr)

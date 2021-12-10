@@ -2,6 +2,7 @@ package cmd
 
 import (
 	"github.com/pojntfx/stfs/internal/keys"
+	"github.com/pojntfx/stfs/internal/logging"
 	"github.com/pojntfx/stfs/pkg/config"
 	"github.com/pojntfx/stfs/pkg/hardware"
 	"github.com/pojntfx/stfs/pkg/recovery"
@@ -72,7 +73,7 @@ var recoveryFetchCmd = &cobra.Command{
 			viper.GetString(toFlag),
 			viper.GetBool(previewFlag),
 
-			true,
+			logging.NewLogger().PrintHeader,
 		)
 	},
 }
