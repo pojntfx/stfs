@@ -14,13 +14,12 @@ import (
 	"github.com/pojntfx/stfs/internal/mtio"
 	"github.com/pojntfx/stfs/internal/records"
 	"github.com/pojntfx/stfs/internal/signature"
-	"github.com/pojntfx/stfs/internal/tape"
 	"github.com/pojntfx/stfs/pkg/config"
-	"github.com/pojntfx/stfs/pkg/hardware"
 )
 
 func Fetch(
-	state hardware.DriveConfig,
+	reader config.DriveReaderConfig,
+	drive config.DriveConfig,
 	pipes config.PipeConfig,
 	crypto config.CryptoConfig,
 
@@ -32,28 +31,22 @@ func Fetch(
 
 	onHeader func(hdr *models.Header),
 ) error {
-	f, isRegular, err := tape.OpenTapeReadOnly(state.Drive)
-	if err != nil {
-		return err
-	}
-	defer f.Close()
-
 	var tr *tar.Reader
-	if isRegular {
+	if reader.DriveIsRegular {
 		// Seek to record and block
-		if _, err := f.Seek(int64((recordSize*mtio.BlockSize*record)+block*mtio.BlockSize), io.SeekStart); err != nil {
+		if _, err := reader.Drive.Seek(int64((recordSize*mtio.BlockSize*record)+block*mtio.BlockSize), io.SeekStart); err != nil {
 			return err
 		}
 
-		tr = tar.NewReader(f)
+		tr = tar.NewReader(reader.Drive)
 	} else {
 		// Seek to record
-		if err := mtio.SeekToRecordOnTape(f, int32(record)); err != nil {
+		if err := mtio.SeekToRecordOnTape(drive.Drive, int32(record)); err != nil {
 			return err
 		}
 
 		// Seek to block
-		br := bufio.NewReaderSize(f, mtio.BlockSize*recordSize)
+		br := bufio.NewReaderSize(drive.Drive, mtio.BlockSize*recordSize)
 		if _, err := br.Read(make([]byte, block*mtio.BlockSize)); err != nil {
 			return err
 		}
@@ -70,7 +63,7 @@ func Fetch(
 		return err
 	}
 
-	if err := signature.VerifyHeader(hdr, isRegular, pipes.Signature, crypto.Recipient); err != nil {
+	if err := signature.VerifyHeader(hdr, drive.DriveIsRegular, pipes.Signature, crypto.Recipient); err != nil {
 		return err
 	}
 
@@ -127,7 +120,7 @@ func Fetch(
 			}
 		}
 
-		verifier, verify, err := signature.Verify(decompressor, isRegular, pipes.Signature, crypto.Recipient, sig)
+		verifier, verify, err := signature.Verify(decompressor, drive.DriveIsRegular, pipes.Signature, crypto.Recipient, sig)
 		if err != nil {
 			return err
 		}

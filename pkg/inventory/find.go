@@ -8,10 +8,11 @@ import (
 	"github.com/pojntfx/stfs/internal/converters"
 	models "github.com/pojntfx/stfs/internal/db/sqlite/models/metadata"
 	"github.com/pojntfx/stfs/internal/persisters"
+	"github.com/pojntfx/stfs/pkg/config"
 )
 
 func Find(
-	state MetadataConfig,
+	state config.MetadataConfig,
 
 	expression string,
 

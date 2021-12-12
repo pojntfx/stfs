@@ -26,7 +26,7 @@ var keygenCmd = &cobra.Command{
 				Encryption:  viper.GetString(encryptionFlag),
 				Signature:   viper.GetString(signatureFlag),
 			},
-			utility.PasswordConfig{
+			config.PasswordConfig{
 				Password: viper.GetString(passwordFlag),
 			},
 		)

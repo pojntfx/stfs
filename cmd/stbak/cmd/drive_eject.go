@@ -1,7 +1,9 @@
 package cmd
 
 import (
+	"github.com/pojntfx/stfs/pkg/config"
 	"github.com/pojntfx/stfs/pkg/hardware"
+	"github.com/pojntfx/stfs/pkg/tape"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 )
@@ -14,9 +16,18 @@ var driveEjectCmd = &cobra.Command{
 			return err
 		}
 
+		reader, readerIsRegular, err := tape.OpenTapeReadOnly(
+			viper.GetString(driveFlag),
+		)
+		if err != nil {
+			return nil
+		}
+		defer reader.Close()
+
 		return hardware.Eject(
-			hardware.DriveConfig{
-				Drive: viper.GetString(driveFlag),
+			config.DriveConfig{
+				Drive:          reader,
+				DriveIsRegular: readerIsRegular,
 			},
 		)
 	},

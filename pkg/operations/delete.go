@@ -10,13 +10,16 @@ import (
 	"github.com/pojntfx/stfs/internal/persisters"
 	"github.com/pojntfx/stfs/internal/records"
 	"github.com/pojntfx/stfs/internal/signature"
-	"github.com/pojntfx/stfs/internal/tape"
+	"github.com/pojntfx/stfs/internal/tarext"
 	"github.com/pojntfx/stfs/pkg/config"
 	"github.com/pojntfx/stfs/pkg/recovery"
 )
 
 func Delete(
-	state config.StateConfig,
+	writer config.DriveWriterConfig,
+	reader config.DriveReaderConfig,
+	drive config.DriveConfig,
+	metadata config.MetadataConfig,
 	pipes config.PipeConfig,
 	crypto config.CryptoConfig,
 
@@ -26,13 +29,13 @@ func Delete(
 	onHeader func(hdr *models.Header),
 ) error {
 	dirty := false
-	tw, isRegular, cleanup, err := tape.OpenTapeWriteOnly(state.Drive, recordSize, false)
+	tw, cleanup, err := tarext.NewTapeWriter(writer.Drive, writer.DriveIsRegular, recordSize)
 	if err != nil {
 		return err
 	}
 	defer cleanup(&dirty)
 
-	metadataPersister := persisters.NewMetadataPersister(state.Metadata)
+	metadataPersister := persisters.NewMetadataPersister(metadata.Metadata)
 	if err := metadataPersister.Open(); err != nil {
 		return err
 	}
@@ -60,7 +63,7 @@ func Delete(
 	}
 
 	// Append deletion hdrs to the tape or tar file
-	hdrs := []*tar.Header{}
+	hdrs := []tar.Header{}
 	for _, dbhdr := range headersToDelete {
 		hdr, err := converters.DBHeaderToTarHeader(dbhdr)
 		if err != nil {
@@ -71,7 +74,18 @@ func Delete(
 		hdr.PAXRecords[records.STFSRecordVersion] = records.STFSRecordVersion1
 		hdr.PAXRecords[records.STFSRecordAction] = records.STFSRecordActionDelete
 
-		if err := signature.SignHeader(hdr, isRegular, pipes.Signature, crypto.Identity); err != nil {
+		hdrs = append(hdrs, *hdr)
+
+		if onHeader != nil {
+			dbhdr, err := converters.TarHeaderToDBHeader(-1, -1, -1, -1, hdr)
+			if err != nil {
+				return err
+			}
+
+			onHeader(dbhdr)
+		}
+
+		if err := signature.SignHeader(hdr, writer.DriveIsRegular, pipes.Signature, crypto.Identity); err != nil {
 			return err
 		}
 
@@ -84,21 +98,12 @@ func Delete(
 		}
 
 		dirty = true
-
-		if onHeader != nil {
-			dbhdr, err := converters.TarHeaderToDBHeader(-1, -1, -1, -1, hdr)
-			if err != nil {
-				return err
-			}
-
-			onHeader(dbhdr)
-		}
-
-		hdrs = append(hdrs, hdr)
 	}
 
 	return recovery.Index(
-		state,
+		reader,
+		drive,
+		metadata,
 		pipes,
 		crypto,
 
@@ -113,7 +118,7 @@ func Delete(
 				return config.ErrTarHeaderMissing
 			}
 
-			*hdr = *hdrs[i]
+			*hdr = hdrs[i]
 
 			return nil
 		},

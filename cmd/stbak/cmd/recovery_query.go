@@ -4,8 +4,8 @@ import (
 	"github.com/pojntfx/stfs/internal/keys"
 	"github.com/pojntfx/stfs/internal/logging"
 	"github.com/pojntfx/stfs/pkg/config"
-	"github.com/pojntfx/stfs/pkg/hardware"
 	"github.com/pojntfx/stfs/pkg/recovery"
+	"github.com/pojntfx/stfs/pkg/tape"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 )
@@ -13,7 +13,7 @@ import (
 var recoveryQueryCmd = &cobra.Command{
 	Use:   "query",
 	Short: "Query contents of tape or tar file without the index",
-	PersistentPreRunE: func(cmd *cobra.Command, args []string) error {
+	PreRunE: func(cmd *cobra.Command, args []string) error {
 		if err := viper.BindPFlags(cmd.PersistentFlags()); err != nil {
 			return err
 		}
@@ -45,9 +45,18 @@ var recoveryQueryCmd = &cobra.Command{
 			return err
 		}
 
+		reader, readerIsRegular, err := tape.OpenTapeReadOnly(
+			viper.GetString(driveFlag),
+		)
+		if err != nil {
+			return nil
+		}
+		defer reader.Close()
+
 		if _, err := recovery.Query(
-			hardware.DriveConfig{
-				Drive: viper.GetString(driveFlag),
+			config.DriveConfig{
+				Drive:          reader,
+				DriveIsRegular: readerIsRegular,
 			},
 			config.PipeConfig{
 				Compression: viper.GetString(compressionFlag),

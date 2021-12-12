@@ -15,7 +15,7 @@ import (
 
 func Keygen(
 	pipes config.PipeConfig,
-	password PasswordConfig,
+	password config.PasswordConfig,
 ) (privkey []byte, pubkey []byte, err error) {
 	if pipes.Encryption != config.NoneKey {
 		priv, pub, err := generateEncryptionKey(pipes.Encryption, password.Password)

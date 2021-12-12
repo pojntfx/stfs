@@ -20,7 +20,7 @@ import (
 	"github.com/pojntfx/stfs/internal/signature"
 	"github.com/pojntfx/stfs/internal/statext"
 	"github.com/pojntfx/stfs/internal/suffix"
-	"github.com/pojntfx/stfs/internal/tape"
+	"github.com/pojntfx/stfs/internal/tarext"
 	"github.com/pojntfx/stfs/pkg/config"
 )
 
@@ -29,73 +29,21 @@ var (
 )
 
 func Archive(
-	state config.StateConfig,
+	writer config.DriveWriterConfig,
 	pipes config.PipeConfig,
 	crypto config.CryptoConfig,
 
 	recordSize int,
 	from string,
-	overwrite bool,
 	compressionLevel string,
 
 	onHeader func(hdr *models.Header),
 ) ([]*tar.Header, error) {
 	dirty := false
-	tw, isRegular, cleanup, err := tape.OpenTapeWriteOnly(state.Drive, recordSize, overwrite)
+	tw, cleanup, err := tarext.NewTapeWriter(writer.Drive, writer.DriveIsRegular, recordSize)
 	if err != nil {
 		return []*tar.Header{}, err
 	}
-
-	if overwrite {
-		if isRegular {
-			if err := cleanup(&dirty); err != nil { // dirty will always be false here
-				return []*tar.Header{}, err
-			}
-
-			f, err := os.OpenFile(state.Drive, os.O_WRONLY|os.O_CREATE, 0600)
-			if err != nil {
-				return []*tar.Header{}, err
-			}
-
-			// Clear the file's content
-			if err := f.Truncate(0); err != nil {
-				return []*tar.Header{}, err
-			}
-
-			if err := f.Close(); err != nil {
-				return []*tar.Header{}, err
-			}
-
-			tw, isRegular, cleanup, err = tape.OpenTapeWriteOnly(state.Drive, recordSize, overwrite)
-			if err != nil {
-				return []*tar.Header{}, err
-			}
-		} else {
-			if err := cleanup(&dirty); err != nil { // dirty will always be false here
-				return []*tar.Header{}, err
-			}
-
-			f, err := os.OpenFile(state.Drive, os.O_WRONLY, os.ModeCharDevice)
-			if err != nil {
-				return []*tar.Header{}, err
-			}
-
-			// Seek to the start of the tape
-			if err := mtio.SeekToRecordOnTape(f, 0); err != nil {
-				return []*tar.Header{}, err
-			}
-
-			if err := f.Close(); err != nil {
-				return []*tar.Header{}, err
-			}
-
-			tw, isRegular, cleanup, err = tape.OpenTapeWriteOnly(state.Drive, recordSize, overwrite)
-			if err != nil {
-				return []*tar.Header{}, err
-			}
-		}
-	}
-
 	defer cleanup(&dirty)
 
 	headers := []*tar.Header{}
@@ -143,7 +91,7 @@ func Archive(
 				encryptor,
 				pipes.Compression,
 				compressionLevel,
-				isRegular,
+				writer.DriveIsRegular,
 				recordSize,
 			)
 			if err != nil {
@@ -155,12 +103,12 @@ func Archive(
 				return err
 			}
 
-			signer, sign, err := signature.Sign(file, isRegular, pipes.Signature, crypto.Identity)
+			signer, sign, err := signature.Sign(file, writer.DriveIsRegular, pipes.Signature, crypto.Identity)
 			if err != nil {
 				return err
 			}
 
-			if isRegular {
+			if writer.DriveIsRegular {
 				if _, err := io.Copy(compressor, signer); err != nil {
 					return err
 				}
@@ -219,7 +167,7 @@ func Archive(
 		hdrToAppend := *hdr
 		headers = append(headers, &hdrToAppend)
 
-		if err := signature.SignHeader(hdr, isRegular, pipes.Signature, crypto.Identity); err != nil {
+		if err := signature.SignHeader(hdr, writer.DriveIsRegular, pipes.Signature, crypto.Identity); err != nil {
 			return err
 		}
 
@@ -247,7 +195,7 @@ func Archive(
 			encryptor,
 			pipes.Compression,
 			compressionLevel,
-			isRegular,
+			writer.DriveIsRegular,
 			recordSize,
 		)
 		if err != nil {
@@ -259,7 +207,7 @@ func Archive(
 			return err
 		}
 
-		if isRegular {
+		if writer.DriveIsRegular {
 			if _, err := io.Copy(compressor, file); err != nil {
 				return err
 			}

@@ -7,10 +7,11 @@ import (
 	"github.com/pojntfx/stfs/internal/converters"
 	models "github.com/pojntfx/stfs/internal/db/sqlite/models/metadata"
 	"github.com/pojntfx/stfs/internal/persisters"
+	"github.com/pojntfx/stfs/pkg/config"
 )
 
 func List(
-	state MetadataConfig,
+	state config.MetadataConfig,
 
 	name string,
 
