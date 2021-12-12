@@ -11,12 +11,13 @@ import (
 	models "github.com/pojntfx/stfs/internal/db/sqlite/models/metadata"
 	"github.com/pojntfx/stfs/internal/persisters"
 	"github.com/pojntfx/stfs/pkg/config"
-	"github.com/pojntfx/stfs/pkg/hardware"
 	"github.com/pojntfx/stfs/pkg/recovery"
 )
 
 func Restore(
-	state config.StateConfig,
+	reader config.DriveReaderConfig,
+	drive config.DriveConfig,
+	metadata config.MetadataConfig,
 	pipes config.PipeConfig,
 	crypto config.CryptoConfig,
 
@@ -27,7 +28,7 @@ func Restore(
 
 	onHeader func(hdr *models.Header),
 ) error {
-	metadataPersister := persisters.NewMetadataPersister(state.Metadata)
+	metadataPersister := persisters.NewMetadataPersister(metadata.Metadata)
 	if err := metadataPersister.Open(); err != nil {
 		return err
 	}
@@ -78,9 +79,8 @@ func Restore(
 		}
 
 		if err := recovery.Fetch(
-			hardware.DriveConfig{
-				Drive: state.Drive,
-			},
+			reader,
+			drive,
 			pipes,
 			crypto,
 

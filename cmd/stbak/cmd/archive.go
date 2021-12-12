@@ -12,6 +12,7 @@ import (
 	"github.com/pojntfx/stfs/pkg/config"
 	"github.com/pojntfx/stfs/pkg/operations"
 	"github.com/pojntfx/stfs/pkg/recovery"
+	"github.com/pojntfx/stfs/pkg/tape"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 )
@@ -30,7 +31,7 @@ var archiveCmd = &cobra.Command{
 	Use:     "archive",
 	Aliases: []string{"arc", "a", "c"},
 	Short:   "Archive a file or directory to tape or tar file",
-	PersistentPreRunE: func(cmd *cobra.Command, args []string) error {
+	PreRunE: func(cmd *cobra.Command, args []string) error {
 		if err := viper.BindPFlags(cmd.PersistentFlags()); err != nil {
 			return err
 		}
@@ -83,10 +84,27 @@ var archiveCmd = &cobra.Command{
 			return err
 		}
 
+		writer, writerIsRegular, err := tape.OpenTapeWriteOnly(
+			viper.GetString(driveFlag),
+			viper.GetInt(recordSizeFlag),
+			viper.GetBool(overwriteFlag),
+		)
+		if err != nil {
+			return nil
+		}
+		defer writer.Close()
+		reader, readerIsRegular, err := tape.OpenTapeReadOnly(
+			viper.GetString(driveFlag),
+		)
+		if err != nil {
+			return nil
+		}
+		defer reader.Close()
+
 		hdrs, err := operations.Archive(
-			config.StateConfig{
-				Drive:    viper.GetString(driveFlag),
-				Metadata: viper.GetString(metadataFlag),
+			config.DriveWriterConfig{
+				Drive:          writer,
+				DriveIsRegular: writerIsRegular,
 			},
 			config.PipeConfig{
 				Compression: viper.GetString(compressionFlag),
@@ -101,7 +119,6 @@ var archiveCmd = &cobra.Command{
 
 			viper.GetInt(recordSizeFlag),
 			viper.GetString(fromFlag),
-			viper.GetBool(overwriteFlag),
 			viper.GetString(compressionLevelFlag),
 
 			logging.NewLogger().PrintHeader,
@@ -110,9 +127,21 @@ var archiveCmd = &cobra.Command{
 			return err
 		}
 
+		index := 1 // Ignore the first header, which is the last header which we already indexed
+		if viper.GetBool(overwriteFlag) {
+			index = 0 // If we are starting fresh, index from start
+		}
+
 		return recovery.Index(
-			config.StateConfig{
-				Drive:    viper.GetString(driveFlag),
+			config.DriveReaderConfig{
+				Drive:          reader,
+				DriveIsRegular: readerIsRegular,
+			},
+			config.DriveConfig{
+				Drive:          reader,
+				DriveIsRegular: readerIsRegular,
+			},
+			config.MetadataConfig{
 				Metadata: viper.GetString(metadataFlag),
 			},
 			config.PipeConfig{
@@ -130,7 +159,7 @@ var archiveCmd = &cobra.Command{
 			int(lastIndexedRecord),
 			int(lastIndexedBlock),
 			viper.GetBool(overwriteFlag),
-			1, // Ignore the first header, which is the last header which we already indexed
+			index,
 
 			func(hdr *tar.Header, i int) error {
 				if len(hdrs) <= i {

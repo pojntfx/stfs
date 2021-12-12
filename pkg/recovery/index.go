@@ -18,12 +18,13 @@ import (
 	"github.com/pojntfx/stfs/internal/persisters"
 	"github.com/pojntfx/stfs/internal/records"
 	"github.com/pojntfx/stfs/internal/suffix"
-	"github.com/pojntfx/stfs/internal/tape"
 	"github.com/pojntfx/stfs/pkg/config"
 )
 
 func Index(
-	state config.StateConfig,
+	reader config.DriveReaderConfig,
+	drive config.DriveConfig,
+	metadata config.MetadataConfig,
 	pipes config.PipeConfig,
 	crypto config.CryptoConfig,
 
@@ -45,7 +46,7 @@ func Index(
 	onHeader func(hdr *models.Header),
 ) error {
 	if overwrite {
-		f, err := os.OpenFile(state.Metadata, os.O_WRONLY|os.O_CREATE, 0600)
+		f, err := os.OpenFile(metadata.Metadata, os.O_WRONLY|os.O_CREATE, 0600)
 		if err != nil {
 			return err
 		}
@@ -59,24 +60,18 @@ func Index(
 		}
 	}
 
-	metadataPersister := persisters.NewMetadataPersister(state.Metadata)
+	metadataPersister := persisters.NewMetadataPersister(metadata.Metadata)
 	if err := metadataPersister.Open(); err != nil {
 		return err
 	}
 
-	f, isRegular, err := tape.OpenTapeReadOnly(state.Drive)
-	if err != nil {
-		return err
-	}
-	defer f.Close()
-
-	if isRegular {
+	if reader.DriveIsRegular {
 		// Seek to record and block
-		if _, err := f.Seek(int64((recordSize*mtio.BlockSize*record)+block*mtio.BlockSize), 0); err != nil {
+		if _, err := reader.Drive.Seek(int64((recordSize*mtio.BlockSize*record)+block*mtio.BlockSize), 0); err != nil {
 			return err
 		}
 
-		tr := tar.NewReader(f)
+		tr := tar.NewReader(reader.Drive)
 
 		record := int64(record)
 		block := int64(block)
@@ -86,7 +81,7 @@ func Index(
 			hdr, err := tr.Next()
 			if err != nil {
 				for {
-					curr, err := f.Seek(0, io.SeekCurrent)
+					curr, err := reader.Drive.Seek(0, io.SeekCurrent)
 					if err != nil {
 						return err
 					}
@@ -104,11 +99,11 @@ func Index(
 					}
 
 					// Seek to record and block
-					if _, err := f.Seek(int64((recordSize*mtio.BlockSize*int(record))+int(block)*mtio.BlockSize), io.SeekStart); err != nil {
+					if _, err := reader.Drive.Seek(int64((recordSize*mtio.BlockSize*int(record))+int(block)*mtio.BlockSize), io.SeekStart); err != nil {
 						return err
 					}
 
-					tr = tar.NewReader(f)
+					tr = tar.NewReader(reader.Drive)
 
 					hdr, err = tr.Next()
 					if err != nil {
@@ -135,7 +130,7 @@ func Index(
 					return err
 				}
 
-				if err := verifyHeader(hdr, isRegular); err != nil {
+				if err := verifyHeader(hdr, reader.DriveIsRegular); err != nil {
 					return err
 				}
 
@@ -144,7 +139,7 @@ func Index(
 				}
 			}
 
-			curr, err := f.Seek(0, io.SeekCurrent)
+			curr, err := reader.Drive.Seek(0, io.SeekCurrent)
 			if err != nil {
 				return err
 			}
@@ -153,7 +148,7 @@ func Index(
 				return err
 			}
 
-			currAndSize, err := f.Seek(0, io.SeekCurrent)
+			currAndSize, err := reader.Drive.Seek(0, io.SeekCurrent)
 			if err != nil {
 				return err
 			}
@@ -171,12 +166,12 @@ func Index(
 		}
 	} else {
 		// Seek to record
-		if err := mtio.SeekToRecordOnTape(f, int32(record)); err != nil {
+		if err := mtio.SeekToRecordOnTape(drive.Drive, int32(record)); err != nil {
 			return err
 		}
 
 		// Seek to block
-		br := bufio.NewReaderSize(f, mtio.BlockSize*recordSize)
+		br := bufio.NewReaderSize(drive.Drive, mtio.BlockSize*recordSize)
 		if _, err := br.Read(make([]byte, block*mtio.BlockSize)); err != nil {
 			return err
 		}
@@ -193,19 +188,19 @@ func Index(
 			hdr, err := tr.Next()
 			if err != nil {
 				if err == io.EOF {
-					if err := mtio.GoToNextFileOnTape(f); err != nil {
+					if err := mtio.GoToNextFileOnTape(drive.Drive); err != nil {
 						// EOD
 
 						break
 					}
 
-					record, err = mtio.GetCurrentRecordFromTape(f)
+					record, err = mtio.GetCurrentRecordFromTape(drive.Drive)
 					if err != nil {
 						return err
 					}
 					block = 0
 
-					br = bufio.NewReaderSize(f, mtio.BlockSize*recordSize)
+					br = bufio.NewReaderSize(drive.Drive, mtio.BlockSize*recordSize)
 					curr = int64(int64(recordSize) * mtio.BlockSize * record)
 					counter = &ioext.CounterReader{Reader: br, BytesRead: int(curr)}
 					tr = tar.NewReader(counter)
@@ -221,7 +216,7 @@ func Index(
 					return err
 				}
 
-				if err := verifyHeader(hdr, isRegular); err != nil {
+				if err := verifyHeader(hdr, drive.DriveIsRegular); err != nil {
 					return err
 				}
 

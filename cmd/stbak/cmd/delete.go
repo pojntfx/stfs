@@ -5,6 +5,7 @@ import (
 	"github.com/pojntfx/stfs/internal/logging"
 	"github.com/pojntfx/stfs/pkg/config"
 	"github.com/pojntfx/stfs/pkg/operations"
+	"github.com/pojntfx/stfs/pkg/tape"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 )
@@ -17,7 +18,7 @@ var deleteCmd = &cobra.Command{
 	Use:     "delete",
 	Aliases: []string{"del", "d", "rm"},
 	Short:   "Delete a file or directory from tape or tar file",
-	PersistentPreRunE: func(cmd *cobra.Command, args []string) error {
+	PreRunE: func(cmd *cobra.Command, args []string) error {
 		if err := viper.BindPFlags(cmd.PersistentFlags()); err != nil {
 			return err
 		}
@@ -49,9 +50,37 @@ var deleteCmd = &cobra.Command{
 			return err
 		}
 
+		writer, writerIsRegular, err := tape.OpenTapeWriteOnly(
+			viper.GetString(driveFlag),
+			viper.GetInt(recordSizeFlag),
+			false,
+		)
+		if err != nil {
+			return nil
+		}
+		defer writer.Close()
+		reader, readerIsRegular, err := tape.OpenTapeReadOnly(
+			viper.GetString(driveFlag),
+		)
+		if err != nil {
+			return nil
+		}
+		defer reader.Close()
+
 		return operations.Delete(
-			config.StateConfig{
-				Drive:    viper.GetString(driveFlag),
+			config.DriveWriterConfig{
+				Drive:          writer,
+				DriveIsRegular: writerIsRegular,
+			},
+			config.DriveReaderConfig{
+				Drive:          reader,
+				DriveIsRegular: readerIsRegular,
+			},
+			config.DriveConfig{
+				Drive:          reader,
+				DriveIsRegular: readerIsRegular,
+			},
+			config.MetadataConfig{
 				Metadata: viper.GetString(metadataFlag),
 			},
 			config.PipeConfig{

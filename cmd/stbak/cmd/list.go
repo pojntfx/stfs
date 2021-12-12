@@ -2,6 +2,7 @@ package cmd
 
 import (
 	"github.com/pojntfx/stfs/internal/logging"
+	"github.com/pojntfx/stfs/pkg/config"
 	"github.com/pojntfx/stfs/pkg/inventory"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
@@ -17,7 +18,7 @@ var listCmd = &cobra.Command{
 		}
 
 		if _, err := inventory.List(
-			inventory.MetadataConfig{
+			config.MetadataConfig{
 				Metadata: viper.GetString(metadataFlag),
 			},
 

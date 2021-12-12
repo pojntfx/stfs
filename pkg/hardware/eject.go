@@ -1,19 +1,12 @@
 package hardware
 
 import (
-	"os"
-
 	"github.com/pojntfx/stfs/internal/mtio"
+	"github.com/pojntfx/stfs/pkg/config"
 )
 
 func Eject(
-	state DriveConfig,
+	state config.DriveConfig,
 ) error {
-	f, err := os.OpenFile(state.Drive, os.O_RDONLY, os.ModeCharDevice)
-	if err != nil {
-		return err
-	}
-	defer f.Close()
-
-	return mtio.EjectTape(f)
+	return mtio.EjectTape(state.Drive)
 }

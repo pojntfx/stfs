@@ -18,12 +18,12 @@ import (
 	"github.com/pojntfx/stfs/internal/signature"
 	"github.com/pojntfx/stfs/internal/statext"
 	"github.com/pojntfx/stfs/internal/suffix"
-	"github.com/pojntfx/stfs/internal/tape"
+	"github.com/pojntfx/stfs/internal/tarext"
 	"github.com/pojntfx/stfs/pkg/config"
 )
 
 func Update(
-	state config.StateConfig,
+	writer config.DriveWriterConfig,
 	pipes config.PipeConfig,
 	crypto config.CryptoConfig,
 
@@ -35,7 +35,7 @@ func Update(
 	onHeader func(hdr *models.Header),
 ) ([]*tar.Header, error) {
 	dirty := false
-	tw, isRegular, cleanup, err := tape.OpenTapeWriteOnly(state.Drive, recordSize, false)
+	tw, cleanup, err := tarext.NewTapeWriter(writer.Drive, writer.DriveIsRegular, recordSize)
 	if err != nil {
 		return []*tar.Header{}, err
 	}
@@ -86,7 +86,7 @@ func Update(
 				encryptor,
 				pipes.Compression,
 				compressionLevel,
-				isRegular,
+				writer.DriveIsRegular,
 				recordSize,
 			)
 			if err != nil {
@@ -98,12 +98,12 @@ func Update(
 				return err
 			}
 
-			signer, sign, err := signature.Sign(file, isRegular, pipes.Signature, crypto.Identity)
+			signer, sign, err := signature.Sign(file, writer.DriveIsRegular, pipes.Signature, crypto.Identity)
 			if err != nil {
 				return err
 			}
 
-			if isRegular {
+			if writer.DriveIsRegular {
 				if _, err := io.Copy(compressor, signer); err != nil {
 					return err
 				}
@@ -165,7 +165,7 @@ func Update(
 			hdrToAppend := *hdr
 			headers = append(headers, &hdrToAppend)
 
-			if err := signature.SignHeader(hdr, isRegular, pipes.Signature, crypto.Identity); err != nil {
+			if err := signature.SignHeader(hdr, writer.DriveIsRegular, pipes.Signature, crypto.Identity); err != nil {
 				return err
 			}
 
@@ -191,7 +191,7 @@ func Update(
 				encryptor,
 				pipes.Compression,
 				compressionLevel,
-				isRegular,
+				writer.DriveIsRegular,
 				recordSize,
 			)
 			if err != nil {
@@ -203,7 +203,7 @@ func Update(
 				return err
 			}
 
-			if isRegular {
+			if writer.DriveIsRegular {
 				if _, err := io.Copy(compressor, file); err != nil {
 					return err
 				}
@@ -244,7 +244,7 @@ func Update(
 			hdrToAppend := *hdr
 			headers = append(headers, &hdrToAppend)
 
-			if err := signature.SignHeader(hdr, isRegular, pipes.Signature, crypto.Identity); err != nil {
+			if err := signature.SignHeader(hdr, writer.DriveIsRegular, pipes.Signature, crypto.Identity); err != nil {
 				return err
 			}
 

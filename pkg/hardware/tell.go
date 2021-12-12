@@ -1,19 +1,12 @@
 package hardware
 
 import (
-	"os"
-
 	"github.com/pojntfx/stfs/internal/mtio"
+	"github.com/pojntfx/stfs/pkg/config"
 )
 
 func Tell(
-	state DriveConfig,
+	state config.DriveConfig,
 ) (int64, error) {
-	f, err := os.OpenFile(state.Drive, os.O_RDONLY, os.ModeCharDevice)
-	if err != nil {
-		return -1, err
-	}
-	defer f.Close()
-
-	return mtio.GetCurrentRecordFromTape(f)
+	return mtio.GetCurrentRecordFromTape(state.Drive)
 }

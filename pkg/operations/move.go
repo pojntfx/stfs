@@ -11,13 +11,16 @@ import (
 	"github.com/pojntfx/stfs/internal/persisters"
 	"github.com/pojntfx/stfs/internal/records"
 	"github.com/pojntfx/stfs/internal/signature"
-	"github.com/pojntfx/stfs/internal/tape"
+	"github.com/pojntfx/stfs/internal/tarext"
 	"github.com/pojntfx/stfs/pkg/config"
 	"github.com/pojntfx/stfs/pkg/recovery"
 )
 
 func Move(
-	state config.StateConfig,
+	writer config.DriveWriterConfig,
+	drive config.DriveConfig,
+	reader config.DriveReaderConfig,
+	metadata config.MetadataConfig,
 	pipes config.PipeConfig,
 	crypto config.CryptoConfig,
 
@@ -28,13 +31,13 @@ func Move(
 	onHeader func(hdr *models.Header),
 ) error {
 	dirty := false
-	tw, isRegular, cleanup, err := tape.OpenTapeWriteOnly(state.Drive, recordSize, false)
+	tw, cleanup, err := tarext.NewTapeWriter(writer.Drive, writer.DriveIsRegular, recordSize)
 	if err != nil {
 		return err
 	}
 	defer cleanup(&dirty)
 
-	metadataPersister := persisters.NewMetadataPersister(state.Metadata)
+	metadataPersister := persisters.NewMetadataPersister(metadata.Metadata)
 	if err := metadataPersister.Open(); err != nil {
 		return err
 	}
@@ -62,7 +65,7 @@ func Move(
 	}
 
 	// Append move headers to the tape or tar file
-	hdrs := []*tar.Header{}
+	hdrs := []tar.Header{}
 	for _, dbhdr := range headersToMove {
 		hdr, err := converters.DBHeaderToTarHeader(dbhdr)
 		if err != nil {
@@ -75,7 +78,18 @@ func Move(
 		hdr.PAXRecords[records.STFSRecordAction] = records.STFSRecordActionUpdate
 		hdr.PAXRecords[records.STFSRecordReplacesName] = dbhdr.Name
 
-		if err := signature.SignHeader(hdr, isRegular, pipes.Signature, crypto.Identity); err != nil {
+		hdrs = append(hdrs, *hdr)
+
+		if onHeader != nil {
+			dbhdr, err := converters.TarHeaderToDBHeader(-1, -1, -1, -1, hdr)
+			if err != nil {
+				return err
+			}
+
+			onHeader(dbhdr)
+		}
+
+		if err := signature.SignHeader(hdr, writer.DriveIsRegular, pipes.Signature, crypto.Identity); err != nil {
 			return err
 		}
 
@@ -88,21 +102,12 @@ func Move(
 		}
 
 		dirty = true
-
-		if onHeader != nil {
-			dbhdr, err := converters.TarHeaderToDBHeader(-1, -1, -1, -1, hdr)
-			if err != nil {
-				return err
-			}
-
-			onHeader(dbhdr)
-		}
-
-		hdrs = append(hdrs, hdr)
 	}
 
 	return recovery.Index(
-		state,
+		reader,
+		drive,
+		metadata,
 		pipes,
 		crypto,
 
@@ -117,7 +122,7 @@ func Move(
 				return config.ErrTarHeaderMissing
 			}
 
-			*hdr = *hdrs[i]
+			*hdr = hdrs[i]
 
 			return nil
 		},

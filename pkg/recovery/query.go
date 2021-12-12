@@ -13,13 +13,11 @@ import (
 	"github.com/pojntfx/stfs/internal/ioext"
 	"github.com/pojntfx/stfs/internal/mtio"
 	"github.com/pojntfx/stfs/internal/signature"
-	"github.com/pojntfx/stfs/internal/tape"
 	"github.com/pojntfx/stfs/pkg/config"
-	"github.com/pojntfx/stfs/pkg/hardware"
 )
 
 func Query(
-	state hardware.DriveConfig,
+	state config.DriveConfig,
 	pipes config.PipeConfig,
 	crypto config.CryptoConfig,
 
@@ -29,21 +27,15 @@ func Query(
 
 	onHeader func(hdr *models.Header),
 ) ([]*tar.Header, error) {
-	f, isRegular, err := tape.OpenTapeReadOnly(state.Drive)
-	if err != nil {
-		return []*tar.Header{}, err
-	}
-	defer f.Close()
-
 	headers := []*tar.Header{}
 
-	if isRegular {
+	if state.DriveIsRegular {
 		// Seek to record and block
-		if _, err := f.Seek(int64((recordSize*mtio.BlockSize*record)+block*mtio.BlockSize), 0); err != nil {
+		if _, err := state.Drive.Seek(int64((recordSize*mtio.BlockSize*record)+block*mtio.BlockSize), 0); err != nil {
 			return []*tar.Header{}, err
 		}
 
-		tr := tar.NewReader(f)
+		tr := tar.NewReader(state.Drive)
 
 		record := int64(record)
 		block := int64(block)
@@ -52,7 +44,7 @@ func Query(
 			hdr, err := tr.Next()
 			if err != nil {
 				for {
-					curr, err := f.Seek(0, io.SeekCurrent)
+					curr, err := state.Drive.Seek(0, io.SeekCurrent)
 					if err != nil {
 						return []*tar.Header{}, err
 					}
@@ -70,11 +62,11 @@ func Query(
 					}
 
 					// Seek to record and block
-					if _, err := f.Seek(int64((recordSize*mtio.BlockSize*int(record))+int(block)*mtio.BlockSize), io.SeekStart); err != nil {
+					if _, err := state.Drive.Seek(int64((recordSize*mtio.BlockSize*int(record))+int(block)*mtio.BlockSize), io.SeekStart); err != nil {
 						return []*tar.Header{}, err
 					}
 
-					tr = tar.NewReader(f)
+					tr = tar.NewReader(state.Drive)
 
 					hdr, err = tr.Next()
 					if err != nil {
@@ -101,7 +93,7 @@ func Query(
 				return []*tar.Header{}, err
 			}
 
-			if err := signature.VerifyHeader(hdr, isRegular, pipes.Signature, crypto.Recipient); err != nil {
+			if err := signature.VerifyHeader(hdr, state.DriveIsRegular, pipes.Signature, crypto.Recipient); err != nil {
 				return []*tar.Header{}, err
 			}
 
@@ -116,7 +108,7 @@ func Query(
 
 			headers = append(headers, hdr)
 
-			curr, err := f.Seek(0, io.SeekCurrent)
+			curr, err := state.Drive.Seek(0, io.SeekCurrent)
 			if err != nil {
 				return []*tar.Header{}, err
 			}
@@ -125,7 +117,7 @@ func Query(
 				return []*tar.Header{}, err
 			}
 
-			currAndSize, err := f.Seek(0, io.SeekCurrent)
+			currAndSize, err := state.Drive.Seek(0, io.SeekCurrent)
 			if err != nil {
 				return []*tar.Header{}, err
 			}
@@ -141,12 +133,12 @@ func Query(
 		}
 	} else {
 		// Seek to record
-		if err := mtio.SeekToRecordOnTape(f, int32(record)); err != nil {
+		if err := mtio.SeekToRecordOnTape(state.Drive, int32(record)); err != nil {
 			return []*tar.Header{}, err
 		}
 
 		// Seek to block
-		br := bufio.NewReaderSize(f, mtio.BlockSize*recordSize)
+		br := bufio.NewReaderSize(state.Drive, mtio.BlockSize*recordSize)
 		if _, err := br.Read(make([]byte, block*mtio.BlockSize)); err != nil {
 			return []*tar.Header{}, err
 		}
@@ -162,19 +154,19 @@ func Query(
 			hdr, err := tr.Next()
 			if err != nil {
 				if err == io.EOF {
-					if err := mtio.GoToNextFileOnTape(f); err != nil {
+					if err := mtio.GoToNextFileOnTape(state.Drive); err != nil {
 						// EOD
 
 						break
 					}
 
-					record, err = mtio.GetCurrentRecordFromTape(f)
+					record, err = mtio.GetCurrentRecordFromTape(state.Drive)
 					if err != nil {
 						return []*tar.Header{}, err
 					}
 					block = 0
 
-					br = bufio.NewReaderSize(f, mtio.BlockSize*recordSize)
+					br = bufio.NewReaderSize(state.Drive, mtio.BlockSize*recordSize)
 					curr := int64(int64(recordSize) * mtio.BlockSize * record)
 					counter := &ioext.CounterReader{Reader: br, BytesRead: int(curr)}
 					tr = tar.NewReader(counter)
@@ -189,7 +181,7 @@ func Query(
 				return []*tar.Header{}, err
 			}
 
-			if err := signature.VerifyHeader(hdr, isRegular, pipes.Signature, crypto.Recipient); err != nil {
+			if err := signature.VerifyHeader(hdr, state.DriveIsRegular, pipes.Signature, crypto.Recipient); err != nil {
 				return []*tar.Header{}, err
 			}
 
