@@ -56,14 +56,14 @@ var deleteCmd = &cobra.Command{
 			false,
 		)
 		if err != nil {
-			return nil
+			return err
 		}
 		defer writer.Close()
 		reader, readerIsRegular, err := tape.OpenTapeReadOnly(
 			viper.GetString(driveFlag),
 		)
 		if err != nil {
-			return nil
+			return err
 		}
 		defer reader.Close()
 
