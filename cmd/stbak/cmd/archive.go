@@ -1,17 +1,13 @@
 package cmd
 
 import (
-	"archive/tar"
-	"context"
 	"fmt"
 
 	"github.com/pojntfx/stfs/internal/compression"
 	"github.com/pojntfx/stfs/internal/keys"
 	"github.com/pojntfx/stfs/internal/logging"
-	"github.com/pojntfx/stfs/internal/persisters"
 	"github.com/pojntfx/stfs/pkg/config"
 	"github.com/pojntfx/stfs/pkg/operations"
-	"github.com/pojntfx/stfs/pkg/recovery"
 	"github.com/pojntfx/stfs/pkg/tape"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
@@ -47,23 +43,6 @@ var archiveCmd = &cobra.Command{
 		return keys.CheckKeyAccessible(viper.GetString(signatureFlag), viper.GetString(identityFlag))
 	},
 	RunE: func(cmd *cobra.Command, args []string) error {
-		metadataPersister := persisters.NewMetadataPersister(viper.GetString(metadataFlag))
-		if err := metadataPersister.Open(); err != nil {
-			return err
-		}
-
-		lastIndexedRecord := int64(0)
-		lastIndexedBlock := int64(0)
-		if !viper.GetBool(overwriteFlag) {
-			r, b, err := metadataPersister.GetLastIndexedRecordAndBlock(context.Background(), viper.GetInt(recordSizeFlag))
-			if err != nil {
-				return err
-			}
-
-			lastIndexedRecord = r
-			lastIndexedBlock = b
-		}
-
 		pubkey, err := keys.ReadKey(viper.GetString(encryptionFlag), viper.GetString(recipientFlag))
 		if err != nil {
 			return err
@@ -101,43 +80,16 @@ var archiveCmd = &cobra.Command{
 		}
 		defer reader.Close()
 
-		hdrs, err := operations.Archive(
+		if _, err := operations.Archive(
 			config.DriveWriterConfig{
 				Drive:          writer,
 				DriveIsRegular: writerIsRegular,
 			},
-			config.PipeConfig{
-				Compression: viper.GetString(compressionFlag),
-				Encryption:  viper.GetString(encryptionFlag),
-				Signature:   viper.GetString(signatureFlag),
-			},
-			config.CryptoConfig{
-				Recipient: recipient,
-				Identity:  identity,
-				Password:  viper.GetString(passwordFlag),
-			},
-
-			viper.GetInt(recordSizeFlag),
-			viper.GetString(fromFlag),
-			viper.GetString(compressionLevelFlag),
-
-			logging.NewLogger().PrintHeader,
-		)
-		if err != nil {
-			return err
-		}
-
-		index := 1 // Ignore the first header, which is the last header which we already indexed
-		if viper.GetBool(overwriteFlag) {
-			index = 0 // If we are starting fresh, index from start
-		}
-
-		return recovery.Index(
-			config.DriveReaderConfig{
+			config.DriveConfig{
 				Drive:          reader,
 				DriveIsRegular: readerIsRegular,
 			},
-			config.DriveConfig{
+			config.DriveReaderConfig{
 				Drive:          reader,
 				DriveIsRegular: readerIsRegular,
 			},
@@ -156,26 +108,16 @@ var archiveCmd = &cobra.Command{
 			},
 
 			viper.GetInt(recordSizeFlag),
-			int(lastIndexedRecord),
-			int(lastIndexedBlock),
+			viper.GetString(fromFlag),
+			viper.GetString(compressionLevelFlag),
 			viper.GetBool(overwriteFlag),
-			index,
-
-			func(hdr *tar.Header, i int) error {
-				if len(hdrs) <= i {
-					return config.ErrTarHeaderMissing
-				}
-
-				*hdr = *hdrs[i]
-
-				return nil
-			},
-			func(hdr *tar.Header, isRegular bool) error {
-				return nil // We sign above, no need to verify
-			},
 
 			logging.NewLogger().PrintHeader,
-		)
+		); err != nil {
+			return err
+		}
+
+		return nil
 	},
 }
 
