@@ -2,6 +2,7 @@ package operations
 
 import (
 	"archive/tar"
+	"context"
 	"errors"
 	"io"
 	"io/fs"
@@ -16,12 +17,14 @@ import (
 	"github.com/pojntfx/stfs/internal/encryption"
 	"github.com/pojntfx/stfs/internal/ioext"
 	"github.com/pojntfx/stfs/internal/mtio"
+	"github.com/pojntfx/stfs/internal/persisters"
 	"github.com/pojntfx/stfs/internal/records"
 	"github.com/pojntfx/stfs/internal/signature"
 	"github.com/pojntfx/stfs/internal/statext"
 	"github.com/pojntfx/stfs/internal/suffix"
 	"github.com/pojntfx/stfs/internal/tarext"
 	"github.com/pojntfx/stfs/pkg/config"
+	"github.com/pojntfx/stfs/pkg/recovery"
 )
 
 var (
@@ -30,12 +33,16 @@ var (
 
 func Archive(
 	writer config.DriveWriterConfig,
+	drive config.DriveConfig,
+	reader config.DriveReaderConfig,
+	metadata config.MetadataConfig,
 	pipes config.PipeConfig,
 	crypto config.CryptoConfig,
 
 	recordSize int,
 	from string,
 	compressionLevel string,
+	overwrite bool,
 
 	onHeader func(hdr *models.Header),
 ) ([]*tar.Header, error) {
@@ -46,8 +53,22 @@ func Archive(
 	}
 	defer cleanup(&dirty)
 
-	headers := []*tar.Header{}
-	return headers, filepath.Walk(from, func(path string, info fs.FileInfo, err error) error {
+	metadataPersister := persisters.NewMetadataPersister(metadata.Metadata)
+	if err := metadataPersister.Open(); err != nil {
+		return []*tar.Header{}, err
+	}
+
+	lastIndexedRecord := int64(0)
+	lastIndexedBlock := int64(0)
+	if overwrite {
+		lastIndexedRecord, lastIndexedBlock, err = metadataPersister.GetLastIndexedRecordAndBlock(context.Background(), recordSize)
+		if err != nil {
+			return []*tar.Header{}, err
+		}
+	}
+
+	hdrs := []*tar.Header{}
+	if err := filepath.Walk(from, func(path string, info fs.FileInfo, err error) error {
 		if err != nil {
 			return err
 		}
@@ -165,7 +186,7 @@ func Archive(
 		}
 
 		hdrToAppend := *hdr
-		headers = append(headers, &hdrToAppend)
+		hdrs = append(hdrs, &hdrToAppend)
 
 		if err := signature.SignHeader(hdr, writer.DriveIsRegular, pipes.Signature, crypto.Identity); err != nil {
 			return err
@@ -235,5 +256,41 @@ func Archive(
 		}
 
 		return nil
-	})
+	}); err != nil {
+		return []*tar.Header{}, err
+	}
+
+	index := 1 // Ignore the first header, which is the last header which we already indexed
+	if overwrite {
+		index = 0 // If we are starting fresh, index from start
+	}
+
+	return hdrs, recovery.Index(
+		reader,
+		drive,
+		metadata,
+		pipes,
+		crypto,
+
+		recordSize,
+		int(lastIndexedRecord),
+		int(lastIndexedBlock),
+		overwrite,
+		index,
+
+		func(hdr *tar.Header, i int) error {
+			if len(hdrs) <= i {
+				return config.ErrTarHeaderMissing
+			}
+
+			*hdr = *hdrs[i]
+
+			return nil
+		},
+		func(hdr *tar.Header, isRegular bool) error {
+			return nil // We sign above, no need to verify
+		},
+
+		onHeader,
+	)
 }
