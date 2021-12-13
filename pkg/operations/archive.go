@@ -60,7 +60,7 @@ func Archive(
 
 	lastIndexedRecord := int64(0)
 	lastIndexedBlock := int64(0)
-	if overwrite {
+	if !overwrite {
 		lastIndexedRecord, lastIndexedBlock, err = metadataPersister.GetLastIndexedRecordAndBlock(context.Background(), recordSize)
 		if err != nil {
 			return []*tar.Header{}, err
