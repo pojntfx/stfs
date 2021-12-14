@@ -43,8 +43,8 @@ func (o *Operations) Archive(
 
 	onHeader func(hdr *models.Header),
 ) ([]*tar.Header, error) {
-	o.writeLock.Lock()
-	defer o.writeLock.Unlock()
+	o.diskOperationLock.Lock()
+	defer o.diskOperationLock.Unlock()
 
 	writer, err := o.getWriter()
 	if err != nil {

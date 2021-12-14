@@ -25,10 +25,7 @@ import (
 	"github.com/pojntfx/stfs/pkg/recovery"
 )
 
-func Update(
-	writer config.DriveWriterConfig,
-	drive config.DriveConfig,
-	reader config.DriveReaderConfig,
+func (o *Operations) Update(
 	metadata config.MetadataConfig,
 	pipes config.PipeConfig,
 	crypto config.CryptoConfig,
@@ -40,12 +37,19 @@ func Update(
 
 	onHeader func(hdr *models.Header),
 ) ([]*tar.Header, error) {
+	o.diskOperationLock.Lock()
+	defer o.diskOperationLock.Unlock()
+
+	writer, err := o.getWriter()
+	if err != nil {
+		return []*tar.Header{}, err
+	}
+
 	dirty := false
 	tw, cleanup, err := tarext.NewTapeWriter(writer.Drive, writer.DriveIsRegular, recordSize)
 	if err != nil {
 		return []*tar.Header{}, err
 	}
-	defer cleanup(&dirty)
 
 	metadataPersister := persisters.NewMetadataPersister(metadata.Metadata)
 	if err := metadataPersister.Open(); err != nil {
@@ -283,6 +287,22 @@ func Update(
 	if err := cleanup(&dirty); err != nil {
 		return []*tar.Header{}, err
 	}
+
+	if err := o.closeWriter(); err != nil {
+		return []*tar.Header{}, err
+	}
+
+	reader, err := o.getReader()
+	if err != nil {
+		return []*tar.Header{}, err
+	}
+	defer o.closeReader()
+
+	drive, err := o.getDrive()
+	if err != nil {
+		return []*tar.Header{}, err
+	}
+	defer o.closeDrive()
 
 	return hdrs, recovery.Index(
 		reader,

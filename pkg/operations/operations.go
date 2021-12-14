@@ -16,7 +16,7 @@ type Operations struct {
 	getDrive   func() (config.DriveConfig, error)
 	closeDrive func() error
 
-	writeLock sync.Mutex
+	diskOperationLock sync.Mutex
 }
 
 func NewOperations(

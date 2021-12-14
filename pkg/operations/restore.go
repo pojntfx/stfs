@@ -14,9 +14,7 @@ import (
 	"github.com/pojntfx/stfs/pkg/recovery"
 )
 
-func Restore(
-	reader config.DriveReaderConfig,
-	drive config.DriveConfig,
+func (o *Operations) Restore(
 	metadata config.MetadataConfig,
 	pipes config.PipeConfig,
 	crypto config.CryptoConfig,
@@ -28,6 +26,9 @@ func Restore(
 
 	onHeader func(hdr *models.Header),
 ) error {
+	o.diskOperationLock.Lock()
+	defer o.diskOperationLock.Unlock()
+
 	metadataPersister := persisters.NewMetadataPersister(metadata.Metadata)
 	if err := metadataPersister.Open(); err != nil {
 		return err
@@ -59,6 +60,18 @@ func Restore(
 
 		headersToRestore = append(headersToRestore, dbhdrs...)
 	}
+
+	reader, err := o.getReader()
+	if err != nil {
+		return err
+	}
+	defer o.closeReader()
+
+	drive, err := o.getDrive()
+	if err != nil {
+		return err
+	}
+	defer o.closeDrive()
 
 	for _, dbhdr := range headersToRestore {
 		if onHeader != nil {

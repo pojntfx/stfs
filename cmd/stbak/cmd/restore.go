@@ -50,23 +50,24 @@ var restoreCmd = &cobra.Command{
 			return err
 		}
 
-		reader, readerIsRegular, err := tape.OpenTapeReadOnly(
+		tm := tape.NewTapeManager(
 			viper.GetString(driveFlag),
+			viper.GetInt(recordSizeFlag),
+			false,
 		)
-		if err != nil {
-			return nil
-		}
-		defer reader.Close()
 
-		return operations.Restore(
-			config.DriveReaderConfig{
-				Drive:          reader,
-				DriveIsRegular: readerIsRegular,
-			},
-			config.DriveConfig{
-				Drive:          reader,
-				DriveIsRegular: readerIsRegular,
-			},
+		ops := operations.NewOperations(
+			tm.GetWriter,
+			tm.Close,
+
+			tm.GetReader,
+			tm.Close,
+
+			tm.GetDrive,
+			tm.Close,
+		)
+
+		return ops.Restore(
 			config.MetadataConfig{
 				Metadata: viper.GetString(metadataFlag),
 			},
