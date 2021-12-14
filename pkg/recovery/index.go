@@ -8,7 +8,6 @@ import (
 	"io"
 	"io/ioutil"
 	"math"
-	"os"
 	"strconv"
 
 	"github.com/pojntfx/stfs/internal/converters"
@@ -46,23 +45,9 @@ func Index(
 	onHeader func(hdr *models.Header),
 ) error {
 	if overwrite {
-		f, err := os.OpenFile(metadata.Metadata, os.O_WRONLY|os.O_CREATE, 0600)
-		if err != nil {
+		if err := metadata.Metadata.PurgeAllHeaders(context.Background()); err != nil {
 			return err
 		}
-
-		if err := f.Truncate(0); err != nil {
-			return err
-		}
-
-		if err := f.Close(); err != nil {
-			return err
-		}
-	}
-
-	metadataPersister := persisters.NewMetadataPersister(metadata.Metadata)
-	if err := metadataPersister.Open(); err != nil {
-		return err
 	}
 
 	if reader.DriveIsRegular {
@@ -134,7 +119,7 @@ func Index(
 					return err
 				}
 
-				if err := indexHeader(record, block, hdr, metadataPersister, pipes.Compression, pipes.Encryption, onHeader); err != nil {
+				if err := indexHeader(record, block, hdr, metadata.Metadata, pipes.Compression, pipes.Encryption, onHeader); err != nil {
 					return err
 				}
 			}
@@ -220,7 +205,7 @@ func Index(
 					return err
 				}
 
-				if err := indexHeader(record, block, hdr, metadataPersister, pipes.Compression, pipes.Encryption, onHeader); err != nil {
+				if err := indexHeader(record, block, hdr, metadata.Metadata, pipes.Compression, pipes.Encryption, onHeader); err != nil {
 					return err
 				}
 			}
