@@ -35,7 +35,6 @@ func Move(
 	if err != nil {
 		return err
 	}
-	defer cleanup(&dirty)
 
 	metadataPersister := persisters.NewMetadataPersister(metadata.Metadata)
 	if err := metadataPersister.Open(); err != nil {
@@ -102,6 +101,10 @@ func Move(
 		}
 
 		dirty = true
+	}
+
+	if err := cleanup(&dirty); err != nil {
+		return err
 	}
 
 	return recovery.Index(

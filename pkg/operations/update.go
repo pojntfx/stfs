@@ -280,6 +280,10 @@ func Update(
 		return []*tar.Header{}, err
 	}
 
+	if err := cleanup(&dirty); err != nil {
+		return []*tar.Header{}, err
+	}
+
 	return hdrs, recovery.Index(
 		reader,
 		drive,
