@@ -15,7 +15,6 @@ import (
 	"github.com/pojntfx/stfs/internal/encryption"
 	"github.com/pojntfx/stfs/internal/ioext"
 	"github.com/pojntfx/stfs/internal/mtio"
-	"github.com/pojntfx/stfs/internal/persisters"
 	"github.com/pojntfx/stfs/internal/records"
 	"github.com/pojntfx/stfs/internal/signature"
 	"github.com/pojntfx/stfs/internal/statext"
@@ -26,7 +25,6 @@ import (
 )
 
 func (o *Operations) Update(
-	metadata config.MetadataConfig,
 	pipes config.PipeConfig,
 	crypto config.CryptoConfig,
 
@@ -51,12 +49,7 @@ func (o *Operations) Update(
 		return []*tar.Header{}, err
 	}
 
-	metadataPersister := persisters.NewMetadataPersister(metadata.Metadata)
-	if err := metadataPersister.Open(); err != nil {
-		return []*tar.Header{}, err
-	}
-
-	lastIndexedRecord, lastIndexedBlock, err := metadataPersister.GetLastIndexedRecordAndBlock(context.Background(), recordSize)
+	lastIndexedRecord, lastIndexedBlock, err := o.metadataPersister.GetLastIndexedRecordAndBlock(context.Background(), recordSize)
 	if err != nil {
 		return []*tar.Header{}, err
 	}
@@ -307,7 +300,9 @@ func (o *Operations) Update(
 	return hdrs, recovery.Index(
 		reader,
 		drive,
-		metadata,
+		config.MetadataConfig{
+			Metadata: o.metadataPersister,
+		},
 		pipes,
 		crypto,
 

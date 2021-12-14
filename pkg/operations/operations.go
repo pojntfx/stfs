@@ -3,6 +3,7 @@ package operations
 import (
 	"sync"
 
+	"github.com/pojntfx/stfs/internal/persisters"
 	"github.com/pojntfx/stfs/pkg/config"
 )
 
@@ -16,6 +17,8 @@ type Operations struct {
 	getDrive   func() (config.DriveConfig, error)
 	closeDrive func() error
 
+	metadataPersister *persisters.MetadataPersister
+
 	diskOperationLock sync.Mutex
 }
 
@@ -28,6 +31,8 @@ func NewOperations(
 
 	getDrive func() (config.DriveConfig, error),
 	closeDrive func() error,
+
+	metadataPersister *persisters.MetadataPersister,
 ) *Operations {
 	return &Operations{
 		getWriter:   getWriter,
@@ -38,5 +43,7 @@ func NewOperations(
 
 		getDrive:   getDrive,
 		closeDrive: closeDrive,
+
+		metadataPersister: metadataPersister,
 	}
 }

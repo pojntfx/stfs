@@ -7,7 +7,6 @@ import (
 	"github.com/pojntfx/stfs/internal/converters"
 	models "github.com/pojntfx/stfs/internal/db/sqlite/models/metadata"
 	"github.com/pojntfx/stfs/internal/encryption"
-	"github.com/pojntfx/stfs/internal/persisters"
 	"github.com/pojntfx/stfs/internal/records"
 	"github.com/pojntfx/stfs/internal/signature"
 	"github.com/pojntfx/stfs/internal/tarext"
@@ -16,7 +15,6 @@ import (
 )
 
 func (o *Operations) Delete(
-	metadata config.MetadataConfig,
 	pipes config.PipeConfig,
 	crypto config.CryptoConfig,
 
@@ -39,18 +37,13 @@ func (o *Operations) Delete(
 		return err
 	}
 
-	metadataPersister := persisters.NewMetadataPersister(metadata.Metadata)
-	if err := metadataPersister.Open(); err != nil {
-		return err
-	}
-
-	lastIndexedRecord, lastIndexedBlock, err := metadataPersister.GetLastIndexedRecordAndBlock(context.Background(), recordSize)
+	lastIndexedRecord, lastIndexedBlock, err := o.metadataPersister.GetLastIndexedRecordAndBlock(context.Background(), recordSize)
 	if err != nil {
 		return err
 	}
 
 	headersToDelete := []*models.Header{}
-	dbhdr, err := metadataPersister.GetHeader(context.Background(), name)
+	dbhdr, err := o.metadataPersister.GetHeader(context.Background(), name)
 	if err != nil {
 		return err
 	}
@@ -58,7 +51,7 @@ func (o *Operations) Delete(
 
 	// If the header refers to a directory, get it's children
 	if dbhdr.Typeflag == tar.TypeDir {
-		dbhdrs, err := metadataPersister.GetHeaderChildren(context.Background(), name)
+		dbhdrs, err := o.metadataPersister.GetHeaderChildren(context.Background(), name)
 		if err != nil {
 			return err
 		}
@@ -127,7 +120,9 @@ func (o *Operations) Delete(
 	return recovery.Index(
 		reader,
 		drive,
-		metadata,
+		config.MetadataConfig{
+			Metadata: o.metadataPersister,
+		},
 		pipes,
 		crypto,
 
