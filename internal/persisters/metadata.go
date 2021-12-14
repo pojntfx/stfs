@@ -240,3 +240,11 @@ func (p *MetadataPersister) GetLastIndexedRecordAndBlock(ctx context.Context, re
 
 	return header.Lastknownrecord, header.Lastknownblock, nil
 }
+
+func (p *MetadataPersister) PurgeAllHeaders(ctx context.Context) error {
+	if _, err := models.Headers().DeleteAll(ctx, p.db); err != nil {
+		return err
+	}
+
+	return nil
+}
