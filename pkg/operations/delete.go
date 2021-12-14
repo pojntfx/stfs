@@ -15,10 +15,7 @@ import (
 	"github.com/pojntfx/stfs/pkg/recovery"
 )
 
-func Delete(
-	writer config.DriveWriterConfig,
-	reader config.DriveReaderConfig,
-	drive config.DriveConfig,
+func (o *Operations) Delete(
 	metadata config.MetadataConfig,
 	pipes config.PipeConfig,
 	crypto config.CryptoConfig,
@@ -28,6 +25,14 @@ func Delete(
 
 	onHeader func(hdr *models.Header),
 ) error {
+	o.writeLock.Lock()
+	defer o.writeLock.Unlock()
+
+	writer, err := o.getWriter()
+	if err != nil {
+		return err
+	}
+
 	dirty := false
 	tw, cleanup, err := tarext.NewTapeWriter(writer.Drive, writer.DriveIsRegular, recordSize)
 	if err != nil {
@@ -102,6 +107,22 @@ func Delete(
 	if err := cleanup(&dirty); err != nil {
 		return err
 	}
+
+	if err := o.closeWriter(); err != nil {
+		return err
+	}
+
+	reader, err := o.getReader()
+	if err != nil {
+		return err
+	}
+	defer o.closeReader()
+
+	drive, err := o.getDrive()
+	if err != nil {
+		return err
+	}
+	defer o.closeDrive()
 
 	return recovery.Index(
 		reader,

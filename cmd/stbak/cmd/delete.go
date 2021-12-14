@@ -50,36 +50,24 @@ var deleteCmd = &cobra.Command{
 			return err
 		}
 
-		writer, writerIsRegular, err := tape.OpenTapeWriteOnly(
+		tm := tape.NewTapeManager(
 			viper.GetString(driveFlag),
 			viper.GetInt(recordSizeFlag),
-			false,
+			viper.GetBool(overwriteFlag),
 		)
-		if err != nil {
-			return err
-		}
-		defer writer.Close()
-		reader, readerIsRegular, err := tape.OpenTapeReadOnly(
-			viper.GetString(driveFlag),
-		)
-		if err != nil {
-			return err
-		}
-		defer reader.Close()
 
-		return operations.Delete(
-			config.DriveWriterConfig{
-				Drive:          writer,
-				DriveIsRegular: writerIsRegular,
-			},
-			config.DriveReaderConfig{
-				Drive:          reader,
-				DriveIsRegular: readerIsRegular,
-			},
-			config.DriveConfig{
-				Drive:          reader,
-				DriveIsRegular: readerIsRegular,
-			},
+		ops := operations.NewOperations(
+			tm.GetWriter,
+			tm.Close,
+
+			tm.GetReader,
+			tm.Close,
+
+			tm.GetDrive,
+			tm.Close,
+		)
+
+		return ops.Delete(
 			config.MetadataConfig{
 				Metadata: viper.GetString(metadataFlag),
 			},
