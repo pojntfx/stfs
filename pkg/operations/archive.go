@@ -31,10 +31,7 @@ var (
 	errSocketsNotSupported = errors.New("archive/tar: sockets not supported")
 )
 
-func Archive(
-	writer config.DriveWriterConfig,
-	drive config.DriveConfig,
-	reader config.DriveReaderConfig,
+func (o *Operations) Archive(
 	metadata config.MetadataConfig,
 	pipes config.PipeConfig,
 	crypto config.CryptoConfig,
@@ -46,12 +43,19 @@ func Archive(
 
 	onHeader func(hdr *models.Header),
 ) ([]*tar.Header, error) {
+	o.writeLock.Lock()
+	defer o.writeLock.Unlock()
+
+	writer, err := o.getWriter()
+	if err != nil {
+		return []*tar.Header{}, err
+	}
+
 	dirty := false
 	tw, cleanup, err := tarext.NewTapeWriter(writer.Drive, writer.DriveIsRegular, recordSize)
 	if err != nil {
 		return []*tar.Header{}, err
 	}
-	defer cleanup(&dirty)
 
 	metadataPersister := persisters.NewMetadataPersister(metadata.Metadata)
 	if err := metadataPersister.Open(); err != nil {
@@ -260,10 +264,30 @@ func Archive(
 		return []*tar.Header{}, err
 	}
 
+	if err := cleanup(&dirty); err != nil {
+		return []*tar.Header{}, err
+	}
+
 	index := 1 // Ignore the first header, which is the last header which we already indexed
 	if overwrite {
 		index = 0 // If we are starting fresh, index from start
 	}
+
+	if err := o.closeWriter(); err != nil {
+		return []*tar.Header{}, err
+	}
+
+	reader, err := o.getReader()
+	if err != nil {
+		return []*tar.Header{}, err
+	}
+	defer o.closeReader()
+
+	drive, err := o.getDrive()
+	if err != nil {
+		return []*tar.Header{}, err
+	}
+	defer o.closeDrive()
 
 	return hdrs, recovery.Index(
 		reader,
