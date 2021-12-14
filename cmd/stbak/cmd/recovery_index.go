@@ -6,6 +6,7 @@ import (
 	"github.com/pojntfx/stfs/internal/encryption"
 	"github.com/pojntfx/stfs/internal/keys"
 	"github.com/pojntfx/stfs/internal/logging"
+	"github.com/pojntfx/stfs/internal/persisters"
 	"github.com/pojntfx/stfs/internal/signature"
 	"github.com/pojntfx/stfs/pkg/config"
 	"github.com/pojntfx/stfs/pkg/recovery"
@@ -57,6 +58,11 @@ var recoveryIndexCmd = &cobra.Command{
 		}
 		defer reader.Close()
 
+		metadataPersister := persisters.NewMetadataPersister(viper.GetString(metadataFlag))
+		if err := metadataPersister.Open(); err != nil {
+			return err
+		}
+
 		return recovery.Index(
 			config.DriveReaderConfig{
 				Drive:          reader,
@@ -67,7 +73,7 @@ var recoveryIndexCmd = &cobra.Command{
 				DriveIsRegular: readerIsRegular,
 			},
 			config.MetadataConfig{
-				Metadata: viper.GetString(metadataFlag),
+				Metadata: metadataPersister,
 			},
 			config.PipeConfig{
 				Compression: viper.GetString(compressionFlag),

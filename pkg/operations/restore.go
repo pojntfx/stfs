@@ -9,13 +9,11 @@ import (
 	"strings"
 
 	models "github.com/pojntfx/stfs/internal/db/sqlite/models/metadata"
-	"github.com/pojntfx/stfs/internal/persisters"
 	"github.com/pojntfx/stfs/pkg/config"
 	"github.com/pojntfx/stfs/pkg/recovery"
 )
 
 func (o *Operations) Restore(
-	metadata config.MetadataConfig,
 	pipes config.PipeConfig,
 	crypto config.CryptoConfig,
 
@@ -29,19 +27,14 @@ func (o *Operations) Restore(
 	o.diskOperationLock.Lock()
 	defer o.diskOperationLock.Unlock()
 
-	metadataPersister := persisters.NewMetadataPersister(metadata.Metadata)
-	if err := metadataPersister.Open(); err != nil {
-		return err
-	}
-
 	headersToRestore := []*models.Header{}
 	src := strings.TrimSuffix(from, "/")
-	dbhdr, err := metadataPersister.GetHeader(context.Background(), src)
+	dbhdr, err := o.metadataPersister.GetHeader(context.Background(), src)
 	if err != nil {
 		if err == sql.ErrNoRows {
 			src = src + "/"
 
-			dbhdr, err = metadataPersister.GetHeader(context.Background(), src)
+			dbhdr, err = o.metadataPersister.GetHeader(context.Background(), src)
 			if err != nil {
 				return err
 			}
@@ -53,7 +46,7 @@ func (o *Operations) Restore(
 
 	// If the header refers to a directory, get it's children
 	if dbhdr.Typeflag == tar.TypeDir {
-		dbhdrs, err := metadataPersister.GetHeaderChildren(context.Background(), src)
+		dbhdrs, err := o.metadataPersister.GetHeaderChildren(context.Background(), src)
 		if err != nil {
 			return err
 		}

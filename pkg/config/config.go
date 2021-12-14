@@ -3,6 +3,8 @@ package config
 import (
 	"io"
 	"os"
+
+	"github.com/pojntfx/stfs/internal/persisters"
 )
 
 type DriveReaderConfig struct {
@@ -21,7 +23,7 @@ type DriveConfig struct {
 }
 
 type MetadataConfig struct {
-	Metadata string
+	Metadata *persisters.MetadataPersister
 }
 
 type PipeConfig struct {

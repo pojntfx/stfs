@@ -6,23 +6,17 @@ import (
 
 	"github.com/pojntfx/stfs/internal/converters"
 	models "github.com/pojntfx/stfs/internal/db/sqlite/models/metadata"
-	"github.com/pojntfx/stfs/internal/persisters"
 	"github.com/pojntfx/stfs/pkg/config"
 )
 
 func List(
-	state config.MetadataConfig,
+	metadata config.MetadataConfig,
 
 	name string,
 
 	onHeader func(hdr *models.Header),
 ) ([]*tar.Header, error) {
-	metadataPersister := persisters.NewMetadataPersister(state.Metadata)
-	if err := metadataPersister.Open(); err != nil {
-		return []*tar.Header{}, err
-	}
-
-	dbHdrs, err := metadataPersister.GetHeaderDirectChildren(context.Background(), name)
+	dbHdrs, err := metadata.Metadata.GetHeaderDirectChildren(context.Background(), name)
 	if err != nil {
 		return []*tar.Header{}, err
 	}

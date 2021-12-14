@@ -2,6 +2,7 @@ package cmd
 
 import (
 	"github.com/pojntfx/stfs/internal/logging"
+	"github.com/pojntfx/stfs/internal/persisters"
 	"github.com/pojntfx/stfs/pkg/config"
 	"github.com/pojntfx/stfs/pkg/inventory"
 	"github.com/spf13/cobra"
@@ -17,9 +18,14 @@ var listCmd = &cobra.Command{
 			return err
 		}
 
+		metadataPersister := persisters.NewMetadataPersister(viper.GetString(metadataFlag))
+		if err := metadataPersister.Open(); err != nil {
+			return err
+		}
+
 		if _, err := inventory.List(
 			config.MetadataConfig{
-				Metadata: viper.GetString(metadataFlag),
+				Metadata: metadataPersister,
 			},
 
 			viper.GetString(nameFlag),

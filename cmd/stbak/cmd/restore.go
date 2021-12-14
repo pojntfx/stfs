@@ -3,6 +3,7 @@ package cmd
 import (
 	"github.com/pojntfx/stfs/internal/keys"
 	"github.com/pojntfx/stfs/internal/logging"
+	"github.com/pojntfx/stfs/internal/persisters"
 	"github.com/pojntfx/stfs/pkg/config"
 	"github.com/pojntfx/stfs/pkg/operations"
 	"github.com/pojntfx/stfs/pkg/tape"
@@ -56,6 +57,11 @@ var restoreCmd = &cobra.Command{
 			false,
 		)
 
+		metadataPersister := persisters.NewMetadataPersister(viper.GetString(metadataFlag))
+		if err := metadataPersister.Open(); err != nil {
+			return err
+		}
+
 		ops := operations.NewOperations(
 			tm.GetWriter,
 			tm.Close,
@@ -65,12 +71,11 @@ var restoreCmd = &cobra.Command{
 
 			tm.GetDrive,
 			tm.Close,
+
+			metadataPersister,
 		)
 
 		return ops.Restore(
-			config.MetadataConfig{
-				Metadata: viper.GetString(metadataFlag),
-			},
 			config.PipeConfig{
 				Compression: viper.GetString(compressionFlag),
 				Encryption:  viper.GetString(encryptionFlag),
