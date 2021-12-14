@@ -16,10 +16,7 @@ import (
 	"github.com/pojntfx/stfs/pkg/recovery"
 )
 
-func Move(
-	writer config.DriveWriterConfig,
-	drive config.DriveConfig,
-	reader config.DriveReaderConfig,
+func (o *Operations) Move(
 	metadata config.MetadataConfig,
 	pipes config.PipeConfig,
 	crypto config.CryptoConfig,
@@ -30,6 +27,14 @@ func Move(
 
 	onHeader func(hdr *models.Header),
 ) error {
+	o.diskOperationLock.Lock()
+	defer o.diskOperationLock.Unlock()
+
+	writer, err := o.getWriter()
+	if err != nil {
+		return err
+	}
+
 	dirty := false
 	tw, cleanup, err := tarext.NewTapeWriter(writer.Drive, writer.DriveIsRegular, recordSize)
 	if err != nil {
@@ -106,6 +111,22 @@ func Move(
 	if err := cleanup(&dirty); err != nil {
 		return err
 	}
+
+	if err := o.closeWriter(); err != nil {
+		return err
+	}
+
+	reader, err := o.getReader()
+	if err != nil {
+		return err
+	}
+	defer o.closeReader()
+
+	drive, err := o.getDrive()
+	if err != nil {
+		return err
+	}
+	defer o.closeDrive()
 
 	return recovery.Index(
 		reader,

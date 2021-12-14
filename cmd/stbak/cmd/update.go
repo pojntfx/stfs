@@ -53,36 +53,24 @@ var updateCmd = &cobra.Command{
 			return err
 		}
 
-		writer, writerIsRegular, err := tape.OpenTapeWriteOnly(
+		tm := tape.NewTapeManager(
 			viper.GetString(driveFlag),
 			viper.GetInt(recordSizeFlag),
 			false,
 		)
-		if err != nil {
-			return err
-		}
-		defer writer.Close()
-		reader, readerIsRegular, err := tape.OpenTapeReadOnly(
-			viper.GetString(driveFlag),
-		)
-		if err != nil {
-			return err
-		}
-		defer reader.Close()
 
-		if _, err := operations.Update(
-			config.DriveWriterConfig{
-				Drive:          writer,
-				DriveIsRegular: writerIsRegular,
-			},
-			config.DriveConfig{
-				Drive:          reader,
-				DriveIsRegular: readerIsRegular,
-			},
-			config.DriveReaderConfig{
-				Drive:          reader,
-				DriveIsRegular: readerIsRegular,
-			},
+		ops := operations.NewOperations(
+			tm.GetWriter,
+			tm.Close,
+
+			tm.GetReader,
+			tm.Close,
+
+			tm.GetDrive,
+			tm.Close,
+		)
+
+		if _, err := ops.Update(
 			config.MetadataConfig{
 				Metadata: viper.GetString(metadataFlag),
 			},

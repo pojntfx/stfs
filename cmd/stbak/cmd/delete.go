@@ -53,7 +53,7 @@ var deleteCmd = &cobra.Command{
 		tm := tape.NewTapeManager(
 			viper.GetString(driveFlag),
 			viper.GetInt(recordSizeFlag),
-			viper.GetBool(overwriteFlag),
+			false,
 		)
 
 		ops := operations.NewOperations(
