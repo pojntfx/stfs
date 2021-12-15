@@ -6,8 +6,9 @@ import (
 )
 
 var recoveryCmd = &cobra.Command{
-	Use:   "recovery",
-	Short: "Recover tapes or tar files",
+	Use:     "recovery",
+	Aliases: []string{"rec", "r"},
+	Short:   "Recover tapes or tar files",
 }
 
 func init() {

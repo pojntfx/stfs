@@ -6,8 +6,9 @@ import (
 )
 
 var operationCmd = &cobra.Command{
-	Use:   "operation",
-	Short: "Perform operations on tape or tar file and the index",
+	Use:     "operation",
+	Aliases: []string{"ope", "o", "op"},
+	Short:   "Perform operations on tape or tar file and the index",
 }
 
 func init() {

@@ -6,8 +6,9 @@ import (
 )
 
 var inventoryCmd = &cobra.Command{
-	Use:   "inventory",
-	Short: "Get contents and metadata of tape or tar file from the index",
+	Use:     "inventory",
+	Aliases: []string{"inv", "i"},
+	Short:   "Get contents and metadata of tape or tar file from the index",
 }
 
 func init() {
