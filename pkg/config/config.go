@@ -2,6 +2,7 @@ package config
 
 import (
 	"io"
+	"io/fs"
 	"os"
 
 	"github.com/pojntfx/stfs/internal/persisters"
@@ -52,4 +53,11 @@ type CryptoConfig struct {
 
 type PasswordConfig struct {
 	Password string
+}
+
+type FileConfig struct {
+	GetFile func() (io.ReadSeekCloser, error)
+	Info    fs.FileInfo
+	Path    string
+	Link    string
 }
