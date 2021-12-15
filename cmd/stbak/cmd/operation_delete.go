@@ -15,7 +15,7 @@ const (
 	nameFlag = "name"
 )
 
-var deleteCmd = &cobra.Command{
+var operationDeleteCmd = &cobra.Command{
 	Use:     "delete",
 	Aliases: []string{"del", "d", "rm"},
 	Short:   "Delete a file or directory from tape or tar file",
@@ -97,13 +97,13 @@ var deleteCmd = &cobra.Command{
 }
 
 func init() {
-	deleteCmd.PersistentFlags().IntP(recordSizeFlag, "z", 20, "Amount of 512-bit blocks per record")
-	deleteCmd.PersistentFlags().StringP(nameFlag, "n", "", "Name of the file to remove")
-	deleteCmd.PersistentFlags().StringP(recipientFlag, "r", "", "Path to public key of recipient to encrypt for")
-	deleteCmd.PersistentFlags().StringP(identityFlag, "i", "", "Path to private key to sign with")
-	deleteCmd.PersistentFlags().StringP(passwordFlag, "p", "", "Password for the private key")
+	operationDeleteCmd.PersistentFlags().IntP(recordSizeFlag, "z", 20, "Amount of 512-bit blocks per record")
+	operationDeleteCmd.PersistentFlags().StringP(nameFlag, "n", "", "Name of the file to remove")
+	operationDeleteCmd.PersistentFlags().StringP(recipientFlag, "r", "", "Path to public key of recipient to encrypt for")
+	operationDeleteCmd.PersistentFlags().StringP(identityFlag, "i", "", "Path to private key to sign with")
+	operationDeleteCmd.PersistentFlags().StringP(passwordFlag, "p", "", "Password for the private key")
 
 	viper.AutomaticEnv()
 
-	rootCmd.AddCommand(deleteCmd)
+	operationCmd.AddCommand(operationDeleteCmd)
 }

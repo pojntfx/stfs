@@ -9,10 +9,10 @@ import (
 	"github.com/spf13/viper"
 )
 
-var listCmd = &cobra.Command{
+var inventoryListCmd = &cobra.Command{
 	Use:     "list",
 	Aliases: []string{"lis", "l", "t", "ls"},
-	Short:   "List the contents of a directory on tape or tar file ",
+	Short:   "List the contents of a directory on tape or tar file",
 	RunE: func(cmd *cobra.Command, args []string) error {
 		if err := viper.BindPFlags(cmd.PersistentFlags()); err != nil {
 			return err
@@ -40,9 +40,9 @@ var listCmd = &cobra.Command{
 }
 
 func init() {
-	listCmd.PersistentFlags().StringP(nameFlag, "n", "", "Directory to list the contents of")
+	inventoryListCmd.PersistentFlags().StringP(nameFlag, "n", "", "Directory to list the contents of")
 
 	viper.AutomaticEnv()
 
-	rootCmd.AddCommand(listCmd)
+	inventoryCmd.AddCommand(inventoryListCmd)
 }

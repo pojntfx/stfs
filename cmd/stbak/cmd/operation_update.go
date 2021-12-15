@@ -14,20 +14,10 @@ import (
 	"github.com/spf13/viper"
 )
 
-const (
-	recordSizeFlag       = "record-size"
-	fromFlag             = "from"
-	overwriteFlag        = "overwrite"
-	compressionLevelFlag = "compression-level"
-	recipientFlag        = "recipient"
-	identityFlag         = "identity"
-	passwordFlag         = "password"
-)
-
-var archiveCmd = &cobra.Command{
-	Use:     "archive",
-	Aliases: []string{"arc", "a", "c"},
-	Short:   "Archive a file or directory to tape or tar file",
+var operationUpdateCmd = &cobra.Command{
+	Use:     "update",
+	Aliases: []string{"upd", "u"},
+	Short:   "Update a file or directory's content and metadata on tape or tar file",
 	PreRunE: func(cmd *cobra.Command, args []string) error {
 		if err := viper.BindPFlags(cmd.PersistentFlags()); err != nil {
 			return err
@@ -67,7 +57,7 @@ var archiveCmd = &cobra.Command{
 		tm := tape.NewTapeManager(
 			viper.GetString(driveFlag),
 			viper.GetInt(recordSizeFlag),
-			viper.GetBool(overwriteFlag),
+			false,
 		)
 
 		metadataPersister := persisters.NewMetadataPersister(viper.GetString(metadataFlag))
@@ -105,7 +95,7 @@ var archiveCmd = &cobra.Command{
 			logging.NewLogger().PrintHeaderEvent,
 		)
 
-		if _, err := ops.Archive(
+		if _, err := ops.Update(
 			viper.GetString(fromFlag),
 			viper.GetString(compressionLevelFlag),
 			viper.GetBool(overwriteFlag),
@@ -118,15 +108,15 @@ var archiveCmd = &cobra.Command{
 }
 
 func init() {
-	archiveCmd.PersistentFlags().IntP(recordSizeFlag, "z", 20, "Amount of 512-bit blocks per record")
-	archiveCmd.PersistentFlags().StringP(fromFlag, "f", ".", "File or directory to archive")
-	archiveCmd.PersistentFlags().BoolP(overwriteFlag, "o", false, "Start writing from the start instead of from the end of the tape or tar file")
-	archiveCmd.PersistentFlags().StringP(compressionLevelFlag, "l", config.CompressionLevelBalanced, fmt.Sprintf("Compression level to use (default %v, available are %v)", config.CompressionLevelBalanced, config.KnownCompressionLevels))
-	archiveCmd.PersistentFlags().StringP(recipientFlag, "r", "", "Path to public key of recipient to encrypt for")
-	archiveCmd.PersistentFlags().StringP(identityFlag, "i", "", "Path to private key to sign with")
-	archiveCmd.PersistentFlags().StringP(passwordFlag, "p", "", "Password for the private key")
+	operationUpdateCmd.PersistentFlags().IntP(recordSizeFlag, "z", 20, "Amount of 512-bit blocks per record")
+	operationUpdateCmd.PersistentFlags().StringP(fromFlag, "f", "", "Path of the file or directory to update")
+	operationUpdateCmd.PersistentFlags().BoolP(overwriteFlag, "o", false, "Replace the content on the tape or tar file")
+	operationUpdateCmd.PersistentFlags().StringP(compressionLevelFlag, "l", config.CompressionLevelBalanced, fmt.Sprintf("Compression level to use (default %v, available are %v)", config.CompressionLevelBalanced, config.KnownCompressionLevels))
+	operationUpdateCmd.PersistentFlags().StringP(recipientFlag, "r", "", "Path to public key of recipient to encrypt for")
+	operationUpdateCmd.PersistentFlags().StringP(identityFlag, "i", "", "Path to private key to sign with")
+	operationUpdateCmd.PersistentFlags().StringP(passwordFlag, "p", "", "Password for the private key")
 
 	viper.AutomaticEnv()
 
-	rootCmd.AddCommand(archiveCmd)
+	operationCmd.AddCommand(operationUpdateCmd)
 }
