@@ -4,7 +4,6 @@ import (
 	"io"
 	"os"
 	"sync"
-	"syscall"
 
 	"github.com/pojntfx/stfs/pkg/config"
 )
@@ -21,6 +20,8 @@ type TapeManager struct {
 	readerIsRegular bool
 
 	closer func() error
+
+	overwrote bool
 }
 
 func NewTapeManager(
@@ -38,10 +39,16 @@ func NewTapeManager(
 func (m *TapeManager) GetWriter() (config.DriveWriterConfig, error) {
 	m.driveLock.Lock()
 
+	overwrite := m.overwrite
+	if m.overwrote {
+		overwrite = false
+	}
+	m.overwrote = true
+
 	writer, writerIsRegular, err := OpenTapeWriteOnly(
 		m.drive,
 		m.recordSize,
-		m.overwrite,
+		overwrite,
 	)
 	if err != nil {
 		return config.DriveWriterConfig{}, err
@@ -94,7 +101,7 @@ func (m *TapeManager) openOrReuseReader() error {
 	reopen := false
 	if m.reader == nil {
 		reopen = true
-	} else if _, err := m.reader.Seek(0, io.SeekCurrent); err == syscall.EBADF {
+	} else if _, err := m.reader.Seek(0, io.SeekCurrent); err != nil {
 		// File is closed
 		reopen = true
 	}
