@@ -11,6 +11,7 @@ import (
 
 	"github.com/pojntfx/stfs/internal/compression"
 	"github.com/pojntfx/stfs/internal/converters"
+	models "github.com/pojntfx/stfs/internal/db/sqlite/models/metadata"
 	"github.com/pojntfx/stfs/internal/encryption"
 	"github.com/pojntfx/stfs/internal/ioext"
 	"github.com/pojntfx/stfs/internal/mtio"
@@ -165,7 +166,11 @@ func (o *Operations) Update(
 					return err
 				}
 
-				o.onHeader(dbhdr)
+				o.onHeader(&config.HeaderEvent{
+					Type:    config.HeaderEventTypeUpdate,
+					Indexed: false,
+					Header:  dbhdr,
+				})
 			}
 
 			hdrToAppend := *hdr
@@ -244,7 +249,11 @@ func (o *Operations) Update(
 					return err
 				}
 
-				o.onHeader(dbhdr)
+				o.onHeader(&config.HeaderEvent{
+					Type:    config.HeaderEventTypeUpdate,
+					Indexed: false,
+					Header:  dbhdr,
+				})
 			}
 
 			hdrToAppend := *hdr
@@ -316,6 +325,12 @@ func (o *Operations) Update(
 			return nil // We sign above, no need to verify
 		},
 
-		o.onHeader,
+		func(hdr *models.Header) {
+			o.onHeader(&config.HeaderEvent{
+				Type:    config.HeaderEventTypeUpdate,
+				Indexed: true,
+				Header:  hdr,
+			})
+		},
 	)
 }

@@ -85,7 +85,7 @@ var moveCmd = &cobra.Command{
 				Password:  viper.GetString(passwordFlag),
 			},
 
-			logging.NewLogger().PrintHeader,
+			logging.NewLogger().PrintHeaderEvent,
 		)
 
 		return ops.Move(viper.GetString(fromFlag), viper.GetString(toFlag))

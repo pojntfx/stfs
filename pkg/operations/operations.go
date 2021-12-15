@@ -3,7 +3,6 @@ package operations
 import (
 	"sync"
 
-	models "github.com/pojntfx/stfs/internal/db/sqlite/models/metadata"
 	"github.com/pojntfx/stfs/pkg/config"
 )
 
@@ -14,7 +13,7 @@ type Operations struct {
 	pipes  config.PipeConfig
 	crypto config.CryptoConfig
 
-	onHeader func(hdr *models.Header)
+	onHeader func(event *config.HeaderEvent)
 
 	diskOperationLock sync.Mutex
 }
@@ -26,7 +25,7 @@ func NewOperations(
 	pipes config.PipeConfig,
 	crypto config.CryptoConfig,
 
-	onHeader func(hdr *models.Header),
+	onHeader func(event *config.HeaderEvent),
 ) *Operations {
 	return &Operations{
 		backend:  backend,

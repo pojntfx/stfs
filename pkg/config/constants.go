@@ -20,6 +20,12 @@ const (
 	CompressionLevelFastest  = "fastest"
 	CompressionLevelBalanced = "balanced"
 	CompressionLevelSmallest = "smallest"
+
+	HeaderEventTypeArchive = 0
+	HeaderEventTypeDelete  = 1
+	HeaderEventTypeMove    = 2
+	HeaderEventTypeRestore = 3
+	HeaderEventTypeUpdate  = 4
 )
 
 var (
