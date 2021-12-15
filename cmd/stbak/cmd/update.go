@@ -92,7 +92,7 @@ var updateCmd = &cobra.Command{
 				Password:  viper.GetString(passwordFlag),
 			},
 
-			logging.NewLogger().PrintHeader,
+			logging.NewLogger().PrintHeaderEvent,
 		)
 
 		if _, err := ops.Update(

@@ -9,6 +9,7 @@ import (
 	"strings"
 
 	models "github.com/pojntfx/stfs/internal/db/sqlite/models/metadata"
+	"github.com/pojntfx/stfs/pkg/config"
 	"github.com/pojntfx/stfs/pkg/recovery"
 )
 
@@ -57,7 +58,11 @@ func (o *Operations) Restore(from string, to string, flatten bool) error {
 
 	for _, dbhdr := range headersToRestore {
 		if o.onHeader != nil {
-			o.onHeader(dbhdr)
+			o.onHeader(&config.HeaderEvent{
+				Type:    config.HeaderEventTypeRestore,
+				Indexed: true,
+				Header:  dbhdr,
+			})
 		}
 
 		dst := dbhdr.Name

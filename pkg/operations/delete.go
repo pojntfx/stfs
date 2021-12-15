@@ -71,7 +71,11 @@ func (o *Operations) Delete(name string) error {
 				return err
 			}
 
-			o.onHeader(dbhdr)
+			o.onHeader(&config.HeaderEvent{
+				Type:    config.HeaderEventTypeDelete,
+				Indexed: false,
+				Header:  dbhdr,
+			})
 		}
 
 		if err := signature.SignHeader(hdr, writer.DriveIsRegular, o.pipes.Signature, o.crypto.Identity); err != nil {
@@ -135,6 +139,12 @@ func (o *Operations) Delete(name string) error {
 			return nil // We sign above, no need to verify
 		},
 
-		o.onHeader,
+		func(hdr *models.Header) {
+			o.onHeader(&config.HeaderEvent{
+				Type:    config.HeaderEventTypeDelete,
+				Indexed: true,
+				Header:  hdr,
+			})
+		},
 	)
 }
