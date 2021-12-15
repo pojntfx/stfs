@@ -17,7 +17,6 @@ import (
 	"github.com/pojntfx/stfs/internal/mtio"
 	"github.com/pojntfx/stfs/internal/records"
 	"github.com/pojntfx/stfs/internal/signature"
-	"github.com/pojntfx/stfs/internal/statext"
 	"github.com/pojntfx/stfs/internal/suffix"
 	"github.com/pojntfx/stfs/internal/tarext"
 	"github.com/pojntfx/stfs/pkg/config"
@@ -63,10 +62,6 @@ func (o *Operations) Update(
 
 		hdr, err := tar.FileInfoHeader(info, link)
 		if err != nil {
-			return err
-		}
-
-		if err := statext.EnhanceHeader(path, hdr); err != nil {
 			return err
 		}
 
