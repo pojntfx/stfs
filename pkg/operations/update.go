@@ -31,18 +31,18 @@ func (o *Operations) Update(
 	o.diskOperationLock.Lock()
 	defer o.diskOperationLock.Unlock()
 
-	writer, err := o.getWriter()
+	writer, err := o.backend.GetWriter()
 	if err != nil {
 		return []*tar.Header{}, err
 	}
 
 	dirty := false
-	tw, cleanup, err := tarext.NewTapeWriter(writer.Drive, writer.DriveIsRegular, o.recordSize)
+	tw, cleanup, err := tarext.NewTapeWriter(writer.Drive, writer.DriveIsRegular, o.pipes.RecordSize)
 	if err != nil {
 		return []*tar.Header{}, err
 	}
 
-	lastIndexedRecord, lastIndexedBlock, err := o.metadataPersister.GetLastIndexedRecordAndBlock(context.Background(), o.recordSize)
+	lastIndexedRecord, lastIndexedBlock, err := o.metadata.Metadata.GetLastIndexedRecordAndBlock(context.Background(), o.pipes.RecordSize)
 	if err != nil {
 		return []*tar.Header{}, err
 	}
@@ -93,7 +93,7 @@ func (o *Operations) Update(
 				o.pipes.Compression,
 				compressionLevel,
 				writer.DriveIsRegular,
-				o.recordSize,
+				o.pipes.RecordSize,
 			)
 			if err != nil {
 				return err
@@ -114,7 +114,7 @@ func (o *Operations) Update(
 					return err
 				}
 			} else {
-				buf := make([]byte, mtio.BlockSize*o.recordSize)
+				buf := make([]byte, mtio.BlockSize*o.pipes.RecordSize)
 				if _, err := io.CopyBuffer(compressor, signer, buf); err != nil {
 					return err
 				}
@@ -198,7 +198,7 @@ func (o *Operations) Update(
 				o.pipes.Compression,
 				compressionLevel,
 				writer.DriveIsRegular,
-				o.recordSize,
+				o.pipes.RecordSize,
 			)
 			if err != nil {
 				return err
@@ -214,7 +214,7 @@ func (o *Operations) Update(
 					return err
 				}
 			} else {
-				buf := make([]byte, mtio.BlockSize*o.recordSize)
+				buf := make([]byte, mtio.BlockSize*o.pipes.RecordSize)
 				if _, err := io.CopyBuffer(compressor, file, buf); err != nil {
 					return err
 				}
@@ -274,32 +274,30 @@ func (o *Operations) Update(
 		return []*tar.Header{}, err
 	}
 
-	if err := o.closeWriter(); err != nil {
+	if err := o.backend.CloseWriter(); err != nil {
 		return []*tar.Header{}, err
 	}
 
-	reader, err := o.getReader()
+	reader, err := o.backend.GetReader()
 	if err != nil {
 		return []*tar.Header{}, err
 	}
-	defer o.closeReader()
+	defer o.backend.CloseReader()
 
-	drive, err := o.getDrive()
+	drive, err := o.backend.GetDrive()
 	if err != nil {
 		return []*tar.Header{}, err
 	}
-	defer o.closeDrive()
+	defer o.backend.CloseDrive()
 
 	return hdrs, recovery.Index(
 		reader,
 		drive,
-		config.MetadataConfig{
-			Metadata: o.metadataPersister,
-		},
+		o.metadata,
 		o.pipes,
 		o.crypto,
 
-		o.recordSize,
+		o.pipes.RecordSize,
 		int(lastIndexedRecord),
 		int(lastIndexedBlock),
 		false,

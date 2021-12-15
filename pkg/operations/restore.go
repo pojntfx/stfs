@@ -18,12 +18,12 @@ func (o *Operations) Restore(from string, to string, flatten bool) error {
 
 	headersToRestore := []*models.Header{}
 	src := strings.TrimSuffix(from, "/")
-	dbhdr, err := o.metadataPersister.GetHeader(context.Background(), src)
+	dbhdr, err := o.metadata.Metadata.GetHeader(context.Background(), src)
 	if err != nil {
 		if err == sql.ErrNoRows {
 			src = src + "/"
 
-			dbhdr, err = o.metadataPersister.GetHeader(context.Background(), src)
+			dbhdr, err = o.metadata.Metadata.GetHeader(context.Background(), src)
 			if err != nil {
 				return err
 			}
@@ -35,7 +35,7 @@ func (o *Operations) Restore(from string, to string, flatten bool) error {
 
 	// If the header refers to a directory, get it's children
 	if dbhdr.Typeflag == tar.TypeDir {
-		dbhdrs, err := o.metadataPersister.GetHeaderChildren(context.Background(), src)
+		dbhdrs, err := o.metadata.Metadata.GetHeaderChildren(context.Background(), src)
 		if err != nil {
 			return err
 		}
@@ -43,17 +43,17 @@ func (o *Operations) Restore(from string, to string, flatten bool) error {
 		headersToRestore = append(headersToRestore, dbhdrs...)
 	}
 
-	reader, err := o.getReader()
+	reader, err := o.backend.GetReader()
 	if err != nil {
 		return err
 	}
-	defer o.closeReader()
+	defer o.backend.CloseReader()
 
-	drive, err := o.getDrive()
+	drive, err := o.backend.GetDrive()
 	if err != nil {
 		return err
 	}
-	defer o.closeDrive()
+	defer o.backend.CloseDrive()
 
 	for _, dbhdr := range headersToRestore {
 		if o.onHeader != nil {
@@ -79,7 +79,7 @@ func (o *Operations) Restore(from string, to string, flatten bool) error {
 			o.pipes,
 			o.crypto,
 
-			o.recordSize,
+			o.pipes.RecordSize,
 			int(dbhdr.Record),
 			int(dbhdr.Block),
 			dst,
