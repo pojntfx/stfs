@@ -19,24 +19,24 @@ func (o *Operations) Move(from string, to string) error {
 	o.diskOperationLock.Lock()
 	defer o.diskOperationLock.Unlock()
 
-	writer, err := o.getWriter()
+	writer, err := o.backend.GetWriter()
 	if err != nil {
 		return err
 	}
 
 	dirty := false
-	tw, cleanup, err := tarext.NewTapeWriter(writer.Drive, writer.DriveIsRegular, o.recordSize)
+	tw, cleanup, err := tarext.NewTapeWriter(writer.Drive, writer.DriveIsRegular, o.pipes.RecordSize)
 	if err != nil {
 		return err
 	}
 
-	lastIndexedRecord, lastIndexedBlock, err := o.metadataPersister.GetLastIndexedRecordAndBlock(context.Background(), o.recordSize)
+	lastIndexedRecord, lastIndexedBlock, err := o.metadata.Metadata.GetLastIndexedRecordAndBlock(context.Background(), o.pipes.RecordSize)
 	if err != nil {
 		return err
 	}
 
 	headersToMove := []*models.Header{}
-	dbhdr, err := o.metadataPersister.GetHeader(context.Background(), from)
+	dbhdr, err := o.metadata.Metadata.GetHeader(context.Background(), from)
 	if err != nil {
 		return err
 	}
@@ -44,7 +44,7 @@ func (o *Operations) Move(from string, to string) error {
 
 	// If the header refers to a directory, get it's children
 	if dbhdr.Typeflag == tar.TypeDir {
-		dbhdrs, err := o.metadataPersister.GetHeaderChildren(context.Background(), from)
+		dbhdrs, err := o.metadata.Metadata.GetHeaderChildren(context.Background(), from)
 		if err != nil {
 			return err
 		}
@@ -96,32 +96,30 @@ func (o *Operations) Move(from string, to string) error {
 		return err
 	}
 
-	if err := o.closeWriter(); err != nil {
+	if err := o.backend.CloseWriter(); err != nil {
 		return err
 	}
 
-	reader, err := o.getReader()
+	reader, err := o.backend.GetReader()
 	if err != nil {
 		return err
 	}
-	defer o.closeReader()
+	defer o.backend.CloseReader()
 
-	drive, err := o.getDrive()
+	drive, err := o.backend.GetDrive()
 	if err != nil {
 		return err
 	}
-	defer o.closeDrive()
+	defer o.backend.CloseDrive()
 
 	return recovery.Index(
 		reader,
 		drive,
-		config.MetadataConfig{
-			Metadata: o.metadataPersister,
-		},
+		o.metadata,
 		o.pipes,
 		o.crypto,
 
-		o.recordSize,
+		o.pipes.RecordSize,
 		int(lastIndexedRecord),
 		int(lastIndexedBlock),
 		false,

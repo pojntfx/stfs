@@ -66,29 +66,31 @@ var updateCmd = &cobra.Command{
 		}
 
 		ops := operations.NewOperations(
-			tm.GetWriter,
-			tm.Close,
+			config.BackendConfig{
+				GetWriter:   tm.GetWriter,
+				CloseWriter: tm.Close,
 
-			tm.GetReader,
-			tm.Close,
+				GetReader:   tm.GetReader,
+				CloseReader: tm.Close,
 
-			tm.GetDrive,
-			tm.Close,
-
-			metadataPersister,
+				GetDrive:   tm.GetDrive,
+				CloseDrive: tm.Close,
+			},
+			config.MetadataConfig{
+				Metadata: metadataPersister,
+			},
 
 			config.PipeConfig{
 				Compression: viper.GetString(compressionFlag),
 				Encryption:  viper.GetString(encryptionFlag),
 				Signature:   viper.GetString(signatureFlag),
+				RecordSize:  viper.GetInt(recordSizeFlag),
 			},
 			config.CryptoConfig{
 				Recipient: recipient,
 				Identity:  identity,
 				Password:  viper.GetString(passwordFlag),
 			},
-
-			viper.GetInt(recordSizeFlag),
 
 			logging.NewLogger().PrintHeader,
 		)
