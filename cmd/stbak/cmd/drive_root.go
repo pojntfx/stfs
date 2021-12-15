@@ -6,8 +6,9 @@ import (
 )
 
 var driveCmd = &cobra.Command{
-	Use:   "drive",
-	Short: "Manage tape drives",
+	Use:     "drive",
+	Aliases: []string{"dri", "d"},
+	Short:   "Manage tape drives",
 }
 
 func init() {

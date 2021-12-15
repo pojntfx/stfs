@@ -24,21 +24,7 @@ func headerToCSV(hdr *models.Header) []string {
 }
 
 func headerEventToCSV(event *config.HeaderEvent) []string {
-	headerType := "unknown"
-	switch event.Type {
-	case config.HeaderEventTypeArchive:
-		headerType = "archive"
-	case config.HeaderEventTypeDelete:
-		headerType = "delete"
-	case config.HeaderEventTypeMove:
-		headerType = "move"
-	case config.HeaderEventTypeRestore:
-		headerType = "restore"
-	case config.HeaderEventTypeUpdate:
-		headerType = "update"
-	}
-
-	return append([]string{headerType, fmt.Sprintf("%v", event.Indexed)}, headerToCSV(event.Header)...)
+	return append([]string{event.Type, fmt.Sprintf("%v", event.Indexed)}, headerToCSV(event.Header)...)
 }
 
 type Logger struct {
