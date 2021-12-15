@@ -15,7 +15,7 @@ const (
 	flattenFlag = "flatten"
 )
 
-var restoreCmd = &cobra.Command{
+var operationRestoreCmd = &cobra.Command{
 	Use:     "restore",
 	Aliases: []string{"res", "r", "x"},
 	Short:   "Restore a file or directory from tape or tar file",
@@ -101,15 +101,15 @@ var restoreCmd = &cobra.Command{
 }
 
 func init() {
-	restoreCmd.PersistentFlags().IntP(recordSizeFlag, "z", 20, "Amount of 512-bit blocks per record")
-	restoreCmd.PersistentFlags().StringP(fromFlag, "f", "", "File or directory to restore")
-	restoreCmd.PersistentFlags().StringP(toFlag, "t", "", "File or directory restore to (archived name by default)")
-	restoreCmd.PersistentFlags().BoolP(flattenFlag, "a", false, "Ignore the folder hierarchy on the tape or tar file")
-	restoreCmd.PersistentFlags().StringP(identityFlag, "i", "", "Path to private key of recipient that has been encrypted for")
-	restoreCmd.PersistentFlags().StringP(passwordFlag, "p", "", "Password for the private key")
-	restoreCmd.PersistentFlags().StringP(recipientFlag, "r", "", "Path to the public key to verify with")
+	operationRestoreCmd.PersistentFlags().IntP(recordSizeFlag, "z", 20, "Amount of 512-bit blocks per record")
+	operationRestoreCmd.PersistentFlags().StringP(fromFlag, "f", "", "File or directory to restore")
+	operationRestoreCmd.PersistentFlags().StringP(toFlag, "t", "", "File or directory restore to (archived name by default)")
+	operationRestoreCmd.PersistentFlags().BoolP(flattenFlag, "a", false, "Ignore the folder hierarchy on the tape or tar file")
+	operationRestoreCmd.PersistentFlags().StringP(identityFlag, "i", "", "Path to private key of recipient that has been encrypted for")
+	operationRestoreCmd.PersistentFlags().StringP(passwordFlag, "p", "", "Password for the private key")
+	operationRestoreCmd.PersistentFlags().StringP(recipientFlag, "r", "", "Path to the public key to verify with")
 
 	viper.AutomaticEnv()
 
-	rootCmd.AddCommand(restoreCmd)
+	operationCmd.AddCommand(operationRestoreCmd)
 }

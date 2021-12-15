@@ -13,7 +13,7 @@ const (
 	expressionFlag = "expression"
 )
 
-var findCmd = &cobra.Command{
+var inventoryFindCmd = &cobra.Command{
 	Use:     "find",
 	Aliases: []string{"fin", "f"},
 	Short:   "Find a file or directory on tape or tar file by matching against a regex",
@@ -44,9 +44,9 @@ var findCmd = &cobra.Command{
 }
 
 func init() {
-	findCmd.PersistentFlags().StringP(expressionFlag, "x", "", "Regex to match the file/directory name against")
+	inventoryFindCmd.PersistentFlags().StringP(expressionFlag, "x", "", "Regex to match the file/directory name against")
 
 	viper.AutomaticEnv()
 
-	rootCmd.AddCommand(findCmd)
+	inventoryCmd.AddCommand(inventoryFindCmd)
 }

@@ -1,6 +1,9 @@
 package cmd
 
 import (
+	"fmt"
+
+	"github.com/pojntfx/stfs/internal/compression"
 	"github.com/pojntfx/stfs/internal/keys"
 	"github.com/pojntfx/stfs/internal/logging"
 	"github.com/pojntfx/stfs/internal/persisters"
@@ -11,12 +14,26 @@ import (
 	"github.com/spf13/viper"
 )
 
-var moveCmd = &cobra.Command{
-	Use:     "move",
-	Aliases: []string{"mov", "m", "mv"},
-	Short:   "Move a file or directory on tape or tar file",
+const (
+	recordSizeFlag       = "record-size"
+	fromFlag             = "from"
+	overwriteFlag        = "overwrite"
+	compressionLevelFlag = "compression-level"
+	recipientFlag        = "recipient"
+	identityFlag         = "identity"
+	passwordFlag         = "password"
+)
+
+var operationArchiveCmd = &cobra.Command{
+	Use:     "archive",
+	Aliases: []string{"arc", "a", "c"},
+	Short:   "Archive a file or directory to tape or tar file",
 	PreRunE: func(cmd *cobra.Command, args []string) error {
 		if err := viper.BindPFlags(cmd.PersistentFlags()); err != nil {
+			return err
+		}
+
+		if err := compression.CheckCompressionLevel(viper.GetString(compressionLevelFlag)); err != nil {
 			return err
 		}
 
@@ -50,7 +67,7 @@ var moveCmd = &cobra.Command{
 		tm := tape.NewTapeManager(
 			viper.GetString(driveFlag),
 			viper.GetInt(recordSizeFlag),
-			false,
+			viper.GetBool(overwriteFlag),
 		)
 
 		metadataPersister := persisters.NewMetadataPersister(viper.GetString(metadataFlag))
@@ -88,19 +105,28 @@ var moveCmd = &cobra.Command{
 			logging.NewLogger().PrintHeaderEvent,
 		)
 
-		return ops.Move(viper.GetString(fromFlag), viper.GetString(toFlag))
+		if _, err := ops.Archive(
+			viper.GetString(fromFlag),
+			viper.GetString(compressionLevelFlag),
+			viper.GetBool(overwriteFlag),
+		); err != nil {
+			return err
+		}
+
+		return nil
 	},
 }
 
 func init() {
-	moveCmd.PersistentFlags().IntP(recordSizeFlag, "z", 20, "Amount of 512-bit blocks per record")
-	moveCmd.PersistentFlags().StringP(fromFlag, "f", "", "Current path of the file or directory to move")
-	moveCmd.PersistentFlags().StringP(toFlag, "t", "", "Path to move the file or directory to")
-	moveCmd.PersistentFlags().StringP(recipientFlag, "r", "", "Path to public key of recipient to encrypt for")
-	moveCmd.PersistentFlags().StringP(identityFlag, "i", "", "Path to private key to sign with")
-	moveCmd.PersistentFlags().StringP(passwordFlag, "p", "", "Password for the private key")
+	operationArchiveCmd.PersistentFlags().IntP(recordSizeFlag, "z", 20, "Amount of 512-bit blocks per record")
+	operationArchiveCmd.PersistentFlags().StringP(fromFlag, "f", ".", "File or directory to archive")
+	operationArchiveCmd.PersistentFlags().BoolP(overwriteFlag, "o", false, "Start writing from the start instead of from the end of the tape or tar file")
+	operationArchiveCmd.PersistentFlags().StringP(compressionLevelFlag, "l", config.CompressionLevelBalanced, fmt.Sprintf("Compression level to use (default %v, available are %v)", config.CompressionLevelBalanced, config.KnownCompressionLevels))
+	operationArchiveCmd.PersistentFlags().StringP(recipientFlag, "r", "", "Path to public key of recipient to encrypt for")
+	operationArchiveCmd.PersistentFlags().StringP(identityFlag, "i", "", "Path to private key to sign with")
+	operationArchiveCmd.PersistentFlags().StringP(passwordFlag, "p", "", "Password for the private key")
 
 	viper.AutomaticEnv()
 
-	rootCmd.AddCommand(moveCmd)
+	operationCmd.AddCommand(operationArchiveCmd)
 }
