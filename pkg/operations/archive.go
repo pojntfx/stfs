@@ -13,7 +13,6 @@ import (
 
 	"github.com/pojntfx/stfs/internal/compression"
 	"github.com/pojntfx/stfs/internal/converters"
-	models "github.com/pojntfx/stfs/internal/db/sqlite/models/metadata"
 	"github.com/pojntfx/stfs/internal/encryption"
 	"github.com/pojntfx/stfs/internal/ioext"
 	"github.com/pojntfx/stfs/internal/mtio"
@@ -31,15 +30,9 @@ var (
 )
 
 func (o *Operations) Archive(
-	pipes config.PipeConfig,
-	crypto config.CryptoConfig,
-
-	recordSize int,
 	from string,
 	compressionLevel string,
 	overwrite bool,
-
-	onHeader func(hdr *models.Header),
 ) ([]*tar.Header, error) {
 	o.diskOperationLock.Lock()
 	defer o.diskOperationLock.Unlock()
@@ -50,7 +43,7 @@ func (o *Operations) Archive(
 	}
 
 	dirty := false
-	tw, cleanup, err := tarext.NewTapeWriter(writer.Drive, writer.DriveIsRegular, recordSize)
+	tw, cleanup, err := tarext.NewTapeWriter(writer.Drive, writer.DriveIsRegular, o.recordSize)
 	if err != nil {
 		return []*tar.Header{}, err
 	}
@@ -58,7 +51,7 @@ func (o *Operations) Archive(
 	lastIndexedRecord := int64(0)
 	lastIndexedBlock := int64(0)
 	if !overwrite {
-		lastIndexedRecord, lastIndexedBlock, err = o.metadataPersister.GetLastIndexedRecordAndBlock(context.Background(), recordSize)
+		lastIndexedRecord, lastIndexedBlock, err = o.metadataPersister.GetLastIndexedRecordAndBlock(context.Background(), o.recordSize)
 		if err != nil {
 			return []*tar.Header{}, err
 		}
@@ -100,17 +93,17 @@ func (o *Operations) Archive(
 				Writer: io.Discard,
 			}
 
-			encryptor, err := encryption.Encrypt(fileSizeCounter, pipes.Encryption, crypto.Recipient)
+			encryptor, err := encryption.Encrypt(fileSizeCounter, o.pipes.Encryption, o.crypto.Recipient)
 			if err != nil {
 				return err
 			}
 
 			compressor, err := compression.Compress(
 				encryptor,
-				pipes.Compression,
+				o.pipes.Compression,
 				compressionLevel,
 				writer.DriveIsRegular,
-				recordSize,
+				o.recordSize,
 			)
 			if err != nil {
 				return err
@@ -121,7 +114,7 @@ func (o *Operations) Archive(
 				return err
 			}
 
-			signer, sign, err := signature.Sign(file, writer.DriveIsRegular, pipes.Signature, crypto.Identity)
+			signer, sign, err := signature.Sign(file, writer.DriveIsRegular, o.pipes.Signature, o.crypto.Identity)
 			if err != nil {
 				return err
 			}
@@ -131,7 +124,7 @@ func (o *Operations) Archive(
 					return err
 				}
 			} else {
-				buf := make([]byte, mtio.BlockSize*recordSize)
+				buf := make([]byte, mtio.BlockSize*o.recordSize)
 				if _, err := io.CopyBuffer(compressor, signer, buf); err != nil {
 					return err
 				}
@@ -167,29 +160,29 @@ func (o *Operations) Archive(
 			}
 			hdr.Size = int64(fileSizeCounter.BytesRead)
 
-			hdr.Name, err = suffix.AddSuffix(hdr.Name, pipes.Compression, pipes.Encryption)
+			hdr.Name, err = suffix.AddSuffix(hdr.Name, o.pipes.Compression, o.pipes.Encryption)
 			if err != nil {
 				return err
 			}
 		}
 
-		if onHeader != nil {
+		if o.onHeader != nil {
 			dbhdr, err := converters.TarHeaderToDBHeader(-1, -1, -1, -1, hdr)
 			if err != nil {
 				return err
 			}
 
-			onHeader(dbhdr)
+			o.onHeader(dbhdr)
 		}
 
 		hdrToAppend := *hdr
 		hdrs = append(hdrs, &hdrToAppend)
 
-		if err := signature.SignHeader(hdr, writer.DriveIsRegular, pipes.Signature, crypto.Identity); err != nil {
+		if err := signature.SignHeader(hdr, writer.DriveIsRegular, o.pipes.Signature, o.crypto.Identity); err != nil {
 			return err
 		}
 
-		if err := encryption.EncryptHeader(hdr, pipes.Encryption, crypto.Recipient); err != nil {
+		if err := encryption.EncryptHeader(hdr, o.pipes.Encryption, o.crypto.Recipient); err != nil {
 			return err
 		}
 
@@ -204,17 +197,17 @@ func (o *Operations) Archive(
 		}
 
 		// Compress and write the file
-		encryptor, err := encryption.Encrypt(tw, pipes.Encryption, crypto.Recipient)
+		encryptor, err := encryption.Encrypt(tw, o.pipes.Encryption, o.crypto.Recipient)
 		if err != nil {
 			return err
 		}
 
 		compressor, err := compression.Compress(
 			encryptor,
-			pipes.Compression,
+			o.pipes.Compression,
 			compressionLevel,
 			writer.DriveIsRegular,
-			recordSize,
+			o.recordSize,
 		)
 		if err != nil {
 			return err
@@ -230,7 +223,7 @@ func (o *Operations) Archive(
 				return err
 			}
 		} else {
-			buf := make([]byte, mtio.BlockSize*recordSize)
+			buf := make([]byte, mtio.BlockSize*o.recordSize)
 			if _, err := io.CopyBuffer(compressor, file, buf); err != nil {
 				return err
 			}
@@ -288,10 +281,10 @@ func (o *Operations) Archive(
 		config.MetadataConfig{
 			Metadata: o.metadataPersister,
 		},
-		pipes,
-		crypto,
+		o.pipes,
+		o.crypto,
 
-		recordSize,
+		o.recordSize,
 		int(lastIndexedRecord),
 		int(lastIndexedBlock),
 		overwrite,
@@ -310,6 +303,6 @@ func (o *Operations) Archive(
 			return nil // We sign above, no need to verify
 		},
 
-		onHeader,
+		o.onHeader,
 	)
 }

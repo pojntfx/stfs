@@ -73,9 +73,7 @@ var restoreCmd = &cobra.Command{
 			tm.Close,
 
 			metadataPersister,
-		)
 
-		return ops.Restore(
 			config.PipeConfig{
 				Compression: viper.GetString(compressionFlag),
 				Encryption:  viper.GetString(encryptionFlag),
@@ -88,11 +86,14 @@ var restoreCmd = &cobra.Command{
 			},
 
 			viper.GetInt(recordSizeFlag),
+
+			logging.NewLogger().PrintHeader,
+		)
+
+		return ops.Restore(
 			viper.GetString(fromFlag),
 			viper.GetString(toFlag),
 			viper.GetBool(flattenFlag),
-
-			logging.NewLogger().PrintHeader,
 		)
 	},
 }

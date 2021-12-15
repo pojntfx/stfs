@@ -73,9 +73,7 @@ var deleteCmd = &cobra.Command{
 			tm.Close,
 
 			metadataPersister,
-		)
 
-		return ops.Delete(
 			config.PipeConfig{
 				Compression: viper.GetString(compressionFlag),
 				Encryption:  viper.GetString(encryptionFlag),
@@ -88,10 +86,11 @@ var deleteCmd = &cobra.Command{
 			},
 
 			viper.GetInt(recordSizeFlag),
-			viper.GetString(nameFlag),
 
 			logging.NewLogger().PrintHeader,
 		)
+
+		return ops.Delete(viper.GetString(nameFlag))
 	},
 }
 

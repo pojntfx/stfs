@@ -69,9 +69,7 @@ var moveCmd = &cobra.Command{
 			tm.Close,
 
 			metadataPersister,
-		)
 
-		return ops.Move(
 			config.PipeConfig{
 				Compression: viper.GetString(compressionFlag),
 				Encryption:  viper.GetString(encryptionFlag),
@@ -84,11 +82,11 @@ var moveCmd = &cobra.Command{
 			},
 
 			viper.GetInt(recordSizeFlag),
-			viper.GetString(fromFlag),
-			viper.GetString(toFlag),
 
 			logging.NewLogger().PrintHeader,
 		)
+
+		return ops.Move(viper.GetString(fromFlag), viper.GetString(toFlag))
 	},
 }
 

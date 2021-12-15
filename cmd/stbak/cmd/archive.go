@@ -86,9 +86,7 @@ var archiveCmd = &cobra.Command{
 			tm.Close,
 
 			metadataPersister,
-		)
 
-		if _, err := ops.Archive(
 			config.PipeConfig{
 				Compression: viper.GetString(compressionFlag),
 				Encryption:  viper.GetString(encryptionFlag),
@@ -101,11 +99,14 @@ var archiveCmd = &cobra.Command{
 			},
 
 			viper.GetInt(recordSizeFlag),
+
+			logging.NewLogger().PrintHeader,
+		)
+
+		if _, err := ops.Archive(
 			viper.GetString(fromFlag),
 			viper.GetString(compressionLevelFlag),
 			viper.GetBool(overwriteFlag),
-
-			logging.NewLogger().PrintHeader,
 		); err != nil {
 			return err
 		}

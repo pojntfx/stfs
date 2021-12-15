@@ -14,15 +14,7 @@ import (
 	"github.com/pojntfx/stfs/pkg/recovery"
 )
 
-func (o *Operations) Delete(
-	pipes config.PipeConfig,
-	crypto config.CryptoConfig,
-
-	recordSize int,
-	name string,
-
-	onHeader func(hdr *models.Header),
-) error {
+func (o *Operations) Delete(name string) error {
 	o.diskOperationLock.Lock()
 	defer o.diskOperationLock.Unlock()
 
@@ -32,12 +24,12 @@ func (o *Operations) Delete(
 	}
 
 	dirty := false
-	tw, cleanup, err := tarext.NewTapeWriter(writer.Drive, writer.DriveIsRegular, recordSize)
+	tw, cleanup, err := tarext.NewTapeWriter(writer.Drive, writer.DriveIsRegular, o.recordSize)
 	if err != nil {
 		return err
 	}
 
-	lastIndexedRecord, lastIndexedBlock, err := o.metadataPersister.GetLastIndexedRecordAndBlock(context.Background(), recordSize)
+	lastIndexedRecord, lastIndexedBlock, err := o.metadataPersister.GetLastIndexedRecordAndBlock(context.Background(), o.recordSize)
 	if err != nil {
 		return err
 	}
@@ -73,20 +65,20 @@ func (o *Operations) Delete(
 
 		hdrs = append(hdrs, *hdr)
 
-		if onHeader != nil {
+		if o.onHeader != nil {
 			dbhdr, err := converters.TarHeaderToDBHeader(-1, -1, -1, -1, hdr)
 			if err != nil {
 				return err
 			}
 
-			onHeader(dbhdr)
+			o.onHeader(dbhdr)
 		}
 
-		if err := signature.SignHeader(hdr, writer.DriveIsRegular, pipes.Signature, crypto.Identity); err != nil {
+		if err := signature.SignHeader(hdr, writer.DriveIsRegular, o.pipes.Signature, o.crypto.Identity); err != nil {
 			return err
 		}
 
-		if err := encryption.EncryptHeader(hdr, pipes.Encryption, crypto.Recipient); err != nil {
+		if err := encryption.EncryptHeader(hdr, o.pipes.Encryption, o.crypto.Recipient); err != nil {
 			return err
 		}
 
@@ -123,10 +115,10 @@ func (o *Operations) Delete(
 		config.MetadataConfig{
 			Metadata: o.metadataPersister,
 		},
-		pipes,
-		crypto,
+		o.pipes,
+		o.crypto,
 
-		recordSize,
+		o.recordSize,
 		int(lastIndexedRecord),
 		int(lastIndexedBlock),
 		false,
@@ -145,6 +137,6 @@ func (o *Operations) Delete(
 			return nil // We sign above, no need to verify
 		},
 
-		onHeader,
+		o.onHeader,
 	)
 }
