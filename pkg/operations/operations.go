@@ -3,6 +3,7 @@ package operations
 import (
 	"sync"
 
+	models "github.com/pojntfx/stfs/internal/db/sqlite/models/metadata"
 	"github.com/pojntfx/stfs/internal/persisters"
 	"github.com/pojntfx/stfs/pkg/config"
 )
@@ -19,6 +20,13 @@ type Operations struct {
 
 	metadataPersister *persisters.MetadataPersister
 
+	pipes  config.PipeConfig
+	crypto config.CryptoConfig
+
+	recordSize int
+
+	onHeader func(hdr *models.Header)
+
 	diskOperationLock sync.Mutex
 }
 
@@ -33,6 +41,13 @@ func NewOperations(
 	closeDrive func() error,
 
 	metadataPersister *persisters.MetadataPersister,
+
+	pipes config.PipeConfig,
+	crypto config.CryptoConfig,
+
+	recordSize int,
+
+	onHeader func(hdr *models.Header),
 ) *Operations {
 	return &Operations{
 		getWriter:   getWriter,
@@ -45,5 +60,12 @@ func NewOperations(
 		closeDrive: closeDrive,
 
 		metadataPersister: metadataPersister,
+
+		pipes:  pipes,
+		crypto: crypto,
+
+		recordSize: recordSize,
+
+		onHeader: onHeader,
 	}
 }

@@ -9,21 +9,10 @@ import (
 	"strings"
 
 	models "github.com/pojntfx/stfs/internal/db/sqlite/models/metadata"
-	"github.com/pojntfx/stfs/pkg/config"
 	"github.com/pojntfx/stfs/pkg/recovery"
 )
 
-func (o *Operations) Restore(
-	pipes config.PipeConfig,
-	crypto config.CryptoConfig,
-
-	recordSize int,
-	from string,
-	to string,
-	flatten bool,
-
-	onHeader func(hdr *models.Header),
-) error {
+func (o *Operations) Restore(from string, to string, flatten bool) error {
 	o.diskOperationLock.Lock()
 	defer o.diskOperationLock.Unlock()
 
@@ -67,8 +56,8 @@ func (o *Operations) Restore(
 	defer o.closeDrive()
 
 	for _, dbhdr := range headersToRestore {
-		if onHeader != nil {
-			onHeader(dbhdr)
+		if o.onHeader != nil {
+			o.onHeader(dbhdr)
 		}
 
 		dst := dbhdr.Name
@@ -87,10 +76,10 @@ func (o *Operations) Restore(
 		if err := recovery.Fetch(
 			reader,
 			drive,
-			pipes,
-			crypto,
+			o.pipes,
+			o.crypto,
 
-			recordSize,
+			o.recordSize,
 			int(dbhdr.Record),
 			int(dbhdr.Block),
 			dst,

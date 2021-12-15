@@ -76,9 +76,7 @@ var updateCmd = &cobra.Command{
 			tm.Close,
 
 			metadataPersister,
-		)
 
-		if _, err := ops.Update(
 			config.PipeConfig{
 				Compression: viper.GetString(compressionFlag),
 				Encryption:  viper.GetString(encryptionFlag),
@@ -91,11 +89,14 @@ var updateCmd = &cobra.Command{
 			},
 
 			viper.GetInt(recordSizeFlag),
-			viper.GetString(fromFlag),
-			viper.GetBool(overwriteFlag),
-			viper.GetString(compressionLevelFlag),
 
 			logging.NewLogger().PrintHeader,
+		)
+
+		if _, err := ops.Update(
+			viper.GetString(fromFlag),
+			viper.GetString(compressionLevelFlag),
+			viper.GetBool(overwriteFlag),
 		); err != nil {
 			return err
 		}
