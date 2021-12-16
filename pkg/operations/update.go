@@ -4,10 +4,8 @@ import (
 	"archive/tar"
 	"context"
 	"io"
-	"io/fs"
-	"os"
-	"path/filepath"
 	"strconv"
+	"strings"
 
 	"github.com/pojntfx/stfs/internal/compression"
 	"github.com/pojntfx/stfs/internal/converters"
@@ -24,9 +22,9 @@ import (
 )
 
 func (o *Operations) Update(
-	from string,
+	getSrc func() (config.FileConfig, error),
 	compressionLevel string,
-	overwrite bool,
+	replace bool,
 ) ([]*tar.Header, error) {
 	o.diskOperationLock.Lock()
 	defer o.diskOperationLock.Unlock()
@@ -48,24 +46,27 @@ func (o *Operations) Update(
 	}
 
 	hdrs := []*tar.Header{}
-	if err := filepath.Walk(from, func(path string, info fs.FileInfo, err error) error {
-		if err != nil {
-			return err
+	for {
+		file, err := getSrc()
+		if err == io.EOF {
+			break
 		}
 
-		link := ""
-		if info.Mode()&os.ModeSymlink == os.ModeSymlink {
-			if link, err = os.Readlink(path); err != nil {
-				return err
+		if err != nil {
+			return []*tar.Header{}, err
+		}
+
+		hdr, err := tar.FileInfoHeader(file.Info, file.Link)
+		if err != nil {
+			// Skip sockets
+			if strings.Contains(err.Error(), errSocketsNotSupported.Error()) {
+				continue
 			}
+
+			return []*tar.Header{}, err
 		}
 
-		hdr, err := tar.FileInfoHeader(info, link)
-		if err != nil {
-			return err
-		}
-
-		hdr.Name = path
+		hdr.Name = file.Path
 		hdr.Format = tar.FormatPAX
 		if hdr.PAXRecords == nil {
 			hdr.PAXRecords = map[string]string{}
@@ -73,7 +74,8 @@ func (o *Operations) Update(
 		hdr.PAXRecords[records.STFSRecordVersion] = records.STFSRecordVersion1
 		hdr.PAXRecords[records.STFSRecordAction] = records.STFSRecordActionUpdate
 
-		if info.Mode().IsRegular() && overwrite {
+		var f io.ReadSeekCloser
+		if file.Info.Mode().IsRegular() && replace {
 			// Get the compressed size for the header
 			fileSizeCounter := &ioext.CounterWriter{
 				Writer: io.Discard,
@@ -81,7 +83,7 @@ func (o *Operations) Update(
 
 			encryptor, err := encryption.Encrypt(fileSizeCounter, o.pipes.Encryption, o.crypto.Recipient)
 			if err != nil {
-				return err
+				return []*tar.Header{}, err
 			}
 
 			compressor, err := compression.Compress(
@@ -92,44 +94,41 @@ func (o *Operations) Update(
 				o.pipes.RecordSize,
 			)
 			if err != nil {
-				return err
+				return []*tar.Header{}, err
 			}
 
-			file, err := os.Open(path)
+			f, err = file.GetFile()
 			if err != nil {
-				return err
+				return []*tar.Header{}, err
 			}
+			defer f.Close()
 
-			signer, sign, err := signature.Sign(file, writer.DriveIsRegular, o.pipes.Signature, o.crypto.Identity)
+			signer, sign, err := signature.Sign(f, writer.DriveIsRegular, o.pipes.Signature, o.crypto.Identity)
 			if err != nil {
-				return err
+				return []*tar.Header{}, err
 			}
 
 			if writer.DriveIsRegular {
 				if _, err := io.Copy(compressor, signer); err != nil {
-					return err
+					return []*tar.Header{}, err
 				}
 			} else {
 				buf := make([]byte, mtio.BlockSize*o.pipes.RecordSize)
 				if _, err := io.CopyBuffer(compressor, signer, buf); err != nil {
-					return err
+					return []*tar.Header{}, err
 				}
 			}
 
-			if err := file.Close(); err != nil {
-				return err
-			}
-
 			if err := compressor.Flush(); err != nil {
-				return err
+				return []*tar.Header{}, err
 			}
 
 			if err := compressor.Close(); err != nil {
-				return err
+				return []*tar.Header{}, err
 			}
 
 			if err := encryptor.Close(); err != nil {
-				return err
+				return []*tar.Header{}, err
 			}
 
 			if hdr.PAXRecords == nil {
@@ -138,7 +137,7 @@ func (o *Operations) Update(
 			hdr.PAXRecords[records.STFSRecordUncompressedSize] = strconv.Itoa(int(hdr.Size))
 			signature, err := sign()
 			if err != nil {
-				return err
+				return []*tar.Header{}, err
 			}
 
 			if signature != "" {
@@ -148,17 +147,17 @@ func (o *Operations) Update(
 
 			hdr.Name, err = suffix.AddSuffix(hdr.Name, o.pipes.Compression, o.pipes.Encryption)
 			if err != nil {
-				return err
+				return []*tar.Header{}, err
 			}
 		}
 
-		if overwrite {
+		if replace {
 			hdr.PAXRecords[records.STFSRecordReplacesContent] = records.STFSRecordReplacesContentTrue
 
 			if o.onHeader != nil {
 				dbhdr, err := converters.TarHeaderToDBHeader(-1, -1, -1, -1, hdr)
 				if err != nil {
-					return err
+					return []*tar.Header{}, err
 				}
 
 				o.onHeader(&config.HeaderEvent{
@@ -172,25 +171,27 @@ func (o *Operations) Update(
 			hdrs = append(hdrs, &hdrToAppend)
 
 			if err := signature.SignHeader(hdr, writer.DriveIsRegular, o.pipes.Signature, o.crypto.Identity); err != nil {
-				return err
+				return []*tar.Header{}, err
 			}
 
 			if err := encryption.EncryptHeader(hdr, o.pipes.Encryption, o.crypto.Recipient); err != nil {
-				return err
+				return []*tar.Header{}, err
 			}
 
 			if err := tw.WriteHeader(hdr); err != nil {
-				return err
+				return []*tar.Header{}, err
 			}
 
-			if !info.Mode().IsRegular() {
-				return nil
+			dirty = true
+
+			if !file.Info.Mode().IsRegular() {
+				continue
 			}
 
 			// Compress and write the file
 			encryptor, err := encryption.Encrypt(tw, o.pipes.Encryption, o.crypto.Recipient)
 			if err != nil {
-				return err
+				return []*tar.Header{}, err
 			}
 
 			compressor, err := compression.Compress(
@@ -201,39 +202,34 @@ func (o *Operations) Update(
 				o.pipes.RecordSize,
 			)
 			if err != nil {
-				return err
+				return []*tar.Header{}, err
 			}
 
-			file, err := os.Open(path)
-			if err != nil {
-				return err
+			if _, err := f.Seek(0, io.SeekStart); err != nil {
+				return []*tar.Header{}, err
 			}
 
 			if writer.DriveIsRegular {
-				if _, err := io.Copy(compressor, file); err != nil {
-					return err
+				if _, err := io.Copy(compressor, f); err != nil {
+					return []*tar.Header{}, err
 				}
 			} else {
 				buf := make([]byte, mtio.BlockSize*o.pipes.RecordSize)
-				if _, err := io.CopyBuffer(compressor, file, buf); err != nil {
-					return err
+				if _, err := io.CopyBuffer(compressor, f, buf); err != nil {
+					return []*tar.Header{}, err
 				}
 			}
 
-			if err := file.Close(); err != nil {
-				return err
-			}
-
 			if err := compressor.Flush(); err != nil {
-				return err
+				return []*tar.Header{}, err
 			}
 
 			if err := compressor.Close(); err != nil {
-				return err
+				return []*tar.Header{}, err
 			}
 
 			if err := encryptor.Close(); err != nil {
-				return err
+				return []*tar.Header{}, err
 			}
 		} else {
 			hdr.Size = 0 // Don't try to seek after the record
@@ -241,7 +237,7 @@ func (o *Operations) Update(
 			if o.onHeader != nil {
 				dbhdr, err := converters.TarHeaderToDBHeader(-1, -1, -1, -1, hdr)
 				if err != nil {
-					return err
+					return []*tar.Header{}, err
 				}
 
 				o.onHeader(&config.HeaderEvent{
@@ -255,23 +251,19 @@ func (o *Operations) Update(
 			hdrs = append(hdrs, &hdrToAppend)
 
 			if err := signature.SignHeader(hdr, writer.DriveIsRegular, o.pipes.Signature, o.crypto.Identity); err != nil {
-				return err
+				return []*tar.Header{}, err
 			}
 
 			if err := encryption.EncryptHeader(hdr, o.pipes.Encryption, o.crypto.Recipient); err != nil {
-				return err
+				return []*tar.Header{}, err
 			}
 
 			if err := tw.WriteHeader(hdr); err != nil {
-				return err
+				return []*tar.Header{}, err
 			}
 		}
 
 		dirty = true
-
-		return nil
-	}); err != nil {
-		return []*tar.Header{}, err
 	}
 
 	if err := cleanup(&dirty); err != nil {

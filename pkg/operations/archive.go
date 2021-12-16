@@ -69,7 +69,7 @@ func (o *Operations) Archive(
 		if err != nil {
 			// Skip sockets
 			if strings.Contains(err.Error(), errSocketsNotSupported.Error()) {
-				return []*tar.Header{}, nil
+				continue
 			}
 
 			return []*tar.Header{}, err
