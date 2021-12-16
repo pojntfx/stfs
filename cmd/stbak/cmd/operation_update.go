@@ -2,6 +2,10 @@ package cmd
 
 import (
 	"fmt"
+	"io"
+	"io/fs"
+	"os"
+	"path/filepath"
 
 	"github.com/pojntfx/stfs/internal/compression"
 	"github.com/pojntfx/stfs/internal/keys"
@@ -95,8 +99,49 @@ var operationUpdateCmd = &cobra.Command{
 			logging.NewLogger().PrintHeaderEvent,
 		)
 
+		files := make(chan config.FileConfig)
+		errs := make(chan error)
+		go func() {
+			if err := filepath.Walk(viper.GetString(fromFlag), func(path string, info fs.FileInfo, err error) error {
+				if err != nil {
+					return err
+				}
+
+				link := ""
+				if info.Mode()&os.ModeSymlink == os.ModeSymlink {
+					if link, err = os.Readlink(path); err != nil {
+						return err
+					}
+				}
+
+				files <- config.FileConfig{
+					GetFile: func() (io.ReadSeekCloser, error) {
+						return os.Open(path)
+					},
+					Info: info,
+					Path: path,
+					Link: link,
+				}
+
+				return nil
+			}); err != nil {
+				errs <- err
+
+				return
+			}
+
+			errs <- io.EOF
+		}()
+
 		if _, err := ops.Update(
-			viper.GetString(fromFlag),
+			func() (config.FileConfig, error) {
+				select {
+				case file := <-files:
+					return file, err
+				case err := <-errs:
+					return config.FileConfig{}, err
+				}
+			},
 			viper.GetString(compressionLevelFlag),
 			viper.GetBool(overwriteFlag),
 		); err != nil {
