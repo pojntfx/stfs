@@ -67,15 +67,15 @@ func (S *FileSystem) MkdirAll(path string, perm os.FileMode) error {
 	panic(ErrNotImplemented)
 }
 
-func (s *FileSystem) Open(name string) (afero.File, error) {
+func (f *FileSystem) Open(name string) (afero.File, error) {
 	log.Println("FileSystem.Open", name)
 
 	hdr, err := inventory.Stat(
-		s.metadata,
+		f.metadata,
 
 		name,
 
-		s.onHeader,
+		f.onHeader,
 	)
 	if err != nil {
 		if err == sql.ErrNoRows {
@@ -86,8 +86,14 @@ func (s *FileSystem) Open(name string) (afero.File, error) {
 	}
 
 	return NewFile(
+		f.metadata,
+
+		hdr.Name,
+
 		filepath.Base(hdr.Name),
 		NewFileInfo(hdr),
+
+		f.onHeader,
 	), nil
 }
 
