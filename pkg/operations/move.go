@@ -16,6 +16,11 @@ import (
 )
 
 func (o *Operations) Move(from string, to string) error {
+	// Ignore no-op move operation
+	if from == to {
+		return nil
+	}
+
 	o.diskOperationLock.Lock()
 	defer o.diskOperationLock.Unlock()
 
