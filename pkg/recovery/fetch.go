@@ -4,7 +4,7 @@ import (
 	"archive/tar"
 	"bufio"
 	"io"
-	"os"
+	"io/fs"
 	"path/filepath"
 
 	"github.com/pojntfx/stfs/internal/compression"
@@ -22,6 +22,9 @@ func Fetch(
 	drive config.DriveConfig,
 	pipes config.PipeConfig,
 	crypto config.CryptoConfig,
+
+	getDst func(path string, mode fs.FileMode) (io.WriteCloser, error),
+	mkdirAll func(path string, mode fs.FileMode) error,
 
 	recordSize int,
 	record int,
@@ -82,15 +85,11 @@ func Fetch(
 		}
 
 		if hdr.Typeflag == tar.TypeDir {
-			return os.MkdirAll(to, hdr.FileInfo().Mode())
+			return mkdirAll(to, hdr.FileInfo().Mode())
 		}
 
-		dstFile, err := os.OpenFile(to, os.O_WRONLY|os.O_CREATE, hdr.FileInfo().Mode())
+		dstFile, err := getDst(to, hdr.FileInfo().Mode())
 		if err != nil {
-			return err
-		}
-
-		if err := dstFile.Truncate(0); err != nil {
 			return err
 		}
 

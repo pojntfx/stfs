@@ -1,6 +1,10 @@
 package cmd
 
 import (
+	"io"
+	"io/fs"
+	"os"
+
 	"github.com/pojntfx/stfs/internal/keys"
 	"github.com/pojntfx/stfs/internal/logging"
 	"github.com/pojntfx/stfs/pkg/config"
@@ -78,6 +82,22 @@ var recoveryFetchCmd = &cobra.Command{
 				Recipient: recipient,
 				Identity:  identity,
 				Password:  viper.GetString(passwordFlag),
+			},
+
+			func(path string, mode fs.FileMode) (io.WriteCloser, error) {
+				dstFile, err := os.OpenFile(path, os.O_WRONLY|os.O_CREATE, mode)
+				if err != nil {
+					return nil, err
+				}
+
+				if err := dstFile.Truncate(0); err != nil {
+					return nil, err
+				}
+
+				return dstFile, nil
+			},
+			func(path string, mode fs.FileMode) error {
+				return os.MkdirAll(path, mode)
 			},
 
 			viper.GetInt(recordSizeFlag),

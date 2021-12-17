@@ -4,6 +4,8 @@ import (
 	"archive/tar"
 	"context"
 	"database/sql"
+	"io"
+	"io/fs"
 	"path"
 	"path/filepath"
 	"strings"
@@ -13,7 +15,14 @@ import (
 	"github.com/pojntfx/stfs/pkg/recovery"
 )
 
-func (o *Operations) Restore(from string, to string, flatten bool) error {
+func (o *Operations) Restore(
+	getDst func(path string, mode fs.FileMode) (io.WriteCloser, error),
+	mkdirAll func(path string, mode fs.FileMode) error,
+
+	from string,
+	to string,
+	flatten bool,
+) error {
 	o.diskOperationLock.Lock()
 	defer o.diskOperationLock.Unlock()
 
@@ -83,6 +92,9 @@ func (o *Operations) Restore(from string, to string, flatten bool) error {
 			drive,
 			o.pipes,
 			o.crypto,
+
+			getDst,
+			mkdirAll,
 
 			o.pipes.RecordSize,
 			int(dbhdr.Record),
