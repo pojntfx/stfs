@@ -1,8 +1,10 @@
 package fs
 
 import (
+	"archive/tar"
 	"log"
 	"os"
+	"path/filepath"
 	"time"
 )
 
@@ -16,19 +18,13 @@ type FileInfo struct {
 	isDir   bool
 }
 
-func NewFileInfo(
-	name string,
-	size int64,
-	mode int64,
-	modTime time.Time,
-	isDir bool,
-) *FileInfo {
+func NewFileInfo(hdr *tar.Header) *FileInfo {
 	return &FileInfo{
-		name:    name,
-		size:    size,
-		mode:    mode,
-		modTime: modTime,
-		isDir:   isDir,
+		name:    filepath.Base(hdr.Name),
+		size:    hdr.Size,
+		mode:    hdr.Mode,
+		modTime: hdr.ModTime,
+		isDir:   hdr.Typeflag == tar.TypeDir,
 	}
 }
 
