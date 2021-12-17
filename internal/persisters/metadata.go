@@ -102,10 +102,23 @@ func (p *MetadataPersister) GetHeader(ctx context.Context, name string) (*models
 }
 
 func (p *MetadataPersister) GetHeaderChildren(ctx context.Context, name string) (models.HeaderSlice, error) {
-	return models.Headers(
+	headers, err := models.Headers(
 		qm.Where(models.HeaderColumns.Name+" like ?", strings.TrimSuffix(name, "/")+"/%"), // Prevent double trailing slashes
 		qm.Where(models.HeaderColumns.Deleted+" != 1"),
 	).All(ctx, p.db)
+	if err != nil {
+		return nil, err
+	}
+
+	outhdrs := models.HeaderSlice{}
+	for _, hdr := range headers {
+		prefix := strings.TrimSuffix(hdr.Name, "/")
+		if name != prefix && name != prefix+"/" {
+			outhdrs = append(outhdrs, hdr)
+		}
+	}
+
+	return outhdrs, nil
 }
 
 func (p *MetadataPersister) GetHeaderDirectChildren(ctx context.Context, name string) (models.HeaderSlice, error) {
@@ -194,7 +207,15 @@ where %v like ?
 		return nil, err
 	}
 
-	return headers, nil
+	outhdrs := models.HeaderSlice{}
+	for _, hdr := range headers {
+		prefix := strings.TrimSuffix(hdr.Name, "/")
+		if name != prefix && name != prefix+"/" {
+			outhdrs = append(outhdrs, hdr)
+		}
+	}
+
+	return outhdrs, nil
 }
 
 func (p *MetadataPersister) DeleteHeader(ctx context.Context, name string, lastknownrecord, lastknownblock int64) (*models.Header, error) {
