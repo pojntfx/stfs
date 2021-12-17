@@ -1,7 +1,6 @@
 package fs
 
 import (
-	"archive/tar"
 	"database/sql"
 	"errors"
 	"log"
@@ -83,18 +82,12 @@ func (s *FileSystem) Open(name string) (afero.File, error) {
 			return nil, os.ErrNotExist
 		}
 
-		return nil, err
+		panic(err)
 	}
 
 	return NewFile(
-		filepath.Base(name),
-		NewFileInfo(
-			filepath.Base(name),
-			hdr.Size,
-			hdr.Mode,
-			hdr.ModTime,
-			hdr.Typeflag == tar.TypeDir,
-		),
+		filepath.Base(hdr.Name),
+		NewFileInfo(hdr),
 	), nil
 }
 
