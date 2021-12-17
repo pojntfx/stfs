@@ -4,23 +4,44 @@ import (
 	"log"
 	"os"
 
+	models "github.com/pojntfx/stfs/internal/db/sqlite/models/metadata"
+	"github.com/pojntfx/stfs/pkg/config"
+	"github.com/pojntfx/stfs/pkg/inventory"
 	"github.com/spf13/afero"
 )
 
 type File struct {
 	afero.File
 
+	metadata config.MetadataConfig
+
+	path string
+
 	name string
 	info os.FileInfo
+
+	onHeader func(hdr *models.Header)
 }
 
 func NewFile(
+	metadata config.MetadataConfig,
+
+	path string,
+
 	name string,
 	stat os.FileInfo,
+
+	onHeader func(hdr *models.Header),
 ) *File {
 	return &File{
+		metadata: metadata,
+
+		path: path,
+
 		name: name,
 		info: stat,
+
+		onHeader: onHeader,
 	}
 }
 
@@ -39,7 +60,24 @@ func (f File) Stat() (os.FileInfo, error) {
 func (f File) Readdir(count int) ([]os.FileInfo, error) {
 	log.Println("File.Readdir", f.name, count)
 
-	return nil, ErrNotImplemented
+	hdrs, err := inventory.List(
+		f.metadata,
+
+		f.path,
+
+		f.onHeader,
+	)
+	if err != nil {
+		return nil, err
+	}
+
+	fileInfos := []os.FileInfo{}
+	for _, hdr := range hdrs {
+		// TODO: Handle count; only return all if count = -1
+		fileInfos = append(fileInfos, NewFileInfo(hdr))
+	}
+
+	return fileInfos, nil
 }
 
 func (f File) Readdirnames(n int) ([]string, error) {
