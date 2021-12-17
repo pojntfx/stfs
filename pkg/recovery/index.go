@@ -298,7 +298,7 @@ func indexHeader(
 		case records.STFSRecordActionUpdate:
 			moveAfterEdits := false
 			oldName := hdr.Name
-			if _, ok := hdr.PAXRecords[records.STFSRecordReplacesName]; ok {
+			if _, ok := hdr.PAXRecords[records.STFSRecordReplacesName]; ok && oldName != hdr.Name {
 				moveAfterEdits = true
 				oldName = hdr.PAXRecords[records.STFSRecordReplacesName]
 			}
