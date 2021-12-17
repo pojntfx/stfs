@@ -28,37 +28,37 @@ func NewFileInfo(hdr *tar.Header) *FileInfo {
 	}
 }
 
-func (f FileInfo) Name() string {
+func (f *FileInfo) Name() string {
 	log.Println("FileInfo.Name", f.name)
 
 	return f.name
 }
 
-func (f FileInfo) Size() int64 {
+func (f *FileInfo) Size() int64 {
 	log.Println("FileInfo.Size", f.name)
 
 	return f.size
 }
 
-func (f FileInfo) Mode() os.FileMode {
+func (f *FileInfo) Mode() os.FileMode {
 	log.Println("FileInfo.Mode", f.name)
 
 	return os.FileMode(f.mode)
 }
 
-func (f FileInfo) ModTime() time.Time {
+func (f *FileInfo) ModTime() time.Time {
 	log.Println("FileInfo.ModTime", f.name)
 
 	return f.modTime
 }
 
-func (f FileInfo) IsDir() bool {
+func (f *FileInfo) IsDir() bool {
 	log.Println("FileInfo.IsDir", f.name)
 
 	return f.isDir
 }
 
-func (f FileInfo) Sys() interface{} {
+func (f *FileInfo) Sys() interface{} {
 	log.Println("FileInfo.Sys", f.name)
 
 	return nil

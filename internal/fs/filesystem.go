@@ -86,6 +86,8 @@ func (f *FileSystem) Open(name string) (afero.File, error) {
 	}
 
 	return NewFile(
+		f.ops,
+
 		f.metadata,
 
 		hdr.Name,
