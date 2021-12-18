@@ -9,6 +9,7 @@ import (
 	"sync"
 
 	models "github.com/pojntfx/stfs/internal/db/sqlite/models/metadata"
+	"github.com/pojntfx/stfs/internal/ioext"
 	"github.com/pojntfx/stfs/pkg/config"
 	"github.com/pojntfx/stfs/pkg/inventory"
 	"github.com/pojntfx/stfs/pkg/operations"
@@ -28,8 +29,8 @@ type File struct {
 	info os.FileInfo
 
 	ioLock sync.Mutex
-	reader *io.PipeReader
-	writer *io.PipeWriter
+	reader *ioext.CounterReadCloser
+	writer io.WriteCloser
 
 	onHeader func(hdr *models.Header)
 }
@@ -119,11 +120,8 @@ func (f *File) WriteString(s string) (ret int, err error) {
 	return -1, ErrNotImplemented
 }
 
-func (f *File) Close() error {
-	log.Println("File.Close", f.name)
-
-	f.ioLock.Lock()
-	defer f.ioLock.Unlock()
+func (f *File) closeWithoutLocking() error {
+	log.Println("File.closeWithoutLocking", f.name)
 
 	if f.reader != nil {
 		if err := f.reader.Close(); err != nil {
@@ -143,6 +141,15 @@ func (f *File) Close() error {
 	return nil
 }
 
+func (f *File) Close() error {
+	log.Println("File.Close", f.name)
+
+	f.ioLock.Lock()
+	defer f.ioLock.Unlock()
+
+	return f.closeWithoutLocking()
+}
+
 func (f *File) Read(p []byte) (n int, err error) {
 	log.Println("File.Read", f.name, len(p))
 
@@ -150,7 +157,11 @@ func (f *File) Read(p []byte) (n int, err error) {
 	defer f.ioLock.Unlock()
 
 	if f.reader == nil || f.writer == nil {
-		reader, writer := io.Pipe()
+		r, writer := io.Pipe()
+		reader := &ioext.CounterReadCloser{
+			Reader:    r,
+			BytesRead: 0,
+		}
 
 		go func() {
 			if err := f.ops.Restore(
@@ -201,13 +212,17 @@ func (f *File) Seek(offset int64, whence int) (int64, error) {
 		return -1, ErrNotImplemented
 	}
 
-	_ = f.Close() // Ignore errors here as it might not be opened
-
 	f.ioLock.Lock()
 	defer f.ioLock.Unlock()
 
-	if f.reader == nil || f.writer == nil {
-		reader, writer := io.Pipe()
+	if f.reader == nil || f.writer == nil || offset < int64(f.reader.BytesRead) { // We have to re-open as we can't seek backwards
+		_ = f.closeWithoutLocking() // Ignore errors here as it might not be opened
+
+		r, writer := io.Pipe()
+		reader := &ioext.CounterReadCloser{
+			Reader:    r,
+			BytesRead: 0,
+		}
 
 		go func() {
 			if err := f.ops.Restore(
@@ -236,7 +251,7 @@ func (f *File) Seek(offset int64, whence int) (int64, error) {
 		f.writer = writer
 	}
 
-	written, err := io.CopyN(io.Discard, f.reader, offset)
+	written, err := io.CopyN(io.Discard, f.reader, offset-int64(f.reader.BytesRead))
 	if err != nil {
 		return -1, err
 	}

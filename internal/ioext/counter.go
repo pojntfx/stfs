@@ -16,6 +16,24 @@ func (r *CounterReader) Read(p []byte) (n int, err error) {
 	return n, err
 }
 
+type CounterReadCloser struct {
+	Reader io.ReadCloser
+
+	BytesRead int
+}
+
+func (r *CounterReadCloser) Read(p []byte) (n int, err error) {
+	n, err = r.Reader.Read(p)
+
+	r.BytesRead += n
+
+	return n, err
+}
+
+func (r *CounterReadCloser) Close() error {
+	return r.Reader.Close()
+}
+
 type CounterWriter struct {
 	Writer io.Writer
 
