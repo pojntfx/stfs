@@ -27,8 +27,9 @@ type File struct {
 	name string
 	info os.FileInfo
 
-	reader     *io.PipeReader
-	readerLock sync.Mutex
+	ioLock sync.Mutex
+	reader *io.PipeReader
+	writer *io.PipeWriter
 
 	onHeader func(hdr *models.Header)
 }
@@ -121,16 +122,34 @@ func (f *File) WriteString(s string) (ret int, err error) {
 func (f *File) Close() error {
 	log.Println("File.Close", f.name)
 
-	return ErrNotImplemented
+	f.ioLock.Lock()
+	defer f.ioLock.Unlock()
+
+	if f.reader != nil {
+		if err := f.reader.Close(); err != nil {
+			return err
+		}
+	}
+
+	if f.writer != nil {
+		if err := f.writer.Close(); err != nil {
+			return err
+		}
+	}
+
+	f.reader = nil
+	f.writer = nil
+
+	return nil
 }
 
 func (f *File) Read(p []byte) (n int, err error) {
 	log.Println("File.Read", f.name, len(p))
 
-	f.readerLock.Lock()
-	defer f.readerLock.Unlock()
+	f.ioLock.Lock()
+	defer f.ioLock.Unlock()
 
-	if f.reader == nil {
+	if f.reader == nil || f.writer == nil {
 		reader, writer := io.Pipe()
 
 		go func() {
@@ -147,12 +166,17 @@ func (f *File) Read(p []byte) (n int, err error) {
 				"",
 				true,
 			); err != nil {
+				if err == io.ErrClosedPipe {
+					return
+				}
+
 				// TODO: Handle error
 				panic(err)
 			}
 		}()
 
 		f.reader = reader
+		f.writer = writer
 	}
 
 	w := &bytes.Buffer{}
@@ -172,7 +196,52 @@ func (f *File) ReadAt(p []byte, off int64) (n int, err error) {
 func (f *File) Seek(offset int64, whence int) (int64, error) {
 	log.Println("File.Seek", f.name, offset, whence)
 
-	return -1, ErrNotImplemented
+	if whence != io.SeekStart {
+		// TODO: Implement seeking from end or start using a counting reader
+		return -1, ErrNotImplemented
+	}
+
+	_ = f.Close() // Ignore errors here as it might not be opened
+
+	f.ioLock.Lock()
+	defer f.ioLock.Unlock()
+
+	if f.reader == nil || f.writer == nil {
+		reader, writer := io.Pipe()
+
+		go func() {
+			if err := f.ops.Restore(
+				func(path string, mode fs.FileMode) (io.WriteCloser, error) {
+					return writer, nil
+				},
+				func(path string, mode fs.FileMode) error {
+					// Not necessary; can't read on a directory
+					return nil
+				},
+
+				f.path,
+				"",
+				true,
+			); err != nil {
+				if err == io.ErrClosedPipe {
+					return
+				}
+
+				// TODO: Handle error
+				panic(err)
+			}
+		}()
+
+		f.reader = reader
+		f.writer = writer
+	}
+
+	written, err := io.CopyN(io.Discard, f.reader, offset)
+	if err != nil {
+		return -1, err
+	}
+
+	return written, nil
 }
 
 func (f *File) Write(p []byte) (n int, err error) {
