@@ -105,7 +105,6 @@ func (o *Operations) Archive(
 			if err != nil {
 				return []*tar.Header{}, err
 			}
-			defer f.Close()
 
 			signer, sign, err := signature.Sign(f, writer.DriveIsRegular, o.pipes.Signature, o.crypto.Identity)
 			if err != nil {
@@ -186,6 +185,12 @@ func (o *Operations) Archive(
 		dirty = true
 
 		if !file.Info.Mode().IsRegular() {
+			if f != nil {
+				if err := f.Close(); err != nil {
+					return []*tar.Header{}, err
+				}
+			}
+
 			continue
 		}
 
@@ -230,6 +235,10 @@ func (o *Operations) Archive(
 		}
 
 		if err := encryptor.Close(); err != nil {
+			return []*tar.Header{}, err
+		}
+
+		if err := f.Close(); err != nil {
 			return []*tar.Header{}, err
 		}
 	}
