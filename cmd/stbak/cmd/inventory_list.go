@@ -9,6 +9,10 @@ import (
 	"github.com/spf13/viper"
 )
 
+const (
+	limitFlag = "limit"
+)
+
 var inventoryListCmd = &cobra.Command{
 	Use:     "list",
 	Aliases: []string{"lis", "l", "t", "ls"},
@@ -29,6 +33,7 @@ var inventoryListCmd = &cobra.Command{
 			},
 
 			viper.GetString(nameFlag),
+			viper.GetInt(limitFlag),
 
 			logging.NewLogger().PrintHeader,
 		); err != nil {
@@ -41,6 +46,7 @@ var inventoryListCmd = &cobra.Command{
 
 func init() {
 	inventoryListCmd.PersistentFlags().StringP(nameFlag, "n", "", "Directory to list the contents of")
+	inventoryListCmd.PersistentFlags().IntP(limitFlag, "l", -1, "Maximum amount of files to list (-1 lists all)")
 
 	viper.AutomaticEnv()
 
