@@ -211,7 +211,11 @@ func (f *File) Read(p []byte) (n int, err error) {
 func (f *File) ReadAt(p []byte, off int64) (n int, err error) {
 	log.Println("File.ReadAt", f.name, p, off)
 
-	return -1, ErrNotImplemented
+	if _, err := f.Seek(off, io.SeekStart); err != nil {
+		return -1, err
+	}
+
+	return f.Read(p)
 }
 
 func (f *File) Seek(offset int64, whence int) (int64, error) {
