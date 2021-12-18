@@ -13,10 +13,11 @@ func List(
 	metadata config.MetadataConfig,
 
 	name string,
+	limit int,
 
 	onHeader func(hdr *models.Header),
 ) ([]*tar.Header, error) {
-	dbHdrs, err := metadata.Metadata.GetHeaderDirectChildren(context.Background(), name)
+	dbHdrs, err := metadata.Metadata.GetHeaderDirectChildren(context.Background(), name, limit)
 	if err != nil {
 		return []*tar.Header{}, err
 	}

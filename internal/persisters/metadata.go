@@ -187,7 +187,7 @@ func (p *MetadataPersister) GetHeaderChildren(ctx context.Context, name string) 
 	return outhdrs, nil
 }
 
-func (p *MetadataPersister) GetHeaderDirectChildren(ctx context.Context, name string) (models.HeaderSlice, error) {
+func (p *MetadataPersister) GetHeaderDirectChildren(ctx context.Context, name string, limit int) (models.HeaderSlice, error) {
 	prefix := strings.TrimSuffix(name, "/") + "/"
 	rootDepth := 0
 	headers := models.HeaderSlice{}
@@ -217,9 +217,8 @@ func (p *MetadataPersister) GetHeaderDirectChildren(ctx context.Context, name st
 	}
 
 	getHeaders := func(prefix string) (models.HeaderSlice, error) {
-		if err := queries.Raw(
-			fmt.Sprintf(
-				`select %v, %v, %v, %v, %v, %v, %v, %v, %v, %v, %v, %v, %v, %v, %v, %v, %v, %v, %v, %v, %v,
+		query := fmt.Sprintf(
+			`select %v, %v, %v, %v, %v, %v, %v, %v, %v, %v, %v, %v, %v, %v, %v, %v, %v, %v, %v, %v, %v,
     length(replace(%v, ?, '')) - length(replace(replace(%v, ?, ''), '/', '')) as depth
 from %v
 where %v like ?
@@ -232,35 +231,56 @@ where %v like ?
     )
 	and %v != 1
     and not %v in ('', '.', '/', './')`,
-				models.HeaderColumns.Record,
-				models.HeaderColumns.Lastknownrecord,
-				models.HeaderColumns.Block,
-				models.HeaderColumns.Lastknownblock,
-				models.HeaderColumns.Deleted,
-				models.HeaderColumns.Typeflag,
-				models.HeaderColumns.Name,
-				models.HeaderColumns.Linkname,
-				models.HeaderColumns.Size,
-				models.HeaderColumns.Mode,
-				models.HeaderColumns.UID,
-				models.HeaderColumns.Gid,
-				models.HeaderColumns.Uname,
-				models.HeaderColumns.Gname,
-				models.HeaderColumns.Modtime,
-				models.HeaderColumns.Accesstime,
-				models.HeaderColumns.Changetime,
-				models.HeaderColumns.Devmajor,
-				models.HeaderColumns.Devminor,
-				models.HeaderColumns.Paxrecords,
-				models.HeaderColumns.Format,
-				models.HeaderColumns.Name,
-				models.HeaderColumns.Name,
-				models.TableNames.Headers,
-				models.HeaderColumns.Name,
-				models.HeaderColumns.Name,
-				models.HeaderColumns.Deleted,
-				models.HeaderColumns.Name,
-			),
+			models.HeaderColumns.Record,
+			models.HeaderColumns.Lastknownrecord,
+			models.HeaderColumns.Block,
+			models.HeaderColumns.Lastknownblock,
+			models.HeaderColumns.Deleted,
+			models.HeaderColumns.Typeflag,
+			models.HeaderColumns.Name,
+			models.HeaderColumns.Linkname,
+			models.HeaderColumns.Size,
+			models.HeaderColumns.Mode,
+			models.HeaderColumns.UID,
+			models.HeaderColumns.Gid,
+			models.HeaderColumns.Uname,
+			models.HeaderColumns.Gname,
+			models.HeaderColumns.Modtime,
+			models.HeaderColumns.Accesstime,
+			models.HeaderColumns.Changetime,
+			models.HeaderColumns.Devmajor,
+			models.HeaderColumns.Devminor,
+			models.HeaderColumns.Paxrecords,
+			models.HeaderColumns.Format,
+			models.HeaderColumns.Name,
+			models.HeaderColumns.Name,
+			models.TableNames.Headers,
+			models.HeaderColumns.Name,
+			models.HeaderColumns.Name,
+			models.HeaderColumns.Deleted,
+			models.HeaderColumns.Name,
+		)
+
+		if limit < 0 {
+			if err := queries.Raw(
+				query+`limit ?`,
+				prefix,
+				prefix,
+				prefix+"%",
+				rootDepth,
+				rootDepth+1,
+				limit+1, // +1 to accomodate the parent directory if it exists
+			).Bind(ctx, p.db, &headers); err != nil {
+				if err == sql.ErrNoRows {
+					return headers, nil
+				}
+
+				return nil, err
+			}
+		}
+
+		if err := queries.Raw(
+			query,
 			prefix,
 			prefix,
 			prefix+"%",
@@ -297,7 +317,11 @@ where %v like ?
 		}
 	}
 
-	return outhdrs, nil
+	if limit < 0 || len(outhdrs) < limit {
+		return outhdrs, nil
+	}
+
+	return outhdrs[:limit-1], nil
 }
 
 func (p *MetadataPersister) DeleteHeader(ctx context.Context, name string, lastknownrecord, lastknownblock int64) (*models.Header, error) {

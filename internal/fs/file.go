@@ -80,6 +80,7 @@ func (f *File) Readdir(count int) ([]os.FileInfo, error) {
 		f.metadata,
 
 		f.path,
+		count,
 
 		f.onHeader,
 	)
@@ -89,7 +90,6 @@ func (f *File) Readdir(count int) ([]os.FileInfo, error) {
 
 	fileInfos := []os.FileInfo{}
 	for _, hdr := range hdrs {
-		// TODO: Handle count; only return all if count = -1
 		fileInfos = append(fileInfos, NewFileInfo(hdr))
 	}
 
