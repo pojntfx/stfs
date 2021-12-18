@@ -207,15 +207,26 @@ func (f *File) ReadAt(p []byte, off int64) (n int, err error) {
 func (f *File) Seek(offset int64, whence int) (int64, error) {
 	log.Println("File.Seek", f.name, offset, whence)
 
-	if whence != io.SeekStart {
-		// TODO: Implement seeking from end or start using a counting reader
-		return -1, ErrNotImplemented
-	}
-
 	f.ioLock.Lock()
 	defer f.ioLock.Unlock()
 
-	if f.reader == nil || f.writer == nil || offset < int64(f.reader.BytesRead) { // We have to re-open as we can't seek backwards
+	dst := int64(0)
+	switch whence {
+	case io.SeekStart:
+		dst = offset
+	case io.SeekCurrent:
+		curr := 0
+		if f.reader != nil {
+			curr = f.reader.BytesRead
+		}
+		dst = int64(curr) + offset
+	case io.SeekEnd:
+		dst = f.info.Size() - offset
+	default:
+		return -1, ErrNotImplemented
+	}
+
+	if f.reader == nil || f.writer == nil || dst < int64(f.reader.BytesRead) { // We have to re-open as we can't seek backwards
 		_ = f.closeWithoutLocking() // Ignore errors here as it might not be opened
 
 		r, writer := io.Pipe()
@@ -251,7 +262,7 @@ func (f *File) Seek(offset int64, whence int) (int64, error) {
 		f.writer = writer
 	}
 
-	written, err := io.CopyN(io.Discard, f.reader, offset-int64(f.reader.BytesRead))
+	written, err := io.CopyN(io.Discard, f.reader, dst-int64(f.reader.BytesRead))
 	if err != nil {
 		return -1, err
 	}
