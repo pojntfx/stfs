@@ -99,7 +99,17 @@ func (f *File) Readdir(count int) ([]os.FileInfo, error) {
 func (f *File) Readdirnames(n int) ([]string, error) {
 	log.Println("File.Readdirnames", f.name, n)
 
-	return nil, ErrNotImplemented
+	dirs, err := f.Readdir(n)
+	if err != nil {
+		return []string{}, err
+	}
+
+	names := []string{}
+	for _, dir := range dirs {
+		names = append(names, dir.Name())
+	}
+
+	return names, err
 }
 
 func (f *File) Sync() error {
