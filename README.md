@@ -1,6 +1,6 @@
-# stfs
+# STFS
 
-Simple Tape File System, a FUSE based on tar and SQLite for tape drives.
+Simple Tape File System (STFS), a file system for tapes and tar files.
 
 ## Overview
 
@@ -8,6 +8,6 @@ Simple Tape File System, a FUSE based on tar and SQLite for tape drives.
 
 ## License
 
-stfs (c) 2021 Felix Pojtinger and contributors
+STFS (c) 2021 Felix Pojtinger and contributors
 
 SPDX-License-Identifier: AGPL-3.0
