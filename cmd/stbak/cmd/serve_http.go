@@ -1,28 +1,33 @@
 package cmd
 
 import (
-	"io"
-	"io/fs"
-	"os"
+	"context"
+	"log"
+	"net/http"
+	"time"
 
+	sfs "github.com/pojntfx/stfs/internal/fs"
+	"github.com/pojntfx/stfs/internal/handlers"
 	"github.com/pojntfx/stfs/internal/keys"
 	"github.com/pojntfx/stfs/internal/logging"
 	"github.com/pojntfx/stfs/internal/persisters"
 	"github.com/pojntfx/stfs/pkg/config"
 	"github.com/pojntfx/stfs/pkg/operations"
 	"github.com/pojntfx/stfs/pkg/tape"
+	"github.com/spf13/afero"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 )
 
 const (
-	flattenFlag = "flatten"
+	laddrFlag = "laddr"
+	cacheFlag = "cache"
 )
 
-var operationRestoreCmd = &cobra.Command{
-	Use:     "restore",
-	Aliases: []string{"res", "r", "x", "get", "extract"},
-	Short:   "Restore a file or directory from tape or tar file",
+var serveHTTPCmd = &cobra.Command{
+	Use:     "http",
+	Aliases: []string{"htt", "h"},
+	Short:   "Serve tape or tar file and the index over HTTP (read-only)",
 	PreRunE: func(cmd *cobra.Command, args []string) error {
 		if err := viper.BindPFlags(cmd.PersistentFlags()); err != nil {
 			return err
@@ -66,6 +71,13 @@ var operationRestoreCmd = &cobra.Command{
 			return err
 		}
 
+		root, err := metadataPersister.GetRootPath(context.Background())
+		if err != nil {
+			return err
+		}
+
+		logger := logging.NewLogger()
+
 		ops := operations.NewOperations(
 			config.BackendConfig{
 				GetWriter:   tm.GetWriter,
@@ -93,43 +105,49 @@ var operationRestoreCmd = &cobra.Command{
 				Password:  viper.GetString(passwordFlag),
 			},
 
-			logging.NewLogger().PrintHeaderEvent,
+			logger.PrintHeaderEvent,
 		)
 
-		return ops.Restore(
-			func(path string, mode fs.FileMode) (io.WriteCloser, error) {
-				dstFile, err := os.OpenFile(path, os.O_WRONLY|os.O_CREATE, mode)
-				if err != nil {
-					return nil, err
-				}
+		stfs := sfs.NewFileSystem(
+			ops,
 
-				if err := dstFile.Truncate(0); err != nil {
-					return nil, err
-				}
-
-				return dstFile, nil
-			},
-			func(path string, mode fs.FileMode) error {
-				return os.MkdirAll(path, mode)
+			config.MetadataConfig{
+				Metadata: metadataPersister,
 			},
 
-			viper.GetString(fromFlag),
-			viper.GetString(toFlag),
-			viper.GetBool(flattenFlag),
+			logger.PrintHeader,
 		)
+
+		var fs afero.Fs
+		if viper.GetBool(cacheFlag) {
+			fs = afero.NewCacheOnReadFs(afero.NewBasePathFs(stfs, root), afero.NewMemMapFs(), time.Hour)
+		} else {
+			fs = afero.NewBasePathFs(stfs, root)
+		}
+
+		log.Println("Listening on", viper.GetString(laddrFlag))
+
+		return http.ListenAndServe(
+			viper.GetString(laddrFlag),
+			handlers.PanicHandler(
+				http.FileServer(
+					afero.NewHttpFs(fs),
+				),
+			),
+		)
+
 	},
 }
 
 func init() {
-	operationRestoreCmd.PersistentFlags().IntP(recordSizeFlag, "z", 20, "Amount of 512-bit blocks per record")
-	operationRestoreCmd.PersistentFlags().StringP(fromFlag, "f", "", "File or directory to restore")
-	operationRestoreCmd.PersistentFlags().StringP(toFlag, "t", "", "File or directory restore to (archived name by default)")
-	operationRestoreCmd.PersistentFlags().BoolP(flattenFlag, "a", false, "Ignore the folder hierarchy on the tape or tar file")
-	operationRestoreCmd.PersistentFlags().StringP(identityFlag, "i", "", "Path to private key of recipient that has been encrypted for")
-	operationRestoreCmd.PersistentFlags().StringP(passwordFlag, "p", "", "Password for the private key")
-	operationRestoreCmd.PersistentFlags().StringP(recipientFlag, "r", "", "Path to the public key to verify with")
+	serveHTTPCmd.PersistentFlags().IntP(recordSizeFlag, "z", 20, "Amount of 512-bit blocks per record")
+	serveHTTPCmd.PersistentFlags().StringP(identityFlag, "i", "", "Path to private key of recipient that has been encrypted for")
+	serveHTTPCmd.PersistentFlags().StringP(passwordFlag, "p", "", "Password for the private key")
+	serveHTTPCmd.PersistentFlags().StringP(recipientFlag, "r", "", "Path to the public key to verify with")
+	serveHTTPCmd.PersistentFlags().StringP(laddrFlag, "a", "localhost:1337", "Listen address")
+	serveHTTPCmd.PersistentFlags().BoolP(cacheFlag, "n", true, "Enable in-memory caching")
 
 	viper.AutomaticEnv()
 
-	operationCmd.AddCommand(operationRestoreCmd)
+	serveCmd.AddCommand(serveHTTPCmd)
 }
