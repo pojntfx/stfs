@@ -2,6 +2,7 @@ package fs
 
 import (
 	"bytes"
+	"errors"
 	"io"
 	"io/fs"
 	"log"
@@ -14,6 +15,10 @@ import (
 	"github.com/pojntfx/stfs/pkg/inventory"
 	"github.com/pojntfx/stfs/pkg/operations"
 	"github.com/spf13/afero"
+)
+
+var (
+	ErrIsDirectory = errors.New("is a directory")
 )
 
 type File struct {
@@ -43,7 +48,7 @@ func NewFile(
 	path string,
 
 	name string,
-	stat os.FileInfo,
+	info os.FileInfo,
 
 	onHeader func(hdr *models.Header),
 ) *File {
@@ -55,7 +60,7 @@ func NewFile(
 		path: path,
 
 		name: name,
-		info: stat,
+		info: info,
 
 		onHeader: onHeader,
 	}
@@ -115,11 +120,19 @@ func (f *File) Readdirnames(n int) ([]string, error) {
 func (f *File) Sync() error {
 	log.Println("File.Sync", f.name)
 
+	if f.info.IsDir() {
+		return ErrIsDirectory
+	}
+
 	return ErrNotImplemented
 }
 
 func (f *File) Truncate(size int64) error {
 	log.Println("File.Truncate", f.name, size)
+
+	if f.info.IsDir() {
+		return ErrIsDirectory
+	}
 
 	return ErrNotImplemented
 }
@@ -127,11 +140,19 @@ func (f *File) Truncate(size int64) error {
 func (f *File) WriteString(s string) (ret int, err error) {
 	log.Println("File.WriteString", f.name, s)
 
+	if f.info.IsDir() {
+		return -1, ErrIsDirectory
+	}
+
 	return -1, ErrNotImplemented
 }
 
 func (f *File) closeWithoutLocking() error {
 	log.Println("File.closeWithoutLocking", f.name)
+
+	if f.info.IsDir() {
+		return ErrIsDirectory
+	}
 
 	if f.reader != nil {
 		if err := f.reader.Close(); err != nil {
@@ -162,6 +183,10 @@ func (f *File) Close() error {
 
 func (f *File) Read(p []byte) (n int, err error) {
 	log.Println("File.Read", f.name, len(p))
+
+	if f.info.IsDir() {
+		return -1, ErrIsDirectory
+	}
 
 	f.ioLock.Lock()
 	defer f.ioLock.Unlock()
@@ -211,6 +236,10 @@ func (f *File) Read(p []byte) (n int, err error) {
 func (f *File) ReadAt(p []byte, off int64) (n int, err error) {
 	log.Println("File.ReadAt", f.name, p, off)
 
+	if f.info.IsDir() {
+		return -1, ErrIsDirectory
+	}
+
 	if _, err := f.Seek(off, io.SeekStart); err != nil {
 		return -1, err
 	}
@@ -220,6 +249,10 @@ func (f *File) ReadAt(p []byte, off int64) (n int, err error) {
 
 func (f *File) Seek(offset int64, whence int) (int64, error) {
 	log.Println("File.Seek", f.name, offset, whence)
+
+	if f.info.IsDir() {
+		return -1, ErrIsDirectory
+	}
 
 	f.ioLock.Lock()
 	defer f.ioLock.Unlock()
@@ -287,11 +320,19 @@ func (f *File) Seek(offset int64, whence int) (int64, error) {
 func (f *File) Write(p []byte) (n int, err error) {
 	log.Println("File.Write", f.name, p)
 
+	if f.info.IsDir() {
+		return -1, ErrIsDirectory
+	}
+
 	return -1, ErrNotImplemented
 }
 
 func (f *File) WriteAt(p []byte, off int64) (n int, err error) {
 	log.Println("File.WriteAt", f.name, p, off)
+
+	if f.info.IsDir() {
+		return -1, ErrIsDirectory
+	}
 
 	return -1, ErrNotImplemented
 }
