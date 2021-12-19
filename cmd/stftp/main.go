@@ -8,6 +8,7 @@ import (
 	"os"
 	"path/filepath"
 	"sync"
+	"time"
 
 	golog "github.com/fclairamb/go-log"
 
@@ -36,6 +37,7 @@ func main() {
 	drive := flag.String("drive", "/dev/nst0", "Tape or tar file to use")
 	metadata := flag.String("metadata", filepath.Join(home, ".local", "share", "stbak", "var", "lib", "stbak", "metadata.sqlite"), "Metadata database to use")
 	recordSize := flag.Int("recordSize", 20, "Amount of 512-bit blocks per record")
+	enableCache := flag.Bool("cache", true, "Enable in-memory caching")
 
 	flag.Parse()
 
@@ -92,16 +94,31 @@ func main() {
 		logger.PrintHeader,
 	)
 
-	log.Println("Listening on", *laddr)
+	var srv *ftpserver.FtpServer
+	if *enableCache {
 
-	srv := ftpserver.NewFtpServer(
-		&FTPServer{
-			Settings: &ftpserver.Settings{
-				ListenAddr: *laddr,
+		cache := afero.NewMemMapFs()
+
+		srv = ftpserver.NewFtpServer(
+			&FTPServer{
+				Settings: &ftpserver.Settings{
+					ListenAddr: *laddr,
+				},
+				FileSystem: afero.NewCacheOnReadFs(afero.NewBasePathFs(stfs, *dir), cache, time.Hour),
 			},
-			FileSystem: afero.NewBasePathFs(stfs, *dir),
-		},
-	)
+		)
+	} else {
+		srv = ftpserver.NewFtpServer(
+			&FTPServer{
+				Settings: &ftpserver.Settings{
+					ListenAddr: *laddr,
+				},
+				FileSystem: afero.NewBasePathFs(stfs, *dir),
+			},
+		)
+	}
+
+	log.Println("Listening on", *laddr)
 
 	srv.Logger = &Logger{}
 
