@@ -226,7 +226,12 @@ func (f *File) Read(p []byte) (n int, err error) {
 	}
 
 	w := &bytes.Buffer{}
-	if _, err := io.CopyN(w, f.reader, int64(len(p))); err != nil {
+	_, err = io.CopyN(w, f.reader, int64(len(p)))
+	if err == io.EOF {
+		return copy(p, w.Bytes()), io.EOF
+	}
+
+	if err != nil {
 		return -1, err
 	}
 
@@ -310,6 +315,10 @@ func (f *File) Seek(offset int64, whence int) (int64, error) {
 	}
 
 	written, err := io.CopyN(io.Discard, f.reader, dst-int64(f.reader.BytesRead))
+	if err == io.EOF {
+		return written, io.EOF
+	}
+
 	if err != nil {
 		return -1, err
 	}
