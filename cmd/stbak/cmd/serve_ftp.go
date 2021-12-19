@@ -3,11 +3,11 @@ package cmd
 import (
 	"context"
 	"log"
-	"net/http"
 	"time"
 
+	ftpserver "github.com/fclairamb/ftpserverlib"
 	sfs "github.com/pojntfx/stfs/internal/fs"
-	"github.com/pojntfx/stfs/internal/handlers"
+	"github.com/pojntfx/stfs/internal/ftp"
 	"github.com/pojntfx/stfs/internal/keys"
 	"github.com/pojntfx/stfs/internal/logging"
 	"github.com/pojntfx/stfs/internal/persisters"
@@ -19,15 +19,10 @@ import (
 	"github.com/spf13/viper"
 )
 
-const (
-	laddrFlag = "laddr"
-	cacheFlag = "cache"
-)
-
-var serveHTTPCmd = &cobra.Command{
-	Use:     "http",
-	Aliases: []string{"htt", "h"},
-	Short:   "Serve tape or tar file and the index over HTTP (read-only)",
+var serveFTPCmd = &cobra.Command{
+	Use:     "ftp",
+	Aliases: []string{"f"},
+	Short:   "Serve tape or tar file and the index over FTP (read-write)",
 	PreRunE: func(cmd *cobra.Command, args []string) error {
 		if err := viper.BindPFlags(cmd.PersistentFlags()); err != nil {
 			return err
@@ -125,28 +120,34 @@ var serveHTTPCmd = &cobra.Command{
 			fs = afero.NewBasePathFs(stfs, root)
 		}
 
+		srv := ftpserver.NewFtpServer(
+			&ftp.FTPServer{
+				Settings: &ftpserver.Settings{
+					ListenAddr: viper.GetString(laddrFlag),
+				},
+				FileSystem: fs,
+			},
+		)
+
+		if viper.GetBool(verboseFlag) {
+			srv.Logger = &ftp.Logger{}
+		}
+
 		log.Println("Listening on", viper.GetString(laddrFlag))
 
-		return http.ListenAndServe(
-			viper.GetString(laddrFlag),
-			handlers.PanicHandler(
-				http.FileServer(
-					afero.NewHttpFs(fs),
-				),
-			),
-		)
+		return srv.ListenAndServe()
 	},
 }
 
 func init() {
-	serveHTTPCmd.PersistentFlags().IntP(recordSizeFlag, "z", 20, "Amount of 512-bit blocks per record")
-	serveHTTPCmd.PersistentFlags().StringP(identityFlag, "i", "", "Path to private key of recipient that has been encrypted for")
-	serveHTTPCmd.PersistentFlags().StringP(passwordFlag, "p", "", "Password for the private key")
-	serveHTTPCmd.PersistentFlags().StringP(recipientFlag, "r", "", "Path to the public key to verify with")
-	serveHTTPCmd.PersistentFlags().StringP(laddrFlag, "a", "localhost:1337", "Listen address")
-	serveHTTPCmd.PersistentFlags().BoolP(cacheFlag, "n", true, "Enable in-memory caching")
+	serveFTPCmd.PersistentFlags().IntP(recordSizeFlag, "z", 20, "Amount of 512-bit blocks per record")
+	serveFTPCmd.PersistentFlags().StringP(identityFlag, "i", "", "Path to private key of recipient that has been encrypted for")
+	serveFTPCmd.PersistentFlags().StringP(passwordFlag, "p", "", "Password for the private key")
+	serveFTPCmd.PersistentFlags().StringP(recipientFlag, "r", "", "Path to the public key to verify with")
+	serveFTPCmd.PersistentFlags().StringP(laddrFlag, "a", "localhost:1337", "Listen address")
+	serveFTPCmd.PersistentFlags().BoolP(cacheFlag, "n", true, "Enable in-memory caching")
 
 	viper.AutomaticEnv()
 
-	serveCmd.AddCommand(serveHTTPCmd)
+	serveCmd.AddCommand(serveFTPCmd)
 }
