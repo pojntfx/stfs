@@ -25,14 +25,14 @@ const (
 )
 
 var rootCmd = &cobra.Command{
-	Use:   "stbak",
-	Short: "Simple Tape Backup",
-	Long: `Simple Tape Backup (stbak) is a CLI to interact with STFS-managed tapes, tar files and indexes.
+	Use:   "stfs",
+	Short: "Simple Tape File System",
+	Long: `Simple Tape File System (STFS) is a file system for tapes and tar files.
 
 Find more information at:
 https://github.com/pojntfx/stfs`,
 	PersistentPreRunE: func(cmd *cobra.Command, args []string) error {
-		viper.SetEnvPrefix("stbak")
+		viper.SetEnvPrefix("stfs")
 		viper.SetEnvKeyReplacer(strings.NewReplacer("-", "_", ".", "_"))
 
 		if err := viper.BindPFlags(cmd.PersistentFlags()); err != nil {
@@ -61,7 +61,7 @@ func Execute() {
 	if err != nil {
 		panic(err)
 	}
-	metadataPath := filepath.Join(home, ".local", "share", "stbak", "var", "lib", "stbak", "metadata.sqlite")
+	metadataPath := filepath.Join(home, ".local", "share", "stfs", "var", "lib", "stfs", "metadata.sqlite")
 
 	rootCmd.PersistentFlags().StringP(driveFlag, "d", "/dev/nst0", "Tape or tar file to use")
 	rootCmd.PersistentFlags().StringP(metadataFlag, "m", metadataPath, "Metadata database to use")
