@@ -2,9 +2,9 @@ package fs
 
 import (
 	"archive/tar"
+	"io/fs"
 	"log"
 	"os"
-	"path/filepath"
 	"time"
 )
 
@@ -13,18 +13,18 @@ type FileInfo struct {
 
 	name    string
 	size    int64
-	mode    int64
+	mode    fs.FileMode
 	modTime time.Time
 	isDir   bool
 }
 
 func NewFileInfo(hdr *tar.Header) *FileInfo {
 	return &FileInfo{
-		name:    filepath.Base(hdr.Name),
-		size:    hdr.Size,
-		mode:    hdr.Mode,
-		modTime: hdr.ModTime,
-		isDir:   hdr.Typeflag == tar.TypeDir,
+		name:    hdr.FileInfo().Name(),
+		size:    hdr.FileInfo().Size(),
+		mode:    hdr.FileInfo().Mode(),
+		modTime: hdr.FileInfo().ModTime(),
+		isDir:   hdr.FileInfo().IsDir(),
 	}
 }
 
@@ -43,7 +43,7 @@ func (f *FileInfo) Size() int64 {
 func (f *FileInfo) Mode() os.FileMode {
 	log.Println("FileInfo.Mode", f.name)
 
-	return os.FileMode(f.mode)
+	return f.mode
 }
 
 func (f *FileInfo) ModTime() time.Time {
