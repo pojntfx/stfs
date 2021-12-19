@@ -43,25 +43,25 @@ func NewFileSystem(
 	}
 }
 
-func (S *FileSystem) Name() string {
+func (f *FileSystem) Name() string {
 	log.Println("FileSystem.Name")
 
 	return "STFS"
 }
 
-func (S *FileSystem) Create(name string) (afero.File, error) {
+func (f *FileSystem) Create(name string) (afero.File, error) {
 	log.Println("FileSystem.Name", name)
 
 	panic(ErrNotImplemented)
 }
 
-func (S *FileSystem) Mkdir(name string, perm os.FileMode) error {
+func (f *FileSystem) Mkdir(name string, perm os.FileMode) error {
 	log.Println("FileSystem.Mkdir", name, perm)
 
 	panic(ErrNotImplemented)
 }
 
-func (S *FileSystem) MkdirAll(path string, perm os.FileMode) error {
+func (f *FileSystem) MkdirAll(path string, perm os.FileMode) error {
 	log.Println("FileSystem.MkdirAll", path, perm)
 
 	panic(ErrNotImplemented)
@@ -99,67 +99,89 @@ func (f *FileSystem) Open(name string) (afero.File, error) {
 	), nil
 }
 
-func (S *FileSystem) OpenFile(name string, flag int, perm os.FileMode) (afero.File, error) {
+func (f *FileSystem) OpenFile(name string, flag int, perm os.FileMode) (afero.File, error) {
 	log.Println("FileSystem.OpenFile", name, flag, perm)
 
-	panic(ErrNotImplemented)
+	if flag != 0 {
+		// TODO: Implement update and write
+		panic(ErrNotImplemented)
+	}
+
+	// TODO: Implement `perm` support
+
+	return f.Open(name)
 }
 
-func (S *FileSystem) Remove(name string) error {
+func (f *FileSystem) Remove(name string) error {
 	log.Println("FileSystem.Remove", name)
 
 	panic(ErrNotImplemented)
 }
 
-func (S *FileSystem) RemoveAll(path string) error {
+func (f *FileSystem) RemoveAll(path string) error {
 	log.Println("FileSystem.RemoveAll", path)
 
 	panic(ErrNotImplemented)
 }
 
-func (S *FileSystem) Rename(oldname, newname string) error {
+func (f *FileSystem) Rename(oldname, newname string) error {
 	log.Println("FileSystem.Rename", oldname, newname)
 
 	panic(ErrNotImplemented)
 }
 
-func (S *FileSystem) Stat(name string) (os.FileInfo, error) {
+func (f *FileSystem) Stat(name string) (os.FileInfo, error) {
 	log.Println("FileSystem.Stat", name)
 
-	panic(ErrNotImplemented)
+	hdr, err := inventory.Stat(
+		f.metadata,
+
+		name,
+
+		f.onHeader,
+	)
+	if err != nil {
+		if err == sql.ErrNoRows {
+			return nil, os.ErrNotExist
+		}
+
+		panic(err)
+	}
+
+	return NewFileInfo(hdr), nil
 }
 
-func (S *FileSystem) Chmod(name string, mode os.FileMode) error {
+func (f *FileSystem) Chmod(name string, mode os.FileMode) error {
 	log.Println("FileSystem.Chmod", name, mode)
 
 	panic(ErrNotImplemented)
 }
 
-func (S *FileSystem) Chown(name string, uid, gid int) error {
+func (f *FileSystem) Chown(name string, uid, gid int) error {
 	log.Println("FileSystem.Chown", name, uid, gid)
 
 	panic(ErrNotImplemented)
 }
 
-func (S *FileSystem) Chtimes(name string, atime time.Time, mtime time.Time) error {
+func (f *FileSystem) Chtimes(name string, atime time.Time, mtime time.Time) error {
 	log.Println("FileSystem.Chtimes", name, atime, mtime)
 
 	panic(ErrNotImplemented)
 }
 
-func (S *FileSystem) LstatIfPossible(name string) (os.FileInfo, bool, error) {
+func (f *FileSystem) LstatIfPossible(name string) (os.FileInfo, bool, error) {
 	log.Println("FileSystem.LstatIfPossible", name)
 
 	panic(ErrNotImplemented)
 }
 
-func (S *FileSystem) SymlinkIfPossible(oldname, newname string) error {
+func (f *FileSystem) SymlinkIfPossible(oldname, newname string) error {
 	log.Println("FileSystem.SymlinkIfPossible", oldname, newname)
 
 	panic(ErrNotImplemented)
 }
 
-func (S *FileSystem) ReadlinkIfPossible(name string) (string, error) {
+func (f *FileSystem) ReadlinkIfPossible(name string) (string, error) {
 	log.Println("FileSystem.ReadlinkIfPossible", name)
 
 	panic(ErrNotImplemented)
