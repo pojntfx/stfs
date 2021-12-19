@@ -30,7 +30,7 @@ const (
 
 var operationArchiveCmd = &cobra.Command{
 	Use:     "archive",
-	Aliases: []string{"arc", "a", "c"},
+	Aliases: []string{"arc", "a", "c", "add", "post"},
 	Short:   "Archive a file or directory to tape or tar file",
 	PreRunE: func(cmd *cobra.Command, args []string) error {
 		if err := viper.BindPFlags(cmd.PersistentFlags()); err != nil {

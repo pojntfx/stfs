@@ -187,6 +187,24 @@ func (p *MetadataPersister) GetHeaderChildren(ctx context.Context, name string) 
 	return outhdrs, nil
 }
 
+func (p *MetadataPersister) GetRootPath(ctx context.Context) (string, error) {
+	root := models.Header{}
+
+	if err := queries.Raw(
+		fmt.Sprintf(
+			`select min(length(%v) - length(replace(%v, "/", ""))) as depth, name from %v where %v != 1`,
+			models.HeaderColumns.Name,
+			models.HeaderColumns.Name,
+			models.TableNames.Headers,
+			models.HeaderColumns.Deleted,
+		),
+	).Bind(ctx, p.db, &root); err != nil {
+		return "", err
+	}
+
+	return root.Name, nil
+}
+
 func (p *MetadataPersister) GetHeaderDirectChildren(ctx context.Context, name string, limit int) (models.HeaderSlice, error) {
 	prefix := strings.TrimSuffix(name, "/") + "/"
 	rootDepth := 0

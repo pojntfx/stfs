@@ -17,7 +17,7 @@ const (
 
 var operationDeleteCmd = &cobra.Command{
 	Use:     "delete",
-	Aliases: []string{"del", "d", "rm"},
+	Aliases: []string{"del", "d", "rm", "remove"},
 	Short:   "Delete a file or directory from tape or tar file",
 	PreRunE: func(cmd *cobra.Command, args []string) error {
 		if err := viper.BindPFlags(cmd.PersistentFlags()); err != nil {

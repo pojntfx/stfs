@@ -20,7 +20,7 @@ import (
 
 var operationUpdateCmd = &cobra.Command{
 	Use:     "update",
-	Aliases: []string{"upd", "u"},
+	Aliases: []string{"upd", "u", "put"},
 	Short:   "Update a file or directory's content and metadata on tape or tar file",
 	PreRunE: func(cmd *cobra.Command, args []string) error {
 		if err := viper.BindPFlags(cmd.PersistentFlags()); err != nil {
