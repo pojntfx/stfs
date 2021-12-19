@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"time"
 
 	"github.com/pojntfx/stfs/internal/fs"
 	"github.com/pojntfx/stfs/internal/handlers"
@@ -28,6 +29,7 @@ func main() {
 	drive := flag.String("drive", "/dev/nst0", "Tape or tar file to use")
 	metadata := flag.String("metadata", filepath.Join(home, ".local", "share", "stbak", "var", "lib", "stbak", "metadata.sqlite"), "Metadata database to use")
 	recordSize := flag.Int("recordSize", 20, "Amount of 512-bit blocks per record")
+	enableCache := flag.Bool("cache", true, "Enable in-memory caching")
 
 	flag.Parse()
 
@@ -74,17 +76,22 @@ func main() {
 		logger.PrintHeaderEvent,
 	)
 
-	stfs := afero.NewHttpFs(
-		fs.NewFileSystem(
-			ops,
+	stfs := fs.NewFileSystem(
+		ops,
 
-			config.MetadataConfig{
-				Metadata: metadataPersister,
-			},
+		config.MetadataConfig{
+			Metadata: metadataPersister,
+		},
 
-			logger.PrintHeader,
-		),
+		logger.PrintHeader,
 	)
+
+	var fs afero.Fs
+	if *enableCache {
+		fs = afero.NewCacheOnReadFs(afero.NewBasePathFs(stfs, *dir), afero.NewMemMapFs(), time.Hour)
+	} else {
+		fs = afero.NewBasePathFs(stfs, *dir)
+	}
 
 	log.Println("Listening on", *laddr)
 
@@ -93,7 +100,7 @@ func main() {
 			*laddr,
 			handlers.PanicHandler(
 				http.FileServer(
-					stfs.Dir(*dir),
+					afero.NewHttpFs(fs),
 				),
 			),
 		),

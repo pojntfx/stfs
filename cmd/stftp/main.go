@@ -94,33 +94,24 @@ func main() {
 		logger.PrintHeader,
 	)
 
-	var srv *ftpserver.FtpServer
+	var fs afero.Fs
 	if *enableCache {
-
-		cache := afero.NewMemMapFs()
-
-		srv = ftpserver.NewFtpServer(
-			&FTPServer{
-				Settings: &ftpserver.Settings{
-					ListenAddr: *laddr,
-				},
-				FileSystem: afero.NewCacheOnReadFs(afero.NewBasePathFs(stfs, *dir), cache, time.Hour),
-			},
-		)
+		fs = afero.NewCacheOnReadFs(afero.NewBasePathFs(stfs, *dir), afero.NewMemMapFs(), time.Hour)
 	} else {
-		srv = ftpserver.NewFtpServer(
-			&FTPServer{
-				Settings: &ftpserver.Settings{
-					ListenAddr: *laddr,
-				},
-				FileSystem: afero.NewBasePathFs(stfs, *dir),
-			},
-		)
+		fs = afero.NewBasePathFs(stfs, *dir)
 	}
 
-	log.Println("Listening on", *laddr)
-
+	srv := ftpserver.NewFtpServer(
+		&FTPServer{
+			Settings: &ftpserver.Settings{
+				ListenAddr: *laddr,
+			},
+			FileSystem: fs,
+		},
+	)
 	srv.Logger = &Logger{}
+
+	log.Println("Listening on", *laddr)
 
 	panic(srv.ListenAndServe())
 }
