@@ -2,10 +2,14 @@ package cmd
 
 import (
 	"context"
+	"fmt"
 	"log"
 	"net/http"
+	"os"
+	"path/filepath"
 	"time"
 
+	"github.com/pojntfx/stfs/internal/cache"
 	sfs "github.com/pojntfx/stfs/internal/fs"
 	"github.com/pojntfx/stfs/internal/handlers"
 	"github.com/pojntfx/stfs/internal/keys"
@@ -20,8 +24,10 @@ import (
 )
 
 const (
-	laddrFlag = "laddr"
-	cacheFlag = "cache"
+	laddrFlag         = "laddr"
+	cacheFlag         = "cache"
+	cacheDirFlag      = "cache-dir"
+	cacheDurationFlag = "cache-duration"
 )
 
 var serveHTTPCmd = &cobra.Command{
@@ -30,6 +36,10 @@ var serveHTTPCmd = &cobra.Command{
 	Short:   "Serve tape or tar file and the index over HTTP (read-only)",
 	PreRunE: func(cmd *cobra.Command, args []string) error {
 		if err := viper.BindPFlags(cmd.PersistentFlags()); err != nil {
+			return err
+		}
+
+		if err := cache.CheckCacheType(viper.GetString(cacheFlag)); err != nil {
 			return err
 		}
 
@@ -118,11 +128,15 @@ var serveHTTPCmd = &cobra.Command{
 			logger.PrintHeader,
 		)
 
-		var fs afero.Fs
-		if viper.GetBool(cacheFlag) {
-			fs = afero.NewCacheOnReadFs(afero.NewBasePathFs(stfs, root), afero.NewMemMapFs(), time.Hour)
-		} else {
-			fs = afero.NewBasePathFs(stfs, root)
+		fs, err := cache.Cache(
+			stfs,
+			root,
+			viper.GetString(cacheFlag),
+			viper.GetDuration(cacheDurationFlag),
+			viper.GetString(cacheDirFlag),
+		)
+		if err != nil {
+			return err
 		}
 
 		log.Println("Listening on", viper.GetString(laddrFlag))
@@ -144,7 +158,9 @@ func init() {
 	serveHTTPCmd.PersistentFlags().StringP(passwordFlag, "p", "", "Password for the private key")
 	serveHTTPCmd.PersistentFlags().StringP(recipientFlag, "r", "", "Path to the public key to verify with")
 	serveHTTPCmd.PersistentFlags().StringP(laddrFlag, "a", "localhost:1337", "Listen address")
-	serveHTTPCmd.PersistentFlags().BoolP(cacheFlag, "n", true, "Enable in-memory caching")
+	serveHTTPCmd.PersistentFlags().StringP(cacheFlag, "n", config.NoneKey, fmt.Sprintf("Cache to use (default %v, available are %v)", config.NoneKey, cache.KnownCacheTypes))
+	serveHTTPCmd.PersistentFlags().DurationP(cacheDurationFlag, "u", time.Hour, "Duration until cache is invalidated")
+	serveHTTPCmd.PersistentFlags().StringP(cacheDirFlag, "w", filepath.Join(os.TempDir(), "stfs", "cache"), "Directory to use if dir cache is enabled")
 
 	viper.AutomaticEnv()
 

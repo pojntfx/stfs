@@ -2,10 +2,14 @@ package cmd
 
 import (
 	"context"
+	"fmt"
 	"log"
+	"os"
+	"path/filepath"
 	"time"
 
 	ftpserver "github.com/fclairamb/ftpserverlib"
+	"github.com/pojntfx/stfs/internal/cache"
 	sfs "github.com/pojntfx/stfs/internal/fs"
 	"github.com/pojntfx/stfs/internal/ftp"
 	"github.com/pojntfx/stfs/internal/keys"
@@ -14,7 +18,6 @@ import (
 	"github.com/pojntfx/stfs/pkg/config"
 	"github.com/pojntfx/stfs/pkg/operations"
 	"github.com/pojntfx/stfs/pkg/tape"
-	"github.com/spf13/afero"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 )
@@ -25,6 +28,10 @@ var serveFTPCmd = &cobra.Command{
 	Short:   "Serve tape or tar file and the index over FTP (read-write)",
 	PreRunE: func(cmd *cobra.Command, args []string) error {
 		if err := viper.BindPFlags(cmd.PersistentFlags()); err != nil {
+			return err
+		}
+
+		if err := cache.CheckCacheType(viper.GetString(cacheFlag)); err != nil {
 			return err
 		}
 
@@ -113,11 +120,15 @@ var serveFTPCmd = &cobra.Command{
 			logger.PrintHeader,
 		)
 
-		var fs afero.Fs
-		if viper.GetBool(cacheFlag) {
-			fs = afero.NewCacheOnReadFs(afero.NewBasePathFs(stfs, root), afero.NewMemMapFs(), time.Hour)
-		} else {
-			fs = afero.NewBasePathFs(stfs, root)
+		fs, err := cache.Cache(
+			stfs,
+			root,
+			viper.GetString(cacheFlag),
+			viper.GetDuration(cacheDurationFlag),
+			viper.GetString(cacheDirFlag),
+		)
+		if err != nil {
+			return err
 		}
 
 		srv := ftpserver.NewFtpServer(
@@ -145,7 +156,9 @@ func init() {
 	serveFTPCmd.PersistentFlags().StringP(passwordFlag, "p", "", "Password for the private key")
 	serveFTPCmd.PersistentFlags().StringP(recipientFlag, "r", "", "Path to the public key to verify with")
 	serveFTPCmd.PersistentFlags().StringP(laddrFlag, "a", "localhost:1337", "Listen address")
-	serveFTPCmd.PersistentFlags().BoolP(cacheFlag, "n", true, "Enable in-memory caching")
+	serveFTPCmd.PersistentFlags().StringP(cacheFlag, "n", config.NoneKey, fmt.Sprintf("Cache to use (default %v, available are %v)", config.NoneKey, cache.KnownCacheTypes))
+	serveFTPCmd.PersistentFlags().DurationP(cacheDurationFlag, "u", time.Hour, "Duration until cache is invalidated")
+	serveFTPCmd.PersistentFlags().StringP(cacheDirFlag, "w", filepath.Join(os.TempDir(), "stfs", "cache"), "Directory to use if dir cache is enabled")
 
 	viper.AutomaticEnv()
 
