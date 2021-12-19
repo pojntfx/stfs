@@ -7,6 +7,7 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
+	"path"
 	"path/filepath"
 	"strings"
 
@@ -45,8 +46,8 @@ func (p *MetadataPersister) UpsertHeader(ctx context.Context, dbhdr *models.Head
 
 	if _, err := models.FindHeader(ctx, p.db, hdr.Name, models.HeaderColumns.Name); err != nil {
 		if err == sql.ErrNoRows {
-			if _, err := models.FindHeader(ctx, p.db, withRelativeRoot(hdr.Name), models.HeaderColumns.Name); err == nil {
-				hdr.Name = withRelativeRoot(hdr.Name)
+			if _, err := models.FindHeader(ctx, p.db, p.withRelativeRoot(ctx, hdr.Name), models.HeaderColumns.Name); err == nil {
+				hdr.Name = p.withRelativeRoot(ctx, hdr.Name)
 			} else {
 				if err := hdr.Insert(ctx, p.db, boil.Infer()); err != nil {
 					return err
@@ -71,7 +72,7 @@ func (p *MetadataPersister) UpdateHeaderMetadata(ctx context.Context, dbhdr *mod
 	if _, err := dbhdr.Update(ctx, p.db, boil.Infer()); err != nil {
 		if err == sql.ErrNoRows {
 			hdr := *dbhdr
-			hdr.Name = withRelativeRoot(dbhdr.Name)
+			hdr.Name = p.withRelativeRoot(ctx, dbhdr.Name)
 
 			if _, err := hdr.Update(ctx, p.db, boil.Infer()); err != nil {
 				return err
@@ -114,10 +115,10 @@ func (p *MetadataPersister) MoveHeader(ctx context.Context, oldName string, newN
 			fmt.Sprintf(
 				`update %v set %v = ?, %v = ?, %v = ? where %v = ?;`,
 				models.TableNames.Headers,
-				withRelativeRoot(models.HeaderColumns.Name),
+				p.withRelativeRoot(ctx, models.HeaderColumns.Name),
 				models.HeaderColumns.Lastknownrecord,
 				models.HeaderColumns.Lastknownblock,
-				withRelativeRoot(models.HeaderColumns.Name),
+				p.withRelativeRoot(ctx, models.HeaderColumns.Name),
 			),
 			newName,
 			lastknownrecord,
@@ -145,7 +146,7 @@ func (p *MetadataPersister) GetHeader(ctx context.Context, name string) (*models
 	if err != nil {
 		if err == sql.ErrNoRows {
 			hdr, err = models.Headers(
-				qm.Where(models.HeaderColumns.Name+" = ?", withRelativeRoot(name)),
+				qm.Where(models.HeaderColumns.Name+" = ?", p.withRelativeRoot(ctx, name)),
 				qm.Where(models.HeaderColumns.Deleted+" != 1"),
 			).One(ctx, p.db)
 			if err != nil {
@@ -170,7 +171,7 @@ func (p *MetadataPersister) GetHeaderChildren(ctx context.Context, name string) 
 
 	if len(headers) < 1 {
 		headers, err = models.Headers(
-			qm.Where(models.HeaderColumns.Name+" like ?", withRelativeRoot(strings.TrimSuffix(name, "/")+"/%")), // Prevent double trailing slashes
+			qm.Where(models.HeaderColumns.Name+" like ?", p.withRelativeRoot(ctx, strings.TrimSuffix(name, "/")+"/%")), // Prevent double trailing slashes
 			qm.Where(models.HeaderColumns.Deleted+" != 1"),
 		).All(ctx, p.db)
 		if err != nil {
@@ -319,7 +320,7 @@ where %v like ?
 
 	headers, err := getHeaders(prefix)
 	if err != nil {
-		headers, err = getHeaders(withRelativeRoot(prefix))
+		headers, err = getHeaders(p.withRelativeRoot(ctx, prefix))
 		if err == sql.ErrNoRows {
 			return headers, nil
 		}
@@ -348,7 +349,7 @@ func (p *MetadataPersister) DeleteHeader(ctx context.Context, name string, lastk
 	hdr, err := models.FindHeader(ctx, p.db, name)
 	if err != nil {
 		if err == sql.ErrNoRows {
-			hdr, err = models.FindHeader(ctx, p.db, withRelativeRoot(name))
+			hdr, err = models.FindHeader(ctx, p.db, p.withRelativeRoot(ctx, name))
 			if err == sql.ErrNoRows {
 				return nil, err
 			}
@@ -403,6 +404,42 @@ func (p *MetadataPersister) PurgeAllHeaders(ctx context.Context) error {
 	return nil
 }
 
-func withRelativeRoot(root string) string {
-	return filepath.Clean(strings.TrimPrefix(root, "/"))
+func (p *MetadataPersister) headerExistsExact(ctx context.Context, name string) error {
+	exists, err := models.Headers(
+		qm.Where(models.HeaderColumns.Name+" = ?", name),
+		qm.Where(models.HeaderColumns.Deleted+" != 1"),
+	).Exists(ctx, p.db)
+	if err != nil {
+		return err
+	}
+
+	if !exists {
+		return sql.ErrNoRows
+	}
+
+	return nil
+}
+
+func (p *MetadataPersister) withRelativeRoot(ctx context.Context, root string) string {
+	prefix := ""
+	if err := p.headerExistsExact(ctx, ""); err == nil {
+		prefix = ""
+	} else if err := p.headerExistsExact(ctx, "."); err == nil {
+		prefix = "."
+	} else if err := p.headerExistsExact(ctx, "/"); err == nil {
+		prefix = "/"
+	} else {
+		prefix = "./" // Special case: There is no root directory, only files, and the files start with `./`
+	}
+
+	if pathext.IsRoot(root) {
+		return prefix
+	}
+
+	if prefix == "./" {
+		// Special case: There is no root directory, only files, and the files start with `./`; we can't do path.Join, as `./asdf.txt` would be shortened to `asdf.txt`
+		return prefix + filepath.Clean(strings.TrimPrefix(root, "/"))
+	}
+
+	return path.Join(prefix, filepath.Clean(strings.TrimPrefix(root, "/")))
 }
