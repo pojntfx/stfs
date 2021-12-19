@@ -7,10 +7,12 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
+	"path/filepath"
 	"strings"
 
 	"github.com/pojntfx/stfs/internal/db/sqlite/migrations/metadata"
 	models "github.com/pojntfx/stfs/internal/db/sqlite/models/metadata"
+	"github.com/pojntfx/stfs/internal/pathext"
 	migrate "github.com/rubenv/sql-migrate"
 	"github.com/volatiletech/sqlboiler/v4/boil"
 	"github.com/volatiletech/sqlboiler/v4/queries"
@@ -211,7 +213,7 @@ func (p *MetadataPersister) GetHeaderDirectChildren(ctx context.Context, name st
 	headers := models.HeaderSlice{}
 
 	// Root node
-	if name == "" || name == "." || name == "/" || name == "./" {
+	if pathext.IsRoot(name) {
 		prefix = ""
 		depth := depth{}
 
@@ -402,5 +404,5 @@ func (p *MetadataPersister) PurgeAllHeaders(ctx context.Context) error {
 }
 
 func withRelativeRoot(root string) string {
-	return "./" + strings.TrimPrefix(root, "/")
+	return filepath.Clean(strings.TrimPrefix(root, "/"))
 }
