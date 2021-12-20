@@ -130,7 +130,7 @@ func (f *FileSystem) RemoveAll(path string) error {
 func (f *FileSystem) Rename(oldname, newname string) error {
 	log.Println("FileSystem.Rename", oldname, newname)
 
-	panic(ErrNotImplemented)
+	return f.writeOps.Move(oldname, newname)
 }
 
 func (f *FileSystem) Stat(name string) (os.FileInfo, error) {
