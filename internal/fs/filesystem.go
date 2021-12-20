@@ -1,6 +1,7 @@
 package fs
 
 import (
+	"archive/tar"
 	"database/sql"
 	"errors"
 	"io"
@@ -162,26 +163,7 @@ func (f *FileSystem) Stat(name string) (os.FileInfo, error) {
 	return NewFileInfo(hdr), nil
 }
 
-func (f *FileSystem) Chmod(name string, mode os.FileMode) error {
-	log.Println("FileSystem.Chmod", name, mode)
-
-	hdr, err := inventory.Stat(
-		f.metadata,
-
-		name,
-
-		f.onHeader,
-	)
-	if err != nil {
-		if err == sql.ErrNoRows {
-			return os.ErrNotExist
-		}
-
-		panic(err)
-	}
-
-	hdr.Mode = int64(mode)
-
+func (f *FileSystem) updateMetadata(hdr *tar.Header) error {
 	done := false
 	if _, err := f.writeOps.Update(
 		func() (config.FileConfig, error) {
@@ -207,10 +189,51 @@ func (f *FileSystem) Chmod(name string, mode os.FileMode) error {
 	return nil
 }
 
+func (f *FileSystem) Chmod(name string, mode os.FileMode) error {
+	log.Println("FileSystem.Chmod", name, mode)
+
+	hdr, err := inventory.Stat(
+		f.metadata,
+
+		name,
+
+		f.onHeader,
+	)
+	if err != nil {
+		if err == sql.ErrNoRows {
+			return os.ErrNotExist
+		}
+
+		panic(err)
+	}
+
+	hdr.Mode = int64(mode)
+
+	return f.updateMetadata(hdr)
+}
+
 func (f *FileSystem) Chown(name string, uid, gid int) error {
 	log.Println("FileSystem.Chown", name, uid, gid)
 
-	panic(ErrNotImplemented)
+	hdr, err := inventory.Stat(
+		f.metadata,
+
+		name,
+
+		f.onHeader,
+	)
+	if err != nil {
+		if err == sql.ErrNoRows {
+			return os.ErrNotExist
+		}
+
+		panic(err)
+	}
+
+	hdr.Uid = uid
+	hdr.Gid = gid
+
+	return f.updateMetadata(hdr)
 }
 
 func (f *FileSystem) Chtimes(name string, atime time.Time, mtime time.Time) error {
