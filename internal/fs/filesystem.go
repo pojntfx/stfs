@@ -239,7 +239,25 @@ func (f *FileSystem) Chown(name string, uid, gid int) error {
 func (f *FileSystem) Chtimes(name string, atime time.Time, mtime time.Time) error {
 	log.Println("FileSystem.Chtimes", name, atime, mtime)
 
-	panic(ErrNotImplemented)
+	hdr, err := inventory.Stat(
+		f.metadata,
+
+		name,
+
+		f.onHeader,
+	)
+	if err != nil {
+		if err == sql.ErrNoRows {
+			return os.ErrNotExist
+		}
+
+		panic(err)
+	}
+
+	hdr.AccessTime = atime
+	hdr.ModTime = mtime
+
+	return f.updateMetadata(hdr)
 }
 
 func (f *FileSystem) LstatIfPossible(name string) (os.FileInfo, bool, error) {
