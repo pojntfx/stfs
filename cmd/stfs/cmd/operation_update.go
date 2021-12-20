@@ -121,8 +121,8 @@ var operationUpdateCmd = &cobra.Command{
 						return os.Open(path)
 					},
 					Info: info,
-					Path: path,
-					Link: link,
+					Path: filepath.ToSlash(path),
+					Link: filepath.ToSlash(link),
 				}
 
 				return nil

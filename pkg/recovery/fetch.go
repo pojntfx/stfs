@@ -6,6 +6,7 @@ import (
 	"io"
 	"io/fs"
 	"path"
+	"path/filepath"
 
 	"github.com/pojntfx/stfs/internal/compression"
 	"github.com/pojntfx/stfs/internal/converters"
@@ -34,6 +35,8 @@ func Fetch(
 
 	onHeader func(hdr *models.Header),
 ) error {
+	to = filepath.ToSlash(to)
+
 	var tr *tar.Reader
 	if reader.DriveIsRegular {
 		// Seek to record and block

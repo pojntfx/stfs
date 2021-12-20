@@ -3,6 +3,7 @@ package operations
 import (
 	"archive/tar"
 	"context"
+	"path/filepath"
 	"strings"
 
 	"github.com/pojntfx/stfs/internal/converters"
@@ -16,6 +17,8 @@ import (
 )
 
 func (o *Operations) Move(from string, to string) error {
+	from, to = filepath.ToSlash(from), filepath.ToSlash(to)
+
 	// Ignore no-op move operation
 	if from == to {
 		return nil

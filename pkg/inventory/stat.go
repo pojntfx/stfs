@@ -4,6 +4,7 @@ import (
 	"archive/tar"
 	"context"
 	"database/sql"
+	"path/filepath"
 	"strings"
 
 	"github.com/pojntfx/stfs/internal/converters"
@@ -18,6 +19,8 @@ func Stat(
 
 	onHeader func(hdr *models.Header),
 ) (*tar.Header, error) {
+	name = filepath.ToSlash(name)
+
 	dbhdr, err := metadata.Metadata.GetHeader(context.Background(), name)
 	if err != nil {
 		if err == sql.ErrNoRows {

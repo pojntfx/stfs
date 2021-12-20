@@ -3,6 +3,7 @@ package operations
 import (
 	"archive/tar"
 	"context"
+	"path/filepath"
 
 	"github.com/pojntfx/stfs/internal/converters"
 	models "github.com/pojntfx/stfs/internal/db/sqlite/models/metadata"
@@ -15,6 +16,8 @@ import (
 )
 
 func (o *Operations) Delete(name string) error {
+	name = filepath.ToSlash(name)
+
 	o.diskOperationLock.Lock()
 	defer o.diskOperationLock.Unlock()
 
