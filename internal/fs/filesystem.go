@@ -3,9 +3,11 @@ package fs
 import (
 	"database/sql"
 	"errors"
+	"io"
 	"log"
 	"os"
 	"path"
+	"path/filepath"
 	"time"
 
 	models "github.com/pojntfx/stfs/internal/db/sqlite/models/metadata"
@@ -25,6 +27,8 @@ type FileSystem struct {
 
 	metadata config.MetadataConfig
 
+	compressionLevel string
+
 	onHeader func(hdr *models.Header)
 }
 
@@ -34,6 +38,8 @@ func NewFileSystem(
 
 	metadata config.MetadataConfig,
 
+	compressionLevel string,
+
 	onHeader func(hdr *models.Header),
 ) afero.Fs {
 	return &FileSystem{
@@ -41,6 +47,8 @@ func NewFileSystem(
 		writeOps: writeOps,
 
 		metadata: metadata,
+
+		compressionLevel: compressionLevel,
 
 		onHeader: onHeader,
 	}
@@ -157,7 +165,46 @@ func (f *FileSystem) Stat(name string) (os.FileInfo, error) {
 func (f *FileSystem) Chmod(name string, mode os.FileMode) error {
 	log.Println("FileSystem.Chmod", name, mode)
 
-	panic(ErrNotImplemented)
+	hdr, err := inventory.Stat(
+		f.metadata,
+
+		name,
+
+		f.onHeader,
+	)
+	if err != nil {
+		if err == sql.ErrNoRows {
+			return os.ErrNotExist
+		}
+
+		panic(err)
+	}
+
+	hdr.Mode = int64(mode)
+
+	done := false
+	if _, err := f.writeOps.Update(
+		func() (config.FileConfig, error) {
+			// Exit after the first update
+			if done {
+				return config.FileConfig{}, io.EOF
+			}
+			done = true
+
+			return config.FileConfig{
+				GetFile: nil, // Not required as we never replace
+				Info:    hdr.FileInfo(),
+				Path:    filepath.ToSlash(hdr.Name),
+				Link:    filepath.ToSlash(hdr.Linkname),
+			}, nil
+		},
+		f.compressionLevel,
+		false,
+	); err != nil {
+		return err
+	}
+
+	return nil
 }
 
 func (f *FileSystem) Chown(name string, uid, gid int) error {
