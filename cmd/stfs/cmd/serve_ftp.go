@@ -22,6 +22,16 @@ import (
 	"github.com/spf13/viper"
 )
 
+const (
+	encryptionIdentityFlag  = "encryption-identity"
+	encryptionPasswordFlag  = "encryption-password"
+	encryptionRecipientFlag = "encryption-recipient"
+
+	signatureIdentityFlag  = "signature-identity"
+	signaturePasswordFlag  = "signature-password"
+	signatureRecipientFlag = "signature-recipient"
+)
+
 var serveFTPCmd = &cobra.Command{
 	Use:     "ftp",
 	Aliases: []string{"f"},
@@ -35,29 +45,57 @@ var serveFTPCmd = &cobra.Command{
 			return err
 		}
 
-		if err := keys.CheckKeyAccessible(viper.GetString(encryptionFlag), viper.GetString(identityFlag)); err != nil {
+		if err := keys.CheckKeyAccessible(viper.GetString(encryptionFlag), viper.GetString(encryptionIdentityFlag)); err != nil {
 			return err
 		}
 
-		return keys.CheckKeyAccessible(viper.GetString(signatureFlag), viper.GetString(recipientFlag))
+		if err := keys.CheckKeyAccessible(viper.GetString(encryptionFlag), viper.GetString(encryptionRecipientFlag)); err != nil {
+			return err
+		}
+
+		if err := keys.CheckKeyAccessible(viper.GetString(signatureFlag), viper.GetString(signatureIdentityFlag)); err != nil {
+			return err
+		}
+
+		return keys.CheckKeyAccessible(viper.GetString(signatureFlag), viper.GetString(signatureRecipientFlag))
 	},
 	RunE: func(cmd *cobra.Command, args []string) error {
-		pubkey, err := keys.ReadKey(viper.GetString(signatureFlag), viper.GetString(recipientFlag))
+		signaturePubkey, err := keys.ReadKey(viper.GetString(signatureFlag), viper.GetString(signatureRecipientFlag))
 		if err != nil {
 			return err
 		}
 
-		recipient, err := keys.ParseSignerRecipient(viper.GetString(signatureFlag), pubkey)
+		signaturePrivkey, err := keys.ReadKey(viper.GetString(signatureFlag), viper.GetString(signatureIdentityFlag))
 		if err != nil {
 			return err
 		}
 
-		privkey, err := keys.ReadKey(viper.GetString(encryptionFlag), viper.GetString(identityFlag))
+		encryptionPubkey, err := keys.ReadKey(viper.GetString(encryptionFlag), viper.GetString(encryptionRecipientFlag))
 		if err != nil {
 			return err
 		}
 
-		identity, err := keys.ParseIdentity(viper.GetString(encryptionFlag), privkey, viper.GetString(passwordFlag))
+		encryptionPrivkey, err := keys.ReadKey(viper.GetString(encryptionFlag), viper.GetString(encryptionIdentityFlag))
+		if err != nil {
+			return err
+		}
+
+		signatureRecipient, err := keys.ParseSignerRecipient(viper.GetString(signatureFlag), signaturePubkey)
+		if err != nil {
+			return err
+		}
+
+		signatureIdentity, err := keys.ParseIdentity(viper.GetString(signatureFlag), signaturePrivkey, viper.GetString(signaturePasswordFlag))
+		if err != nil {
+			return err
+		}
+
+		encryptionRecipient, err := keys.ParseSignerRecipient(viper.GetString(encryptionFlag), encryptionPubkey)
+		if err != nil {
+			return err
+		}
+
+		encryptionIdentity, err := keys.ParseIdentity(viper.GetString(encryptionFlag), encryptionPrivkey, viper.GetString(encryptionPasswordFlag))
 		if err != nil {
 			return err
 		}
@@ -80,7 +118,7 @@ var serveFTPCmd = &cobra.Command{
 
 		logger := logging.NewLogger()
 
-		ops := operations.NewOperations(
+		readOps := operations.NewOperations(
 			config.BackendConfig{
 				GetWriter:   tm.GetWriter,
 				CloseWriter: tm.Close,
@@ -102,16 +140,47 @@ var serveFTPCmd = &cobra.Command{
 				RecordSize:  viper.GetInt(recordSizeFlag),
 			},
 			config.CryptoConfig{
-				Recipient: recipient,
-				Identity:  identity,
-				Password:  viper.GetString(passwordFlag),
+				Recipient: signatureRecipient,
+				Identity:  encryptionIdentity,
+				Password:  viper.GetString(encryptionPasswordFlag),
+			},
+
+			logger.PrintHeaderEvent,
+		)
+
+		writeOps := operations.NewOperations(
+			config.BackendConfig{
+				GetWriter:   tm.GetWriter,
+				CloseWriter: tm.Close,
+
+				GetReader:   tm.GetReader,
+				CloseReader: tm.Close,
+
+				GetDrive:   tm.GetDrive,
+				CloseDrive: tm.Close,
+			},
+			config.MetadataConfig{
+				Metadata: metadataPersister,
+			},
+
+			config.PipeConfig{
+				Compression: viper.GetString(compressionFlag),
+				Encryption:  viper.GetString(encryptionFlag),
+				Signature:   viper.GetString(signatureFlag),
+				RecordSize:  viper.GetInt(recordSizeFlag),
+			},
+			config.CryptoConfig{
+				Recipient: encryptionRecipient,
+				Identity:  signatureIdentity,
+				Password:  viper.GetString(signaturePasswordFlag),
 			},
 
 			logger.PrintHeaderEvent,
 		)
 
 		stfs := sfs.NewFileSystem(
-			ops,
+			readOps,
+			writeOps,
 
 			config.MetadataConfig{
 				Metadata: metadataPersister,
@@ -152,9 +221,16 @@ var serveFTPCmd = &cobra.Command{
 
 func init() {
 	serveFTPCmd.PersistentFlags().IntP(recordSizeFlag, "z", 20, "Amount of 512-bit blocks per record")
-	serveFTPCmd.PersistentFlags().StringP(identityFlag, "i", "", "Path to private key of recipient that has been encrypted for")
-	serveFTPCmd.PersistentFlags().StringP(passwordFlag, "p", "", "Password for the private key")
-	serveFTPCmd.PersistentFlags().StringP(recipientFlag, "r", "", "Path to the public key to verify with")
+
+	serveFTPCmd.PersistentFlags().StringP(encryptionIdentityFlag, "i", "", "Path to private key to decrypt with")
+	serveFTPCmd.PersistentFlags().StringP(encryptionPasswordFlag, "p", "", "Password for the private key to decrypt with")
+	serveFTPCmd.PersistentFlags().StringP(encryptionRecipientFlag, "t", "", "Path to public key of recipient to encrypt with")
+
+	serveFTPCmd.PersistentFlags().StringP(signatureIdentityFlag, "g", "", "Path to private key to sign with")
+	serveFTPCmd.PersistentFlags().StringP(signaturePasswordFlag, "x", "", "Password for the private key to sign with")
+	serveFTPCmd.PersistentFlags().StringP(signatureRecipientFlag, "r", "", "Path to the public key to verify with")
+
+	serveFTPCmd.PersistentFlags().StringP(compressionLevelFlag, "l", config.CompressionLevelBalanced, fmt.Sprintf("Compression level to use (default %v, available are %v)", config.CompressionLevelBalanced, config.KnownCompressionLevels))
 	serveFTPCmd.PersistentFlags().StringP(laddrFlag, "a", "localhost:1337", "Listen address")
 	serveFTPCmd.PersistentFlags().StringP(cacheFlag, "n", config.NoneKey, fmt.Sprintf("Cache to use (default %v, available are %v)", config.NoneKey, cache.KnownCacheTypes))
 	serveFTPCmd.PersistentFlags().DurationP(cacheDurationFlag, "u", time.Hour, "Duration until cache is invalidated")

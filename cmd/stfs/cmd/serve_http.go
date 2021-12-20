@@ -88,7 +88,7 @@ var serveHTTPCmd = &cobra.Command{
 
 		logger := logging.NewLogger()
 
-		ops := operations.NewOperations(
+		readOps := operations.NewOperations(
 			config.BackendConfig{
 				GetWriter:   tm.GetWriter,
 				CloseWriter: tm.Close,
@@ -119,7 +119,8 @@ var serveHTTPCmd = &cobra.Command{
 		)
 
 		stfs := sfs.NewFileSystem(
-			ops,
+			readOps,
+			nil,
 
 			config.MetadataConfig{
 				Metadata: metadataPersister,

@@ -20,7 +20,8 @@ var (
 )
 
 type FileSystem struct {
-	ops *operations.Operations
+	readOps  *operations.Operations
+	writeOps *operations.Operations
 
 	metadata config.MetadataConfig
 
@@ -28,14 +29,16 @@ type FileSystem struct {
 }
 
 func NewFileSystem(
-	ops *operations.Operations,
+	readOps *operations.Operations,
+	writeOps *operations.Operations,
 
 	metadata config.MetadataConfig,
 
 	onHeader func(hdr *models.Header),
 ) afero.Fs {
 	return &FileSystem{
-		ops: ops,
+		readOps:  readOps,
+		writeOps: writeOps,
 
 		metadata: metadata,
 
@@ -86,7 +89,7 @@ func (f *FileSystem) Open(name string) (afero.File, error) {
 	}
 
 	return NewFile(
-		f.ops,
+		f.readOps,
 
 		f.metadata,
 
