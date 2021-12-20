@@ -186,6 +186,8 @@ var serveFTPCmd = &cobra.Command{
 				Metadata: metadataPersister,
 			},
 
+			viper.GetString(compressionLevelFlag),
+
 			logger.PrintHeader,
 		)
 

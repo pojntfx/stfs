@@ -126,6 +126,8 @@ var serveHTTPCmd = &cobra.Command{
 				Metadata: metadataPersister,
 			},
 
+			"", // We never write
+
 			logger.PrintHeader,
 		)
 
