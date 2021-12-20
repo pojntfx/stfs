@@ -103,6 +103,8 @@ var operationUpdateCmd = &cobra.Command{
 		errs := make(chan error)
 		go func() {
 			if err := filepath.Walk(viper.GetString(fromFlag), func(path string, info fs.FileInfo, err error) error {
+				path = filepath.ToSlash(path)
+
 				if err != nil {
 					return err
 				}
