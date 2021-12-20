@@ -23,6 +23,8 @@ func (o *Operations) Restore(
 	to string,
 	flatten bool,
 ) error {
+	from, to = filepath.ToSlash(from), filepath.ToSlash(to)
+
 	o.diskOperationLock.Lock()
 	defer o.diskOperationLock.Unlock()
 
