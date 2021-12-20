@@ -118,13 +118,13 @@ func (f *FileSystem) OpenFile(name string, flag int, perm os.FileMode) (afero.Fi
 func (f *FileSystem) Remove(name string) error {
 	log.Println("FileSystem.Remove", name)
 
-	panic(ErrNotImplemented)
+	return f.writeOps.Delete(name)
 }
 
 func (f *FileSystem) RemoveAll(path string) error {
 	log.Println("FileSystem.RemoveAll", path)
 
-	panic(ErrNotImplemented)
+	return f.writeOps.Delete(path)
 }
 
 func (f *FileSystem) Rename(oldname, newname string) error {

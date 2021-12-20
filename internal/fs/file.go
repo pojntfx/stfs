@@ -150,10 +150,6 @@ func (f *File) WriteString(s string) (ret int, err error) {
 func (f *File) closeWithoutLocking() error {
 	log.Println("File.closeWithoutLocking", f.name)
 
-	if f.info.IsDir() {
-		return ErrIsDirectory
-	}
-
 	if f.reader != nil {
 		if err := f.reader.Close(); err != nil {
 			return err
