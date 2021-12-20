@@ -1,0 +1,16 @@
+#!/bin/bash
+
+set -e
+
+# Install native dependencies
+apt update
+apt install -y curl
+
+# Install bagccgop
+curl -L -o /tmp/bagccgop "https://github.com/pojntfx/bagccgop/releases/latest/download/bagccgop.linux-$(uname -m)"
+install /tmp/bagccgop /usr/local/bin
+
+# Build
+GOFLAGS='-gccgoflags=-static' bagccgop -x '(linux/alpha|linux/mipsle)' -j1 -b stfs -r 'make depend' -m 'libsqlite3-dev' -p 'make build/stfs DST=$DST' -d out
+
+exit 0
