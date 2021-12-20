@@ -3,6 +3,7 @@ package operations
 import (
 	"archive/tar"
 	"context"
+	"path"
 	"path/filepath"
 	"strings"
 
@@ -50,6 +51,16 @@ func (o *Operations) Move(from string, to string) error {
 	}
 	headersToMove = append(headersToMove, dbhdr)
 
+	// Prevent moving from relative to absolute path
+	if path.IsAbs(to) && !path.IsAbs(dbhdr.Name) {
+		to = strings.TrimPrefix(to, "/")
+	}
+
+	// Ignore no-op move operation
+	if from == to {
+		return nil
+	}
+
 	// If the header refers to a directory, get it's children
 	if dbhdr.Typeflag == tar.TypeDir {
 		dbhdrs, err := o.metadata.Metadata.GetHeaderChildren(context.Background(), from)
@@ -69,7 +80,7 @@ func (o *Operations) Move(from string, to string) error {
 		}
 
 		hdr.Size = 0 // Don't try to seek after the record
-		hdr.Name = strings.TrimSuffix(to, "/") + strings.TrimPrefix(hdr.Name, strings.TrimSuffix(from, "/"))
+		hdr.Name = path.Join(to, strings.TrimPrefix(strings.TrimPrefix(dbhdr.Name, "/"), strings.TrimPrefix(from, "/")))
 		hdr.PAXRecords[records.STFSRecordVersion] = records.STFSRecordVersion1
 		hdr.PAXRecords[records.STFSRecordAction] = records.STFSRecordActionUpdate
 		hdr.PAXRecords[records.STFSRecordReplacesName] = dbhdr.Name
