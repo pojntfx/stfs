@@ -12,6 +12,9 @@ func DBHeaderToTarHeader(dbhdr *models.Header) (*tar.Header, error) {
 	if err := json.Unmarshal([]byte(dbhdr.Paxrecords), &paxRecords); err != nil {
 		return nil, err
 	}
+	if paxRecords == nil {
+		paxRecords = map[string]string{}
+	}
 
 	hdr := &tar.Header{
 		Typeflag:   byte(dbhdr.Typeflag),
