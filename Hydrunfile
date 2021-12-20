@@ -11,6 +11,6 @@ curl -L -o /tmp/bagccgop "https://github.com/pojntfx/bagccgop/releases/latest/do
 install /tmp/bagccgop /usr/local/bin
 
 # Build
-GOFLAGS='-gccgoflags=-static' bagccgop -x '(linux/alpha|linux/mipsle|linux/ppc|linux/sparc64|linux/riscv64)' -j1 -b stfs -r 'make depend' -s 'build-essential,automake' -m 'libsqlite3-dev' -p 'make build/stfs DST=$DST' -d out
+GOFLAGS='-gccgoflags=-static' bagccgop -x '(linux/alpha|linux/mipsle|linux/arm$)' -j1 -b stfs -n -r 'make depend' -s 'build-essential,automake' -m 'libsqlite3-dev' -p 'make build/stfs DST=$DST' -d out
 
 exit 0
