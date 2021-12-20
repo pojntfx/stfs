@@ -40,5 +40,6 @@ depend:
 	go install github.com/rubenv/sql-migrate/sql-migrate@latest
 	go install github.com/volatiletech/sqlboiler/v4@latest
 	go install github.com/volatiletech/sqlboiler-sqlite3@latest
+	go install github.com/jteeuwen/go-bindata/go-bindata@latest
 	sql-migrate up -env="production" -config configs/sql-migrate/metadata.yaml
 	go generate ./...
