@@ -5,7 +5,7 @@ import (
 	"errors"
 	"log"
 	"os"
-	"path/filepath"
+	"path"
 	"time"
 
 	models "github.com/pojntfx/stfs/internal/db/sqlite/models/metadata"
@@ -92,7 +92,7 @@ func (f *FileSystem) Open(name string) (afero.File, error) {
 
 		hdr.Name,
 
-		filepath.Base(hdr.Name),
+		path.Base(hdr.Name),
 		NewFileInfo(hdr),
 
 		f.onHeader,

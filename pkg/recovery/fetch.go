@@ -5,7 +5,7 @@ import (
 	"bufio"
 	"io"
 	"io/fs"
-	"path/filepath"
+	"path"
 
 	"github.com/pojntfx/stfs/internal/compression"
 	"github.com/pojntfx/stfs/internal/converters"
@@ -81,7 +81,7 @@ func Fetch(
 
 	if !preview {
 		if to == "" {
-			to = filepath.Base(hdr.Name)
+			to = path.Base(hdr.Name)
 		}
 
 		if hdr.Typeflag == tar.TypeDir {
