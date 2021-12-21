@@ -79,7 +79,7 @@ func (o *Operations) Archive(
 		hdr.Format = tar.FormatPAX
 
 		var f io.ReadSeekCloser
-		if file.Info.Mode().IsRegular() {
+		if file.Info.Mode().IsRegular() && file.Info.Size() > 0 {
 			// Get the compressed size for the header
 			fileSizeCounter := &ioext.CounterWriter{
 				Writer: io.Discard,
@@ -184,7 +184,7 @@ func (o *Operations) Archive(
 
 		dirty = true
 
-		if !file.Info.Mode().IsRegular() {
+		if !file.Info.Mode().IsRegular() || file.Info.Size() <= 0 {
 			if f != nil {
 				if err := f.Close(); err != nil {
 					return []*tar.Header{}, err

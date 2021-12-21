@@ -66,11 +66,11 @@ func (f *FileSystem) Name() string {
 func (f *FileSystem) Create(name string) (afero.File, error) {
 	log.Println("FileSystem.Name", name)
 
-	panic(ErrNotImplemented)
+	return os.OpenFile(name, os.O_CREATE, 0666)
 }
 
-func (f *FileSystem) Mkdir(name string, perm os.FileMode) error {
-	log.Println("FileSystem.Mkdir", name, perm)
+func (f *FileSystem) mknode(dir bool, name string, perm os.FileMode) error {
+	log.Println("FileSystem.mknode", name, perm)
 
 	usr, err := user.Current()
 	if err != nil {
@@ -97,8 +97,13 @@ func (f *FileSystem) Mkdir(name string, perm os.FileMode) error {
 		gname = groups[0]
 	}
 
+	typeflag := tar.TypeReg
+	if dir {
+		typeflag = tar.TypeDir
+	}
+
 	hdr := &tar.Header{
-		Typeflag: tar.TypeDir,
+		Typeflag: byte(typeflag),
 
 		Name: name,
 
@@ -136,6 +141,12 @@ func (f *FileSystem) Mkdir(name string, perm os.FileMode) error {
 	return nil
 }
 
+func (f *FileSystem) Mkdir(name string, perm os.FileMode) error {
+	log.Println("FileSystem.Mkdir", name, perm)
+
+	return f.mknode(true, name, perm)
+}
+
 func (f *FileSystem) MkdirAll(path string, perm os.FileMode) error {
 	log.Println("FileSystem.MkdirAll", path, perm)
 
@@ -149,7 +160,7 @@ func (f *FileSystem) MkdirAll(path string, perm os.FileMode) error {
 			currentPath = filepath.Join(currentPath, part)
 		}
 
-		if err := f.Mkdir(currentPath, perm); err != nil {
+		if err := f.mknode(true, currentPath, perm); err != nil {
 			return err
 		}
 	}
@@ -192,12 +203,15 @@ func (f *FileSystem) Open(name string) (afero.File, error) {
 func (f *FileSystem) OpenFile(name string, flag int, perm os.FileMode) (afero.File, error) {
 	log.Println("FileSystem.OpenFile", name, flag, perm)
 
-	if flag != 0 {
-		// TODO: Implement update and write
-		panic(ErrNotImplemented)
+	if _, err := f.Stat(name); err != nil {
+		if err == os.ErrNotExist && flag&os.O_CREATE != 0 {
+			if err := f.mknode(false, name, perm); err != nil {
+				return nil, err
+			}
+		} else {
+			return nil, err
+		}
 	}
-
-	// TODO: Implement `perm` support
 
 	return f.Open(name)
 }
