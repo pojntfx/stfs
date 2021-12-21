@@ -7,8 +7,10 @@ import (
 	"io"
 	"log"
 	"os"
+	"os/user"
 	"path"
 	"path/filepath"
+	"strconv"
 	"time"
 
 	models "github.com/pojntfx/stfs/internal/db/sqlite/models/metadata"
@@ -70,7 +72,68 @@ func (f *FileSystem) Create(name string) (afero.File, error) {
 func (f *FileSystem) Mkdir(name string, perm os.FileMode) error {
 	log.Println("FileSystem.Mkdir", name, perm)
 
-	panic(ErrNotImplemented)
+	usr, err := user.Current()
+	if err != nil {
+		return err
+	}
+
+	uid, err := strconv.Atoi(usr.Uid)
+	if err != nil {
+		return err
+	}
+
+	gid, err := strconv.Atoi(usr.Gid)
+	if err != nil {
+		return err
+	}
+
+	groups, err := usr.GroupIds()
+	if err != nil {
+		return err
+	}
+
+	gname := ""
+	if len(groups) >= 1 {
+		gname = groups[0]
+	}
+
+	hdr := &tar.Header{
+		Typeflag: tar.TypeDir,
+
+		Name: name,
+
+		Mode:  int64(perm),
+		Uid:   uid,
+		Gid:   gid,
+		Uname: usr.Username,
+		Gname: gname,
+
+		ModTime: time.Now(),
+	}
+
+	done := false
+	if _, err := f.writeOps.Archive(
+		func() (config.FileConfig, error) {
+			// Exit after the first write
+			if done {
+				return config.FileConfig{}, io.EOF
+			}
+			done = true
+
+			return config.FileConfig{
+				GetFile: nil, // Not required as we never replace
+				Info:    hdr.FileInfo(),
+				Path:    filepath.ToSlash(name),
+				Link:    filepath.ToSlash(hdr.Linkname),
+			}, nil
+		},
+		f.compressionLevel,
+		false,
+	); err != nil {
+		return err
+	}
+
+	return nil
 }
 
 func (f *FileSystem) MkdirAll(path string, perm os.FileMode) error {
