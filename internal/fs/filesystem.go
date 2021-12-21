@@ -139,7 +139,22 @@ func (f *FileSystem) Mkdir(name string, perm os.FileMode) error {
 func (f *FileSystem) MkdirAll(path string, perm os.FileMode) error {
 	log.Println("FileSystem.MkdirAll", path, perm)
 
-	panic(ErrNotImplemented)
+	parts := filepath.SplitList(path)
+	currentPath := ""
+
+	for _, part := range parts {
+		if currentPath == "" {
+			currentPath = part
+		} else {
+			currentPath = filepath.Join(currentPath, part)
+		}
+
+		if err := f.Mkdir(currentPath, perm); err != nil {
+			return err
+		}
+	}
+
+	return nil
 }
 
 func (f *FileSystem) Open(name string) (afero.File, error) {
