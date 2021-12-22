@@ -8,6 +8,6 @@ type NopCloser struct {
 
 func (NopCloser) Close() error { return nil }
 
-func AddClose(w io.Writer) NopCloser {
+func AddCloseNopToWriter(w io.Writer) NopCloser {
 	return NopCloser{w}
 }

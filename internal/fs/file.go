@@ -9,6 +9,7 @@ import (
 	"os"
 	"sync"
 
+	"github.com/mattetti/filebuffer"
 	models "github.com/pojntfx/stfs/internal/db/sqlite/models/metadata"
 	"github.com/pojntfx/stfs/internal/ioext"
 	"github.com/pojntfx/stfs/pkg/config"
@@ -24,28 +25,38 @@ var (
 type File struct {
 	afero.File
 
-	ops *operations.Operations
+	readOps  *operations.Operations
+	writeOps *operations.Operations
 
 	metadata config.MetadataConfig
 
-	path string
+	path             string
+	link             string
+	compressionLevel string
 
 	name string
 	info os.FileInfo
 
 	ioLock sync.Mutex
-	reader *ioext.CounterReadCloser
-	writer io.WriteCloser
+
+	readOpReader *ioext.CounterReadCloser
+	readOpWriter io.WriteCloser
+
+	// TODO: Find a non-in-memory method to do this
+	writeBuf *filebuffer.Buffer
 
 	onHeader func(hdr *models.Header)
 }
 
 func NewFile(
-	ops *operations.Operations,
+	readOps *operations.Operations,
+	writeOps *operations.Operations,
 
 	metadata config.MetadataConfig,
 
 	path string,
+	link string,
+	compressionLevel string,
 
 	name string,
 	info os.FileInfo,
@@ -53,11 +64,14 @@ func NewFile(
 	onHeader func(hdr *models.Header),
 ) *File {
 	return &File{
-		ops: ops,
+		readOps:  readOps,
+		writeOps: writeOps,
 
 		metadata: metadata,
 
-		path: path,
+		path:             path,
+		link:             link,
+		compressionLevel: compressionLevel,
 
 		name: name,
 		info: info,
@@ -117,14 +131,59 @@ func (f *File) Readdirnames(n int) ([]string, error) {
 	return names, err
 }
 
-func (f *File) Sync() error {
-	log.Println("File.Sync", f.name)
+func (f *File) syncWithoutLocking() error {
+	log.Println("File.syncWithoutLocking", f.name)
 
 	if f.info.IsDir() {
 		return ErrIsDirectory
 	}
 
-	return ErrNotImplemented
+	if f.writeBuf != nil {
+		done := false
+		if _, err := f.writeOps.Update(
+			func() (config.FileConfig, error) {
+				// Exit after the first write
+				if done {
+					return config.FileConfig{}, io.EOF
+				}
+				done = true
+
+				f.info = &FileInfo{
+					name:    f.info.Name(),
+					size:    int64(f.writeBuf.Buff.Len()),
+					mode:    f.info.Mode(),
+					modTime: f.info.ModTime(),
+					isDir:   f.info.IsDir(),
+				}
+
+				return config.FileConfig{
+					GetFile: func() (io.ReadSeekCloser, error) {
+						if _, err := f.writeBuf.Seek(0, io.SeekStart); err != nil {
+							return nil, err
+						}
+
+						return f.writeBuf, nil
+					},
+					Info: f.info,
+					Path: f.path,
+					Link: f.link,
+				}, nil
+			},
+			f.compressionLevel,
+			true,
+			true,
+		); err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
+func (f *File) Sync() error {
+	log.Println("File.Sync", f.name)
+
+	return f.syncWithoutLocking()
 }
 
 func (f *File) Truncate(size int64) error {
@@ -150,20 +209,28 @@ func (f *File) WriteString(s string) (ret int, err error) {
 func (f *File) closeWithoutLocking() error {
 	log.Println("File.closeWithoutLocking", f.name)
 
-	if f.reader != nil {
-		if err := f.reader.Close(); err != nil {
+	if f.readOpReader != nil {
+		if err := f.readOpReader.Close(); err != nil {
 			return err
 		}
 	}
 
-	if f.writer != nil {
-		if err := f.writer.Close(); err != nil {
+	if f.readOpWriter != nil {
+		if err := f.readOpWriter.Close(); err != nil {
 			return err
 		}
 	}
 
-	f.reader = nil
-	f.writer = nil
+	if f.writeBuf != nil {
+		// No need to close write buffer, the `update` operation closes it itself
+		if err := f.syncWithoutLocking(); err != nil {
+			return err
+		}
+	}
+
+	f.readOpReader = nil
+	f.readOpWriter = nil
+	f.writeBuf = nil
 
 	return nil
 }
@@ -187,7 +254,7 @@ func (f *File) Read(p []byte) (n int, err error) {
 	f.ioLock.Lock()
 	defer f.ioLock.Unlock()
 
-	if f.reader == nil || f.writer == nil {
+	if f.readOpReader == nil || f.readOpWriter == nil {
 		r, writer := io.Pipe()
 		reader := &ioext.CounterReadCloser{
 			Reader:    r,
@@ -195,7 +262,7 @@ func (f *File) Read(p []byte) (n int, err error) {
 		}
 
 		go func() {
-			if err := f.ops.Restore(
+			if err := f.readOps.Restore(
 				func(path string, mode fs.FileMode) (io.WriteCloser, error) {
 					return writer, nil
 				},
@@ -217,12 +284,12 @@ func (f *File) Read(p []byte) (n int, err error) {
 			}
 		}()
 
-		f.reader = reader
-		f.writer = writer
+		f.readOpReader = reader
+		f.readOpWriter = writer
 	}
 
 	w := &bytes.Buffer{}
-	_, err = io.CopyN(w, f.reader, int64(len(p)))
+	_, err = io.CopyN(w, f.readOpReader, int64(len(p)))
 	if err == io.EOF {
 		return copy(p, w.Bytes()), io.EOF
 	}
@@ -264,8 +331,8 @@ func (f *File) Seek(offset int64, whence int) (int64, error) {
 		dst = offset
 	case io.SeekCurrent:
 		curr := 0
-		if f.reader != nil {
-			curr = f.reader.BytesRead
+		if f.readOpReader != nil {
+			curr = f.readOpReader.BytesRead
 		}
 		dst = int64(curr) + offset
 	case io.SeekEnd:
@@ -274,7 +341,7 @@ func (f *File) Seek(offset int64, whence int) (int64, error) {
 		return -1, ErrNotImplemented
 	}
 
-	if f.reader == nil || f.writer == nil || dst < int64(f.reader.BytesRead) { // We have to re-open as we can't seek backwards
+	if f.readOpReader == nil || f.readOpWriter == nil || dst < int64(f.readOpReader.BytesRead) { // We have to re-open as we can't seek backwards
 		_ = f.closeWithoutLocking() // Ignore errors here as it might not be opened
 
 		r, writer := io.Pipe()
@@ -284,7 +351,7 @@ func (f *File) Seek(offset int64, whence int) (int64, error) {
 		}
 
 		go func() {
-			if err := f.ops.Restore(
+			if err := f.readOps.Restore(
 				func(path string, mode fs.FileMode) (io.WriteCloser, error) {
 					return writer, nil
 				},
@@ -306,11 +373,11 @@ func (f *File) Seek(offset int64, whence int) (int64, error) {
 			}
 		}()
 
-		f.reader = reader
-		f.writer = writer
+		f.readOpReader = reader
+		f.readOpWriter = writer
 	}
 
-	written, err := io.CopyN(io.Discard, f.reader, dst-int64(f.reader.BytesRead))
+	written, err := io.CopyN(io.Discard, f.readOpReader, dst-int64(f.readOpReader.BytesRead))
 	if err == io.EOF {
 		return written, io.EOF
 	}
@@ -323,13 +390,20 @@ func (f *File) Seek(offset int64, whence int) (int64, error) {
 }
 
 func (f *File) Write(p []byte) (n int, err error) {
-	log.Println("File.Write", f.name, p)
+	log.Println("File.Write", f.name, len(p))
 
 	if f.info.IsDir() {
 		return -1, ErrIsDirectory
 	}
 
-	return -1, ErrNotImplemented
+	f.ioLock.Lock()
+	defer f.ioLock.Unlock()
+
+	if f.writeBuf == nil {
+		f.writeBuf = filebuffer.New([]byte{})
+	}
+
+	return f.writeBuf.Write(p)
 }
 
 func (f *File) WriteAt(p []byte, off int64) (n int, err error) {

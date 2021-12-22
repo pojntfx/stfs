@@ -2,18 +2,18 @@ package ioext
 
 import "io"
 
-type Flusher interface {
+type FlusherWriter interface {
 	io.WriteCloser
 
 	Flush() error
 }
 
-type NopFlusher struct {
+type NopFlusherWriter struct {
 	io.WriteCloser
 }
 
-func (NopFlusher) Flush() error { return nil }
+func (NopFlusherWriter) Flush() error { return nil }
 
-func AddFlush(w io.WriteCloser) NopFlusher {
-	return NopFlusher{w}
+func AddFlushNop(w io.WriteCloser) NopFlusherWriter {
+	return NopFlusherWriter{w}
 }
