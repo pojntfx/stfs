@@ -21,7 +21,7 @@ func Compress(
 	compressionLevel string,
 	isRegular bool,
 	recordSize int,
-) (ioext.Flusher, error) {
+) (ioext.FlusherWriter, error) {
 	switch compressionFormat {
 	case config.CompressionFormatGZipKey:
 		fallthrough
@@ -104,7 +104,7 @@ func Compress(
 			return nil, err
 		}
 
-		return ioext.AddFlush(lz), nil
+		return ioext.AddFlushNop(lz), nil
 	case config.CompressionFormatZStandardKey:
 		l := zstd.SpeedDefault
 		switch compressionLevel {
@@ -171,9 +171,9 @@ func Compress(
 			return nil, err
 		}
 
-		return ioext.AddFlush(bz), nil
+		return ioext.AddFlushNop(bz), nil
 	case config.NoneKey:
-		return ioext.AddFlush(ioext.AddClose(dst)), nil
+		return ioext.AddFlushNop(ioext.AddCloseNopToWriter(dst)), nil
 	default:
 		return nil, config.ErrCompressionFormatUnsupported
 	}

@@ -188,10 +188,13 @@ func (f *FileSystem) Open(name string) (afero.File, error) {
 
 	return NewFile(
 		f.readOps,
+		f.writeOps,
 
 		f.metadata,
 
 		hdr.Name,
+		hdr.Linkname,
+		f.compressionLevel,
 
 		path.Base(hdr.Name),
 		NewFileInfo(hdr),
@@ -273,6 +276,7 @@ func (f *FileSystem) updateMetadata(hdr *tar.Header) error {
 			}, nil
 		},
 		f.compressionLevel,
+		false,
 		false,
 	); err != nil {
 		return err

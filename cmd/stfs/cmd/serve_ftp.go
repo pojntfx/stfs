@@ -85,12 +85,12 @@ var serveFTPCmd = &cobra.Command{
 			return err
 		}
 
-		signatureIdentity, err := keys.ParseIdentity(viper.GetString(signatureFlag), signaturePrivkey, viper.GetString(signaturePasswordFlag))
+		signatureIdentity, err := keys.ParseSignerIdentity(viper.GetString(signatureFlag), signaturePrivkey, viper.GetString(signaturePasswordFlag))
 		if err != nil {
 			return err
 		}
 
-		encryptionRecipient, err := keys.ParseSignerRecipient(viper.GetString(encryptionFlag), encryptionPubkey)
+		encryptionRecipient, err := keys.ParseRecipient(viper.GetString(encryptionFlag), encryptionPubkey)
 		if err != nil {
 			return err
 		}

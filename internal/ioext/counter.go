@@ -34,6 +34,28 @@ func (r *CounterReadCloser) Close() error {
 	return r.Reader.Close()
 }
 
+type CounterReadSeekCloser struct {
+	Reader io.ReadSeekCloser
+
+	BytesRead int
+}
+
+func (r *CounterReadSeekCloser) Read(p []byte) (n int, err error) {
+	n, err = r.Reader.Read(p)
+
+	r.BytesRead += n
+
+	return n, err
+}
+
+func (r *CounterReadSeekCloser) Close() error {
+	return r.Reader.Close()
+}
+
+func (r *CounterReadSeekCloser) Seek(offset int64, whence int) (int64, error) {
+	return r.Reader.Seek(offset, whence)
+}
+
 type CounterWriter struct {
 	Writer io.Writer
 

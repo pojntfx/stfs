@@ -25,6 +25,7 @@ func (o *Operations) Update(
 	getSrc func() (config.FileConfig, error),
 	compressionLevel string,
 	replace bool,
+	skipSizeCheck bool,
 ) ([]*tar.Header, error) {
 	o.diskOperationLock.Lock()
 	defer o.diskOperationLock.Unlock()
@@ -75,7 +76,7 @@ func (o *Operations) Update(
 		hdr.PAXRecords[records.STFSRecordAction] = records.STFSRecordActionUpdate
 
 		var f io.ReadSeekCloser
-		if file.Info.Mode().IsRegular() && replace && file.Info.Size() > 0 {
+		if file.Info.Mode().IsRegular() && replace && (file.Info.Size() > 0 || skipSizeCheck) {
 			// Get the compressed size for the header
 			fileSizeCounter := &ioext.CounterWriter{
 				Writer: io.Discard,
@@ -183,7 +184,7 @@ func (o *Operations) Update(
 
 			dirty = true
 
-			if !file.Info.Mode().IsRegular() || file.Info.Size() <= 0 {
+			if !file.Info.Mode().IsRegular() || (!skipSizeCheck && file.Info.Size() <= 0) {
 				if f != nil {
 					if err := f.Close(); err != nil {
 						return []*tar.Header{}, err

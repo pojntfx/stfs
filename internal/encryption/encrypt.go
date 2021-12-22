@@ -35,7 +35,7 @@ func Encrypt(
 
 		return openpgp.Encrypt(dst, recipient, nil, nil, nil)
 	case config.NoneKey:
-		return ioext.AddClose(dst), nil
+		return ioext.AddCloseNopToWriter(dst), nil
 	default:
 		return nil, config.ErrEncryptionFormatUnsupported
 	}

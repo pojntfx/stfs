@@ -15,6 +15,7 @@ require (
 	github.com/friendsofgo/errors v0.9.2
 	github.com/klauspost/compress v1.13.6
 	github.com/klauspost/pgzip v1.2.5
+	github.com/mattetti/filebuffer v1.0.1
 	github.com/mattn/go-sqlite3 v1.14.9
 	github.com/pierrec/lz4/v4 v4.1.12
 	github.com/pkg/errors v0.9.1
