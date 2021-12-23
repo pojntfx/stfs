@@ -193,7 +193,16 @@ func (f *File) Truncate(size int64) error {
 		return ErrIsDirectory
 	}
 
-	return ErrNotImplemented
+	f.ioLock.Lock()
+	defer f.ioLock.Unlock()
+
+	if f.writeBuf == nil {
+		f.writeBuf = filebuffer.New([]byte{})
+	}
+
+	f.writeBuf.Buff.Truncate(f.writeBuf.Buff.Len())
+
+	return nil
 }
 
 func (f *File) WriteString(s string) (ret int, err error) {
