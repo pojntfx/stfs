@@ -3,6 +3,7 @@ package cmd
 import (
 	"context"
 	"fmt"
+	"io/ioutil"
 	"log"
 	"os"
 	"path/filepath"
@@ -18,6 +19,7 @@ import (
 	"github.com/pojntfx/stfs/pkg/config"
 	"github.com/pojntfx/stfs/pkg/operations"
 	"github.com/pojntfx/stfs/pkg/tape"
+	"github.com/spf13/afero"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 )
@@ -30,6 +32,10 @@ const (
 	signatureIdentityFlag  = "signature-identity"
 	signaturePasswordFlag  = "signature-password"
 	signatureRecipientFlag = "signature-recipient"
+)
+
+var (
+	cacheDir = filepath.Join(os.TempDir(), "stfs")
 )
 
 var serveFTPCmd = &cobra.Command{
@@ -187,6 +193,22 @@ var serveFTPCmd = &cobra.Command{
 			},
 
 			viper.GetString(compressionLevelFlag),
+			func() (afero.File, func() error, error) {
+				tmpdir := filepath.Join(viper.GetString(cacheDirFlag), "io")
+
+				if err := os.MkdirAll(tmpdir, os.ModePerm); err != nil {
+					return nil, nil, err
+				}
+
+				f, err := ioutil.TempFile(tmpdir, "*")
+				if err != nil {
+					return nil, nil, err
+				}
+
+				return f, func() error {
+					return os.Remove(filepath.Join(tmpdir, f.Name()))
+				}, nil
+			},
 
 			logger.PrintHeader,
 		)
@@ -196,7 +218,7 @@ var serveFTPCmd = &cobra.Command{
 			root,
 			viper.GetString(cacheFlag),
 			viper.GetDuration(cacheDurationFlag),
-			viper.GetString(cacheDirFlag),
+			filepath.Join(viper.GetString(cacheDirFlag), "cache"),
 		)
 		if err != nil {
 			return err
@@ -236,7 +258,7 @@ func init() {
 	serveFTPCmd.PersistentFlags().StringP(laddrFlag, "a", "localhost:1337", "Listen address")
 	serveFTPCmd.PersistentFlags().StringP(cacheFlag, "n", config.NoneKey, fmt.Sprintf("Cache to use (default %v, available are %v)", config.NoneKey, cache.KnownCacheTypes))
 	serveFTPCmd.PersistentFlags().DurationP(cacheDurationFlag, "u", time.Hour, "Duration until cache is invalidated")
-	serveFTPCmd.PersistentFlags().StringP(cacheDirFlag, "w", filepath.Join(os.TempDir(), "stfs", "cache"), "Directory to use if dir cache is enabled")
+	serveFTPCmd.PersistentFlags().StringP(cacheDirFlag, "w", cacheDir, "Directory to use if dir cache is enabled")
 
 	viper.AutomaticEnv()
 

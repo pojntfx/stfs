@@ -9,7 +9,6 @@ import (
 	"os"
 	"sync"
 
-	"github.com/mattetti/filebuffer"
 	models "github.com/pojntfx/stfs/internal/db/sqlite/models/metadata"
 	"github.com/pojntfx/stfs/internal/ioext"
 	"github.com/pojntfx/stfs/pkg/config"
@@ -30,9 +29,11 @@ type File struct {
 
 	metadata config.MetadataConfig
 
-	path             string
-	link             string
+	path string
+	link string
+
 	compressionLevel string
+	getFileBuffer    func() (afero.File, func() error, error)
 
 	name string
 	info os.FileInfo
@@ -43,7 +44,8 @@ type File struct {
 	readOpWriter io.WriteCloser
 
 	// TODO: Find a non-in-memory method to do this
-	writeBuf *filebuffer.Buffer
+	writeBuf      afero.File
+	cleanWriteBuf func() error
 
 	onHeader func(hdr *models.Header)
 }
@@ -56,7 +58,9 @@ func NewFile(
 
 	path string,
 	link string,
+
 	compressionLevel string,
+	getFileBuffer func() (afero.File, func() error, error),
 
 	name string,
 	info os.FileInfo,
@@ -69,9 +73,11 @@ func NewFile(
 
 		metadata: metadata,
 
-		path:             path,
-		link:             link,
+		path: path,
+		link: link,
+
 		compressionLevel: compressionLevel,
+		getFileBuffer:    getFileBuffer,
 
 		name: name,
 		info: info,
@@ -148,9 +154,14 @@ func (f *File) syncWithoutLocking() error {
 				}
 				done = true
 
+				stat, err := f.writeBuf.Stat()
+				if err != nil {
+					return config.FileConfig{}, err
+				}
+
 				f.info = &FileInfo{
 					name:    f.info.Name(),
-					size:    int64(f.writeBuf.Buff.Len()),
+					size:    stat.Size(),
 					mode:    f.info.Mode(),
 					modTime: f.info.ModTime(),
 					isDir:   f.info.IsDir(),
@@ -197,12 +208,16 @@ func (f *File) Truncate(size int64) error {
 	defer f.ioLock.Unlock()
 
 	if f.writeBuf == nil {
-		f.writeBuf = filebuffer.New([]byte{})
+		writeBuf, cleanWriteBuf, err := f.getFileBuffer()
+		if err != nil {
+			return err
+		}
+
+		f.writeBuf = writeBuf
+		f.cleanWriteBuf = cleanWriteBuf
 	}
 
-	f.writeBuf.Buff.Truncate(f.writeBuf.Buff.Len())
-
-	return nil
+	return f.writeBuf.Truncate(0)
 }
 
 func (f *File) WriteString(s string) (ret int, err error) {
@@ -235,6 +250,10 @@ func (f *File) closeWithoutLocking() error {
 		if err := f.syncWithoutLocking(); err != nil {
 			return err
 		}
+
+		// if err := f.writeBuf.Del os.Remove(f.writeBuf.Name()); err != nil {
+		// 	return err
+		// }
 	}
 
 	f.readOpReader = nil
@@ -409,10 +428,23 @@ func (f *File) Write(p []byte) (n int, err error) {
 	defer f.ioLock.Unlock()
 
 	if f.writeBuf == nil {
-		f.writeBuf = filebuffer.New([]byte{})
+		writeBuf, cleanWriteBuf, err := f.getFileBuffer()
+		if err != nil {
+			return -1, err
+		}
+
+		f.writeBuf = writeBuf
+		f.cleanWriteBuf = cleanWriteBuf
 	}
 
-	return f.writeBuf.Write(p)
+	n, err = f.writeBuf.Write(p)
+	if err != nil {
+		log.Fatal(err)
+
+		return -1, err
+	}
+
+	return n, f.writeBuf.Sync()
 }
 
 func (f *File) WriteAt(p []byte, off int64) (n int, err error) {
