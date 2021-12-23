@@ -3,6 +3,7 @@ package cmd
 import (
 	"context"
 	"fmt"
+	"io/ioutil"
 	"log"
 	"net/http"
 	"os"
@@ -127,6 +128,22 @@ var serveHTTPCmd = &cobra.Command{
 			},
 
 			"", // We never write
+			func() (afero.File, func() error, error) {
+				tmpdir := filepath.Join(viper.GetString(cacheDirFlag), "io")
+
+				if err := os.MkdirAll(tmpdir, os.ModePerm); err != nil {
+					return nil, nil, err
+				}
+
+				f, err := ioutil.TempFile(tmpdir, "*")
+				if err != nil {
+					return nil, nil, err
+				}
+
+				return f, func() error {
+					return os.Remove(filepath.Join(tmpdir, f.Name()))
+				}, nil
+			},
 
 			logger.PrintHeader,
 		)
@@ -136,7 +153,7 @@ var serveHTTPCmd = &cobra.Command{
 			root,
 			viper.GetString(cacheFlag),
 			viper.GetDuration(cacheDurationFlag),
-			viper.GetString(cacheDirFlag),
+			filepath.Join(viper.GetString(cacheDirFlag), "cache"),
 		)
 		if err != nil {
 			return err
@@ -163,7 +180,7 @@ func init() {
 	serveHTTPCmd.PersistentFlags().StringP(laddrFlag, "a", "localhost:1337", "Listen address")
 	serveHTTPCmd.PersistentFlags().StringP(cacheFlag, "n", config.NoneKey, fmt.Sprintf("Cache to use (default %v, available are %v)", config.NoneKey, cache.KnownCacheTypes))
 	serveHTTPCmd.PersistentFlags().DurationP(cacheDurationFlag, "u", time.Hour, "Duration until cache is invalidated")
-	serveHTTPCmd.PersistentFlags().StringP(cacheDirFlag, "w", filepath.Join(os.TempDir(), "stfs", "cache"), "Directory to use if dir cache is enabled")
+	serveHTTPCmd.PersistentFlags().StringP(cacheDirFlag, "w", cacheDir, "Directory to use if dir cache is enabled")
 
 	viper.AutomaticEnv()
 

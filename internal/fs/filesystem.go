@@ -31,6 +31,7 @@ type FileSystem struct {
 	metadata config.MetadataConfig
 
 	compressionLevel string
+	getFileBuffer    func() (afero.File, func() error, error)
 
 	onHeader func(hdr *models.Header)
 }
@@ -42,6 +43,7 @@ func NewFileSystem(
 	metadata config.MetadataConfig,
 
 	compressionLevel string,
+	getFileBuffer func() (afero.File, func() error, error),
 
 	onHeader func(hdr *models.Header),
 ) afero.Fs {
@@ -52,6 +54,7 @@ func NewFileSystem(
 		metadata: metadata,
 
 		compressionLevel: compressionLevel,
+		getFileBuffer:    getFileBuffer,
 
 		onHeader: onHeader,
 	}
@@ -194,7 +197,9 @@ func (f *FileSystem) Open(name string) (afero.File, error) {
 
 		hdr.Name,
 		hdr.Linkname,
+
 		f.compressionLevel,
+		f.getFileBuffer,
 
 		path.Base(hdr.Name),
 		NewFileInfo(hdr),
