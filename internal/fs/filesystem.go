@@ -31,7 +31,7 @@ type FileSystem struct {
 	metadata config.MetadataConfig
 
 	compressionLevel string
-	getFileBuffer    func() (afero.File, func() error, error)
+	getFileBuffer    func() (WriteCache, func() error, error)
 
 	onHeader func(hdr *models.Header)
 }
@@ -43,7 +43,7 @@ func NewFileSystem(
 	metadata config.MetadataConfig,
 
 	compressionLevel string,
-	getFileBuffer func() (afero.File, func() error, error),
+	getFileBuffer func() (WriteCache, func() error, error),
 
 	onHeader func(hdr *models.Header),
 ) afero.Fs {

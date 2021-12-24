@@ -5,10 +5,15 @@ import (
 )
 
 const (
-	CacheTypeMemory = "memory"
-	CacheTypeDir    = "dir"
+	FileSystemCacheTypeMemory = "memory"
+	FileSystemCacheTypeDir    = "dir"
+
+	WriteCacheTypeMemory = "memory"
+	WriteCacheTypeFile   = "file"
 )
 
 var (
-	KnownCacheTypes = []string{config.NoneKey, CacheTypeMemory, CacheTypeDir}
+	KnownFileSystemCacheTypes = []string{config.NoneKey, FileSystemCacheTypeMemory, FileSystemCacheTypeDir}
+
+	KnownWriteCacheTypes = []string{WriteCacheTypeMemory, WriteCacheTypeFile}
 )

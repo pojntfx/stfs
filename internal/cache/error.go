@@ -3,6 +3,9 @@ package cache
 import "errors"
 
 var (
-	ErrCacheTypeUnsupported = errors.New("cache type unsupported")
-	ErrCacheTypeUnknown     = errors.New("cache type unknown")
+	ErrFileSystemCacheTypeUnsupported = errors.New("file system cache type unsupported")
+	ErrFileSystemCacheTypeUnknown     = errors.New("file system cache type unknown")
+
+	ErrWriteCacheTypeUnsupported = errors.New("write cache type unsupported")
+	ErrWriteCacheTypeUnknown     = errors.New("write cache type unknown")
 )

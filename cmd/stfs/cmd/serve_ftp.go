@@ -3,7 +3,6 @@ package cmd
 import (
 	"context"
 	"fmt"
-	"io/ioutil"
 	"log"
 	"os"
 	"path/filepath"
@@ -19,7 +18,6 @@ import (
 	"github.com/pojntfx/stfs/pkg/config"
 	"github.com/pojntfx/stfs/pkg/operations"
 	"github.com/pojntfx/stfs/pkg/tape"
-	"github.com/spf13/afero"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 )
@@ -32,6 +30,8 @@ const (
 	signatureIdentityFlag  = "signature-identity"
 	signaturePasswordFlag  = "signature-password"
 	signatureRecipientFlag = "signature-recipient"
+
+	cacheWriteFlag = "cache-write-type"
 )
 
 var (
@@ -47,7 +47,11 @@ var serveFTPCmd = &cobra.Command{
 			return err
 		}
 
-		if err := cache.CheckCacheType(viper.GetString(cacheFlag)); err != nil {
+		if err := cache.CheckFileSystemCacheType(viper.GetString(cacheFileSystemFlag)); err != nil {
+			return err
+		}
+
+		if err := cache.CheckWriteCacheType(viper.GetString(cacheWriteFlag)); err != nil {
 			return err
 		}
 
@@ -193,32 +197,22 @@ var serveFTPCmd = &cobra.Command{
 			},
 
 			viper.GetString(compressionLevelFlag),
-			func() (afero.File, func() error, error) {
-				tmpdir := filepath.Join(viper.GetString(cacheDirFlag), "io")
-
-				if err := os.MkdirAll(tmpdir, os.ModePerm); err != nil {
-					return nil, nil, err
-				}
-
-				f, err := ioutil.TempFile(tmpdir, "*")
-				if err != nil {
-					return nil, nil, err
-				}
-
-				return f, func() error {
-					return os.Remove(filepath.Join(tmpdir, f.Name()))
-				}, nil
+			func() (sfs.WriteCache, func() error, error) {
+				return cache.NewCacheWrite(
+					filepath.Join(viper.GetString(cacheDirFlag), "write"),
+					viper.GetString(cacheWriteFlag),
+				)
 			},
 
 			logger.PrintHeader,
 		)
 
-		fs, err := cache.Cache(
+		fs, err := cache.NewCacheFilesystem(
 			stfs,
 			root,
-			viper.GetString(cacheFlag),
+			viper.GetString(cacheFileSystemFlag),
 			viper.GetDuration(cacheDurationFlag),
-			filepath.Join(viper.GetString(cacheDirFlag), "cache"),
+			filepath.Join(viper.GetString(cacheDirFlag), "filesystem"),
 		)
 		if err != nil {
 			return err
@@ -256,7 +250,8 @@ func init() {
 
 	serveFTPCmd.PersistentFlags().StringP(compressionLevelFlag, "l", config.CompressionLevelBalanced, fmt.Sprintf("Compression level to use (default %v, available are %v)", config.CompressionLevelBalanced, config.KnownCompressionLevels))
 	serveFTPCmd.PersistentFlags().StringP(laddrFlag, "a", "localhost:1337", "Listen address")
-	serveFTPCmd.PersistentFlags().StringP(cacheFlag, "n", config.NoneKey, fmt.Sprintf("Cache to use (default %v, available are %v)", config.NoneKey, cache.KnownCacheTypes))
+	serveFTPCmd.PersistentFlags().StringP(cacheFileSystemFlag, "n", config.NoneKey, fmt.Sprintf("File system cache to use (default %v, available are %v)", config.NoneKey, cache.KnownFileSystemCacheTypes))
+	serveFTPCmd.PersistentFlags().StringP(cacheWriteFlag, "q", cache.WriteCacheTypeFile, fmt.Sprintf("Write cache to use (default %v, available are %v)", cache.WriteCacheTypeFile, cache.KnownWriteCacheTypes))
 	serveFTPCmd.PersistentFlags().DurationP(cacheDurationFlag, "u", time.Hour, "Duration until cache is invalidated")
 	serveFTPCmd.PersistentFlags().StringP(cacheDirFlag, "w", cacheDir, "Directory to use if dir cache is enabled")
 

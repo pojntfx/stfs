@@ -3,10 +3,8 @@ package cmd
 import (
 	"context"
 	"fmt"
-	"io/ioutil"
 	"log"
 	"net/http"
-	"os"
 	"path/filepath"
 	"time"
 
@@ -25,10 +23,10 @@ import (
 )
 
 const (
-	laddrFlag         = "laddr"
-	cacheFlag         = "cache"
-	cacheDirFlag      = "cache-dir"
-	cacheDurationFlag = "cache-duration"
+	laddrFlag           = "laddr"
+	cacheFileSystemFlag = "cache-filesystem-type"
+	cacheDirFlag        = "cache-dir"
+	cacheDurationFlag   = "cache-duration"
 )
 
 var serveHTTPCmd = &cobra.Command{
@@ -40,7 +38,7 @@ var serveHTTPCmd = &cobra.Command{
 			return err
 		}
 
-		if err := cache.CheckCacheType(viper.GetString(cacheFlag)); err != nil {
+		if err := cache.CheckFileSystemCacheType(viper.GetString(cacheFileSystemFlag)); err != nil {
 			return err
 		}
 
@@ -127,33 +125,18 @@ var serveHTTPCmd = &cobra.Command{
 				Metadata: metadataPersister,
 			},
 
-			"", // We never write
-			func() (afero.File, func() error, error) {
-				tmpdir := filepath.Join(viper.GetString(cacheDirFlag), "io")
-
-				if err := os.MkdirAll(tmpdir, os.ModePerm); err != nil {
-					return nil, nil, err
-				}
-
-				f, err := ioutil.TempFile(tmpdir, "*")
-				if err != nil {
-					return nil, nil, err
-				}
-
-				return f, func() error {
-					return os.Remove(filepath.Join(tmpdir, f.Name()))
-				}, nil
-			},
+			"",  // We never write
+			nil, // We never write
 
 			logger.PrintHeader,
 		)
 
-		fs, err := cache.Cache(
+		fs, err := cache.NewCacheFilesystem(
 			stfs,
 			root,
-			viper.GetString(cacheFlag),
+			viper.GetString(cacheFileSystemFlag),
 			viper.GetDuration(cacheDurationFlag),
-			filepath.Join(viper.GetString(cacheDirFlag), "cache"),
+			filepath.Join(viper.GetString(cacheDirFlag), "filesystem"),
 		)
 		if err != nil {
 			return err
@@ -178,7 +161,7 @@ func init() {
 	serveHTTPCmd.PersistentFlags().StringP(passwordFlag, "p", "", "Password for the private key")
 	serveHTTPCmd.PersistentFlags().StringP(recipientFlag, "r", "", "Path to the public key to verify with")
 	serveHTTPCmd.PersistentFlags().StringP(laddrFlag, "a", "localhost:1337", "Listen address")
-	serveHTTPCmd.PersistentFlags().StringP(cacheFlag, "n", config.NoneKey, fmt.Sprintf("Cache to use (default %v, available are %v)", config.NoneKey, cache.KnownCacheTypes))
+	serveHTTPCmd.PersistentFlags().StringP(cacheFileSystemFlag, "n", config.NoneKey, fmt.Sprintf("File system cache to use (default %v, available are %v)", config.NoneKey, cache.KnownFileSystemCacheTypes))
 	serveHTTPCmd.PersistentFlags().DurationP(cacheDurationFlag, "u", time.Hour, "Duration until cache is invalidated")
 	serveHTTPCmd.PersistentFlags().StringP(cacheDirFlag, "w", cacheDir, "Directory to use if dir cache is enabled")
 
