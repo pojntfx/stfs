@@ -83,21 +83,13 @@ func (f *FileSystem) mknode(dir bool, name string, perm os.FileMode) error {
 	uid, err := strconv.Atoi(usr.Uid)
 	if err != nil {
 		// Some OSes like i.e. Windows don't support numeric UIDs, so use 0 instead
-		if err == strconv.ErrSyntax {
-			uid = 0
-		} else {
-			return err
-		}
+		uid = 0
 	}
 
 	gid, err := strconv.Atoi(usr.Gid)
 	if err != nil {
 		// Some OSes like i.e. Windows don't support numeric GIDs, so use 0 instead
-		if err == strconv.ErrSyntax {
-			gid = 0
-		} else {
-			return err
-		}
+		gid = 0
 	}
 
 	groups, err := usr.GroupIds()
