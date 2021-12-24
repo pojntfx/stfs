@@ -1,16 +1,32 @@
 package cache
 
-func CheckCacheType(cacheType string) error {
+func CheckFileSystemCacheType(cacheType string) error {
 	cacheTypeIsKnown := false
 
-	for _, candidate := range KnownCacheTypes {
+	for _, candidate := range KnownFileSystemCacheTypes {
 		if cacheType == candidate {
 			cacheTypeIsKnown = true
 		}
 	}
 
 	if !cacheTypeIsKnown {
-		return ErrCacheTypeUnknown
+		return ErrFileSystemCacheTypeUnknown
+	}
+
+	return nil
+}
+
+func CheckWriteCacheType(cacheType string) error {
+	cacheTypeIsKnown := false
+
+	for _, candidate := range KnownWriteCacheTypes {
+		if cacheType == candidate {
+			cacheTypeIsKnown = true
+		}
+	}
+
+	if !cacheTypeIsKnown {
+		return ErrWriteCacheTypeUnknown
 	}
 
 	return nil

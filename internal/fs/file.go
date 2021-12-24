@@ -21,6 +21,17 @@ var (
 	ErrIsDirectory = errors.New("is a directory")
 )
 
+type WriteCache interface {
+	io.Closer
+	io.Reader
+	io.Seeker
+	io.Writer
+
+	Truncate(size int64) error
+	Size() (int64, error)
+	Sync() error
+}
+
 type File struct {
 	afero.File
 
@@ -33,7 +44,7 @@ type File struct {
 	link string
 
 	compressionLevel string
-	getFileBuffer    func() (afero.File, func() error, error)
+	getFileBuffer    func() (WriteCache, func() error, error)
 
 	name string
 	info os.FileInfo
@@ -44,7 +55,8 @@ type File struct {
 	readOpWriter io.WriteCloser
 
 	// TODO: Find a non-in-memory method to do this
-	writeBuf      afero.File
+	writeBuf      WriteCache
+	asdf          afero.File
 	cleanWriteBuf func() error
 
 	onHeader func(hdr *models.Header)
@@ -60,7 +72,7 @@ func NewFile(
 	link string,
 
 	compressionLevel string,
-	getFileBuffer func() (afero.File, func() error, error),
+	getFileBuffer func() (WriteCache, func() error, error),
 
 	name string,
 	info os.FileInfo,
@@ -154,14 +166,14 @@ func (f *File) syncWithoutLocking() error {
 				}
 				done = true
 
-				stat, err := f.writeBuf.Stat()
+				size, err := f.writeBuf.Size()
 				if err != nil {
 					return config.FileConfig{}, err
 				}
 
 				f.info = &FileInfo{
 					name:    f.info.Name(),
-					size:    stat.Size(),
+					size:    size,
 					mode:    f.info.Mode(),
 					modTime: f.info.ModTime(),
 					isDir:   f.info.IsDir(),

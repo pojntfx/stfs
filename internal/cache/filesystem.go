@@ -9,7 +9,7 @@ import (
 	"github.com/spf13/afero"
 )
 
-func Cache(
+func NewCacheFilesystem(
 	base afero.Fs,
 	root string,
 	cacheType string,
@@ -17,13 +17,13 @@ func Cache(
 	cacheDir string,
 ) (afero.Fs, error) {
 	switch cacheType {
-	case CacheTypeMemory:
+	case FileSystemCacheTypeMemory:
 		if pathext.IsRoot(root) {
 			return afero.NewCacheOnReadFs(base, afero.NewMemMapFs(), ttl), nil
 		}
 
 		return afero.NewCacheOnReadFs(afero.NewBasePathFs(base, root), afero.NewMemMapFs(), ttl), nil
-	case CacheTypeDir:
+	case FileSystemCacheTypeDir:
 		if err := os.MkdirAll(cacheDir, os.ModePerm); err != nil {
 			return nil, err
 		}
@@ -40,6 +40,6 @@ func Cache(
 
 		return afero.NewBasePathFs(base, root), nil
 	default:
-		return nil, ErrCacheTypeUnsupported
+		return nil, ErrFileSystemCacheTypeUnsupported
 	}
 }
