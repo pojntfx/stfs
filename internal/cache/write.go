@@ -68,7 +68,7 @@ func NewCacheWrite(
 		}
 
 		return fileWithSize{f}, func() error {
-			return os.Remove(filepath.Join(tmpdir, f.Name()))
+			return os.Remove(f.Name())
 		}, nil
 	default:
 		return nil, nil, ErrWriteCacheTypeUnsupported
