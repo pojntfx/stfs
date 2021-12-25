@@ -54,9 +54,7 @@ type File struct {
 	readOpReader *ioext.CounterReadCloser
 	readOpWriter io.WriteCloser
 
-	// TODO: Find a non-in-memory method to do this
 	writeBuf      WriteCache
-	asdf          afero.File
 	cleanWriteBuf func() error
 
 	onHeader func(hdr *models.Header)
@@ -209,6 +207,16 @@ func (f *File) Sync() error {
 	return f.syncWithoutLocking()
 }
 
+func (f *File) enterWriteMode() error {
+	if f.readOpReader != nil || f.readOpWriter != nil {
+		if err := f.closeWithoutLocking(); err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
 func (f *File) Truncate(size int64) error {
 	log.Println("File.Truncate", f.name, size)
 
@@ -218,6 +226,10 @@ func (f *File) Truncate(size int64) error {
 
 	f.ioLock.Lock()
 	defer f.ioLock.Unlock()
+
+	if err := f.enterWriteMode(); err != nil {
+		return err
+	}
 
 	if f.writeBuf == nil {
 		writeBuf, cleanWriteBuf, err := f.getFileBuffer()
@@ -237,6 +249,13 @@ func (f *File) WriteString(s string) (ret int, err error) {
 
 	if f.info.IsDir() {
 		return -1, ErrIsDirectory
+	}
+
+	f.ioLock.Lock()
+	defer f.ioLock.Unlock()
+
+	if err := f.enterWriteMode(); err != nil {
+		return -1, err
 	}
 
 	return -1, ErrNotImplemented
@@ -284,6 +303,21 @@ func (f *File) Close() error {
 	return f.closeWithoutLocking()
 }
 
+func (f *File) enterReadMode(lock bool) error {
+	if lock {
+		f.ioLock.Lock()
+		defer f.ioLock.Unlock()
+	}
+
+	if f.writeBuf != nil {
+		if err := f.closeWithoutLocking(); err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
 func (f *File) Read(p []byte) (n int, err error) {
 	log.Println("File.Read", f.name, len(p))
 
@@ -293,6 +327,10 @@ func (f *File) Read(p []byte) (n int, err error) {
 
 	f.ioLock.Lock()
 	defer f.ioLock.Unlock()
+
+	if err := f.enterReadMode(false); err != nil {
+		return -1, err
+	}
 
 	if f.readOpReader == nil || f.readOpWriter == nil {
 		r, writer := io.Pipe()
@@ -348,6 +386,10 @@ func (f *File) ReadAt(p []byte, off int64) (n int, err error) {
 		return -1, ErrIsDirectory
 	}
 
+	if err := f.enterReadMode(true); err != nil {
+		return -1, err
+	}
+
 	if _, err := f.Seek(off, io.SeekStart); err != nil {
 		return -1, err
 	}
@@ -364,6 +406,10 @@ func (f *File) Seek(offset int64, whence int) (int64, error) {
 
 	f.ioLock.Lock()
 	defer f.ioLock.Unlock()
+
+	if err := f.enterReadMode(false); err != nil {
+		return -1, err
+	}
 
 	dst := int64(0)
 	switch whence {
@@ -439,6 +485,10 @@ func (f *File) Write(p []byte) (n int, err error) {
 	f.ioLock.Lock()
 	defer f.ioLock.Unlock()
 
+	if err := f.enterWriteMode(); err != nil {
+		return -1, err
+	}
+
 	if f.writeBuf == nil {
 		writeBuf, cleanWriteBuf, err := f.getFileBuffer()
 		if err != nil {
@@ -464,6 +514,13 @@ func (f *File) WriteAt(p []byte, off int64) (n int, err error) {
 
 	if f.info.IsDir() {
 		return -1, ErrIsDirectory
+	}
+
+	f.ioLock.Lock()
+	defer f.ioLock.Unlock()
+
+	if err := f.enterWriteMode(); err != nil {
+		return -1, err
 	}
 
 	return -1, ErrNotImplemented
