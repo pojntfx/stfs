@@ -258,7 +258,17 @@ func (f *File) WriteString(s string) (ret int, err error) {
 		return -1, err
 	}
 
-	return -1, ErrNotImplemented
+	if f.writeBuf == nil {
+		writeBuf, cleanWriteBuf, err := f.getFileBuffer()
+		if err != nil {
+			return -1, err
+		}
+
+		f.writeBuf = writeBuf
+		f.cleanWriteBuf = cleanWriteBuf
+	}
+
+	return f.writeBuf.Write([]byte(s))
 }
 
 func (f *File) closeWithoutLocking() error {
