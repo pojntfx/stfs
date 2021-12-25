@@ -263,9 +263,9 @@ func (f *File) closeWithoutLocking() error {
 			return err
 		}
 
-		// if err := f.writeBuf.Del os.Remove(f.writeBuf.Name()); err != nil {
-		// 	return err
-		// }
+		if err := f.cleanWriteBuf(); err != nil {
+			return err
+		}
 	}
 
 	f.readOpReader = nil
