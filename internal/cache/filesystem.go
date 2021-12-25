@@ -24,6 +24,10 @@ func NewCacheFilesystem(
 
 		return afero.NewCacheOnReadFs(afero.NewBasePathFs(base, root), afero.NewMemMapFs(), ttl), nil
 	case FileSystemCacheTypeDir:
+		if err := os.RemoveAll(cacheDir); err != nil {
+			return nil, err
+		}
+
 		if err := os.MkdirAll(cacheDir, os.ModePerm); err != nil {
 			return nil, err
 		}
