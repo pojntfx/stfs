@@ -32,7 +32,6 @@ type FileSystem struct {
 
 	compressionLevel string
 	getFileBuffer    func() (WriteCache, func() error, error)
-	enableHacks      bool
 
 	onHeader func(hdr *models.Header)
 }
@@ -45,7 +44,6 @@ func NewFileSystem(
 
 	compressionLevel string,
 	getFileBuffer func() (WriteCache, func() error, error),
-	enableHacks bool,
 
 	onHeader func(hdr *models.Header),
 ) afero.Fs {
@@ -57,7 +55,6 @@ func NewFileSystem(
 
 		compressionLevel: compressionLevel,
 		getFileBuffer:    getFileBuffer,
-		enableHacks:      enableHacks,
 
 		onHeader: onHeader,
 	}
@@ -188,28 +185,10 @@ func (f *FileSystem) Open(name string) (afero.File, error) {
 	)
 	if err != nil {
 		if err == sql.ErrNoRows {
-			// See https://github.com/spf13/afero/issues/193
-			if f.enableHacks {
-				if err := f.mknode(false, name, os.ModePerm); err != nil {
-					return nil, err
-				}
-
-				hdr, err = inventory.Stat(
-					f.metadata,
-
-					name,
-
-					f.onHeader,
-				)
-				if err != nil {
-					return nil, err
-				}
-			} else {
-				return nil, os.ErrNotExist
-			}
-		} else {
-			panic(err)
+			return nil, os.ErrNotExist
 		}
+
+		panic(err)
 	}
 
 	return NewFile(
