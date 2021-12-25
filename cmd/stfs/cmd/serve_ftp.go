@@ -203,6 +203,7 @@ var serveFTPCmd = &cobra.Command{
 					viper.GetString(cacheWriteFlag),
 				)
 			},
+			viper.GetString(cacheFileSystemFlag) != config.NoneKey,
 
 			logger.PrintHeader,
 		)
