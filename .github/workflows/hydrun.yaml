@@ -18,6 +18,12 @@ jobs:
             flags: -e '--privileged'
             cmd: ./Hydrunfile
             dst: out/*
+          - id: stfs-windows
+            src: .
+            os: fedora:35
+            flags: -e '--privileged'
+            cmd: ./Hydrunfile windows
+            dst: out/*
 
     steps:
       - name: Maximize build space
