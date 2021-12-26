@@ -18,11 +18,17 @@ jobs:
             flags: -e '--privileged'
             cmd: ./Hydrunfile
             dst: out/*
-          - id: stfs-windows
+          - id: stfs-windows-x86_64
             src: .
             os: fedora:35
             flags: -e '--privileged'
-            cmd: ./Hydrunfile windows
+            cmd: ./Hydrunfile windows x86_64
+            dst: out/*
+          - id: stfs-windows-i686
+            src: .
+            os: fedora:35
+            flags: -e '--privileged'
+            cmd: ./Hydrunfile windows i686
             dst: out/*
 
     steps:
