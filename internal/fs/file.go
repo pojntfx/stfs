@@ -33,6 +33,17 @@ type WriteCache interface {
 	Sync() error
 }
 
+type FileFlags struct {
+	readOnly  bool
+	writeOnly bool
+
+	append            bool
+	createIfNotExists bool
+	mostNotExist      bool // If `create` is set, abort if file already exists
+	sync              bool // Sync after each operation
+	truncate          bool
+}
+
 type File struct {
 	afero.File
 
@@ -41,8 +52,9 @@ type File struct {
 
 	metadata config.MetadataConfig
 
-	path string
-	link string
+	path  string
+	link  string
+	flags *FileFlags
 
 	compressionLevel string
 	getFileBuffer    func() (WriteCache, func() error, error)
@@ -69,6 +81,7 @@ func NewFile(
 
 	path string,
 	link string,
+	flags *FileFlags,
 
 	compressionLevel string,
 	getFileBuffer func() (WriteCache, func() error, error),
@@ -84,8 +97,9 @@ func NewFile(
 
 		metadata: metadata,
 
-		path: path,
-		link: link,
+		path:  path,
+		link:  link,
+		flags: flags,
 
 		compressionLevel: compressionLevel,
 		getFileBuffer:    getFileBuffer,
