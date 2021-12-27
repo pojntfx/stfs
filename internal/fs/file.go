@@ -37,11 +37,8 @@ type FileFlags struct {
 	read  bool
 	write bool
 
-	append            bool
-	createIfNotExists bool
-	mostNotExist      bool // If `create` is set, abort if file already exists
-	sync              bool // Sync after each operation
-	truncate          bool
+	append   bool
+	truncate bool
 }
 
 type File struct {

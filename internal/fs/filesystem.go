@@ -208,18 +208,6 @@ func (f *FileSystem) OpenFile(name string, flag int, perm os.FileMode) (afero.Fi
 		flags.append = true
 	}
 
-	if flag&os.O_CREATE != 0 {
-		flags.createIfNotExists = true
-	}
-
-	if flag&os.O_EXCL != 0 {
-		flags.mostNotExist = true
-	}
-
-	if flag&os.O_SYNC != 0 {
-		flags.sync = true
-	}
-
 	if flag&os.O_TRUNC != 0 {
 		flags.truncate = true
 	}
@@ -232,21 +220,26 @@ func (f *FileSystem) OpenFile(name string, flag int, perm os.FileMode) (afero.Fi
 		f.onHeader,
 	)
 	if err != nil {
-		if err == sql.ErrNoRows && flags.createIfNotExists {
-			if err := f.mknode(false, name, perm); err != nil {
-				return nil, err
+		if err == sql.ErrNoRows {
+			if flag&os.O_CREATE != 0 && flag&os.O_EXCL == 0 {
+				if err := f.mknode(false, name, perm); err != nil {
+					return nil, err
+				}
+
+				hdr, err = inventory.Stat(
+					f.metadata,
+
+					name,
+
+					f.onHeader,
+				)
+				if err != nil {
+					return nil, err
+				}
+			} else {
+				return nil, os.ErrNotExist
 			}
 
-			hdr, err = inventory.Stat(
-				f.metadata,
-
-				name,
-
-				f.onHeader,
-			)
-			if err != nil {
-				return nil, err
-			}
 		} else {
 			return nil, err
 		}
