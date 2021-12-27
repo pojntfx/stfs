@@ -184,16 +184,16 @@ func (f *FileSystem) OpenFile(name string, flag int, perm os.FileMode) (afero.Fi
 
 	flags := &FileFlags{}
 	if flag&os.O_RDONLY != 0 {
-		flags.readOnly = true
+		flags.read = true
 	}
 
 	if flag&os.O_WRONLY != 0 {
-		flags.writeOnly = true
+		flags.write = true
 	}
 
 	if flag&os.O_RDWR != 0 {
-		flags.readOnly = true
-		flags.writeOnly = true
+		flags.read = true
+		flags.write = true
 	}
 
 	if flag&os.O_APPEND != 0 {
