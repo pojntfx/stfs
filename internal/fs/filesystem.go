@@ -176,6 +176,46 @@ func (f *FileSystem) MkdirAll(path string, perm os.FileMode) error {
 func (f *FileSystem) Open(name string) (afero.File, error) {
 	log.Println("FileSystem.Open", name)
 
+	return f.OpenFile(name, os.O_RDWR, os.ModePerm)
+}
+
+func (f *FileSystem) OpenFile(name string, flag int, perm os.FileMode) (afero.File, error) {
+	log.Println("FileSystem.OpenFile", name, flag, perm)
+
+	flags := &FileFlags{}
+	if flag&os.O_RDONLY != 0 {
+		flags.readOnly = true
+	}
+
+	if flag&os.O_WRONLY != 0 {
+		flags.writeOnly = true
+	}
+
+	if flag&os.O_RDWR != 0 {
+		flags.readOnly = true
+		flags.writeOnly = true
+	}
+
+	if flag&os.O_APPEND != 0 {
+		flags.append = true
+	}
+
+	if flag&os.O_CREATE != 0 {
+		flags.createIfNotExists = true
+	}
+
+	if flag&os.O_EXCL != 0 {
+		flags.mostNotExist = true
+	}
+
+	if flag&os.O_SYNC != 0 {
+		flags.sync = true
+	}
+
+	if flag&os.O_TRUNC != 0 {
+		flags.truncate = true
+	}
+
 	hdr, err := inventory.Stat(
 		f.metadata,
 
@@ -184,11 +224,24 @@ func (f *FileSystem) Open(name string) (afero.File, error) {
 		f.onHeader,
 	)
 	if err != nil {
-		if err == sql.ErrNoRows {
-			return nil, os.ErrNotExist
-		}
+		if err == sql.ErrNoRows && flags.createIfNotExists {
+			if err := f.mknode(false, name, perm); err != nil {
+				return nil, err
+			}
 
-		panic(err)
+			hdr, err = inventory.Stat(
+				f.metadata,
+
+				name,
+
+				f.onHeader,
+			)
+			if err != nil {
+				return nil, err
+			}
+		} else {
+			return nil, err
+		}
 	}
 
 	return NewFile(
@@ -199,6 +252,7 @@ func (f *FileSystem) Open(name string) (afero.File, error) {
 
 		hdr.Name,
 		hdr.Linkname,
+		flags,
 
 		f.compressionLevel,
 		f.getFileBuffer,
@@ -208,22 +262,6 @@ func (f *FileSystem) Open(name string) (afero.File, error) {
 
 		f.onHeader,
 	), nil
-}
-
-func (f *FileSystem) OpenFile(name string, flag int, perm os.FileMode) (afero.File, error) {
-	log.Println("FileSystem.OpenFile", name, flag, perm)
-
-	if _, err := f.Stat(name); err != nil {
-		if err == os.ErrNotExist && flag&os.O_CREATE != 0 {
-			if err := f.mknode(false, name, perm); err != nil {
-				return nil, err
-			}
-		} else {
-			return nil, err
-		}
-	}
-
-	return f.Open(name)
 }
 
 func (f *FileSystem) Remove(name string) error {
