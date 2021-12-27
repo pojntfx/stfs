@@ -34,8 +34,8 @@ type WriteCache interface {
 }
 
 type FileFlags struct {
-	readOnly  bool
-	writeOnly bool
+	read  bool
+	write bool
 
 	append            bool
 	createIfNotExists bool
@@ -326,6 +326,10 @@ func (f *File) Read(p []byte) (n int, err error) {
 		return -1, ErrIsDirectory
 	}
 
+	if !f.flags.read {
+		return -1, os.ErrPermission
+	}
+
 	f.ioLock.Lock()
 	defer f.ioLock.Unlock()
 
@@ -385,6 +389,10 @@ func (f *File) ReadAt(p []byte, off int64) (n int, err error) {
 
 	if f.info.IsDir() {
 		return -1, ErrIsDirectory
+	}
+
+	if !f.flags.read {
+		return -1, os.ErrPermission
 	}
 
 	if _, err := f.Seek(off, io.SeekStart); err != nil {
@@ -481,6 +489,10 @@ func (f *File) Write(p []byte) (n int, err error) {
 		return -1, ErrIsDirectory
 	}
 
+	if !f.flags.write {
+		return -1, os.ErrPermission
+	}
+
 	f.ioLock.Lock()
 	defer f.ioLock.Unlock()
 
@@ -505,6 +517,10 @@ func (f *File) WriteAt(p []byte, off int64) (n int, err error) {
 		return -1, ErrIsDirectory
 	}
 
+	if !f.flags.write {
+		return -1, os.ErrPermission
+	}
+
 	f.ioLock.Lock()
 	defer f.ioLock.Unlock()
 
@@ -522,6 +538,10 @@ func (f *File) WriteString(s string) (ret int, err error) {
 		return -1, ErrIsDirectory
 	}
 
+	if !f.flags.write {
+		return -1, os.ErrPermission
+	}
+
 	f.ioLock.Lock()
 	defer f.ioLock.Unlock()
 
@@ -537,6 +557,10 @@ func (f *File) Truncate(size int64) error {
 
 	if f.info.IsDir() {
 		return ErrIsDirectory
+	}
+
+	if !f.flags.write {
+		return os.ErrPermission
 	}
 
 	f.ioLock.Lock()
