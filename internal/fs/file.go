@@ -264,6 +264,81 @@ func (f *File) enterWriteMode() error {
 	return nil
 }
 
+func (f *File) seekWithoutLocking(offset int64, whence int) (int64, error) {
+	log.Println("File.seekWithoutLocking", f.name, offset, whence)
+
+	if f.info.IsDir() {
+		return -1, ErrIsDirectory
+	}
+
+	if f.writeBuf != nil {
+		return f.writeBuf.Seek(offset, whence)
+	}
+
+	dst := int64(0)
+	switch whence {
+	case io.SeekStart:
+		dst = offset
+	case io.SeekCurrent:
+		curr := 0
+		if f.readOpReader != nil {
+			curr = f.readOpReader.BytesRead
+		}
+		dst = int64(curr) + offset
+	case io.SeekEnd:
+		dst = f.info.Size() - offset
+	default:
+		return -1, ErrNotImplemented
+	}
+
+	if f.readOpReader == nil || f.readOpWriter == nil || dst < int64(f.readOpReader.BytesRead) { // We have to re-open as we can't seek backwards
+		_ = f.closeWithoutLocking() // Ignore errors here as it might not be opened
+
+		r, writer := io.Pipe()
+		reader := &ioext.CounterReadCloser{
+			Reader:    r,
+			BytesRead: 0,
+		}
+
+		go func() {
+			if err := f.readOps.Restore(
+				func(path string, mode fs.FileMode) (io.WriteCloser, error) {
+					return writer, nil
+				},
+				func(path string, mode fs.FileMode) error {
+					// Not necessary; can't read on a directory
+					return nil
+				},
+
+				f.path,
+				"",
+				true,
+			); err != nil {
+				if err == io.ErrClosedPipe {
+					return
+				}
+
+				// TODO: Handle error
+				panic(err)
+			}
+		}()
+
+		f.readOpReader = reader
+		f.readOpWriter = writer
+	}
+
+	written, err := io.CopyN(io.Discard, f.readOpReader, dst-int64(f.readOpReader.BytesRead))
+	if err == io.EOF {
+		return written, io.EOF
+	}
+
+	if err != nil {
+		return -1, err
+	}
+
+	return written, nil
+}
+
 // Inventory
 func (f *File) Name() string {
 	log.Println("File.Name", f.name)
@@ -404,79 +479,10 @@ func (f *File) ReadAt(p []byte, off int64) (n int, err error) {
 func (f *File) Seek(offset int64, whence int) (int64, error) {
 	log.Println("File.Seek", f.name, offset, whence)
 
-	if f.info.IsDir() {
-		return -1, ErrIsDirectory
-	}
-
 	f.ioLock.Lock()
 	defer f.ioLock.Unlock()
 
-	if f.writeBuf != nil {
-		return f.writeBuf.Seek(offset, whence)
-	}
-
-	dst := int64(0)
-	switch whence {
-	case io.SeekStart:
-		dst = offset
-	case io.SeekCurrent:
-		curr := 0
-		if f.readOpReader != nil {
-			curr = f.readOpReader.BytesRead
-		}
-		dst = int64(curr) + offset
-	case io.SeekEnd:
-		dst = f.info.Size() - offset
-	default:
-		return -1, ErrNotImplemented
-	}
-
-	if f.readOpReader == nil || f.readOpWriter == nil || dst < int64(f.readOpReader.BytesRead) { // We have to re-open as we can't seek backwards
-		_ = f.closeWithoutLocking() // Ignore errors here as it might not be opened
-
-		r, writer := io.Pipe()
-		reader := &ioext.CounterReadCloser{
-			Reader:    r,
-			BytesRead: 0,
-		}
-
-		go func() {
-			if err := f.readOps.Restore(
-				func(path string, mode fs.FileMode) (io.WriteCloser, error) {
-					return writer, nil
-				},
-				func(path string, mode fs.FileMode) error {
-					// Not necessary; can't read on a directory
-					return nil
-				},
-
-				f.path,
-				"",
-				true,
-			); err != nil {
-				if err == io.ErrClosedPipe {
-					return
-				}
-
-				// TODO: Handle error
-				panic(err)
-			}
-		}()
-
-		f.readOpReader = reader
-		f.readOpWriter = writer
-	}
-
-	written, err := io.CopyN(io.Discard, f.readOpReader, dst-int64(f.readOpReader.BytesRead))
-	if err == io.EOF {
-		return written, io.EOF
-	}
-
-	if err != nil {
-		return -1, err
-	}
-
-	return written, nil
+	return f.seekWithoutLocking(offset, whence)
 }
 
 // Write operations
@@ -526,7 +532,11 @@ func (f *File) WriteAt(p []byte, off int64) (n int, err error) {
 		return -1, err
 	}
 
-	return -1, ErrNotImplemented
+	if _, err := f.seekWithoutLocking(off, io.SeekStart); err != nil {
+		return -1, err
+	}
+
+	return f.writeBuf.Write(p)
 }
 
 func (f *File) WriteString(s string) (ret int, err error) {
