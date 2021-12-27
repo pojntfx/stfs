@@ -2,6 +2,7 @@ package fs
 
 import (
 	"bytes"
+	"database/sql"
 	"errors"
 	"io"
 	"io/fs"
@@ -208,8 +209,66 @@ func (f *File) Sync() error {
 }
 
 func (f *File) enterWriteMode() error {
+	log.Println("File.enterWriteMode")
+
 	if f.readOpReader != nil || f.readOpWriter != nil {
 		if err := f.closeWithoutLocking(); err != nil {
+			return err
+		}
+	}
+
+	if f.writeBuf == nil {
+		exists := false
+		_, err := inventory.Stat(
+			f.metadata,
+
+			f.path,
+
+			f.onHeader,
+		)
+		if err == nil {
+			exists = true
+		} else {
+			if err != sql.ErrNoRows {
+				return err
+			}
+		}
+
+		// Create new buffer
+		writeBuf, cleanWriteBuf, err := f.getFileBuffer()
+		if err != nil {
+			return err
+		}
+
+		f.writeBuf = writeBuf
+		f.cleanWriteBuf = cleanWriteBuf
+
+		// Read existing file into buffer
+		if exists {
+			if err := f.readOps.Restore(
+				func(path string, mode fs.FileMode) (io.WriteCloser, error) {
+					// Don't close the file here, we want to re-use it!
+					return ioext.AddCloseNopToWriter(f.writeBuf), nil
+				},
+				func(path string, mode fs.FileMode) error {
+					// Not necessary; can't read on a directory
+					return nil
+				},
+
+				f.path,
+				"",
+				true,
+			); err != nil {
+				return err
+			}
+		}
+
+		// TODO: Don't do this if O_APPEND is set
+		if err := f.writeBuf.Truncate(0); err != nil {
+			return err
+		}
+
+		if _, err := f.writeBuf.Seek(0, io.SeekStart); err != nil {
 			return err
 		}
 	}
@@ -231,17 +290,7 @@ func (f *File) Truncate(size int64) error {
 		return err
 	}
 
-	if f.writeBuf == nil {
-		writeBuf, cleanWriteBuf, err := f.getFileBuffer()
-		if err != nil {
-			return err
-		}
-
-		f.writeBuf = writeBuf
-		f.cleanWriteBuf = cleanWriteBuf
-	}
-
-	return f.writeBuf.Truncate(0)
+	return f.writeBuf.Truncate(size)
 }
 
 func (f *File) WriteString(s string) (ret int, err error) {
@@ -256,16 +305,6 @@ func (f *File) WriteString(s string) (ret int, err error) {
 
 	if err := f.enterWriteMode(); err != nil {
 		return -1, err
-	}
-
-	if f.writeBuf == nil {
-		writeBuf, cleanWriteBuf, err := f.getFileBuffer()
-		if err != nil {
-			return -1, err
-		}
-
-		f.writeBuf = writeBuf
-		f.cleanWriteBuf = cleanWriteBuf
 	}
 
 	return f.writeBuf.Write([]byte(s))
@@ -314,6 +353,8 @@ func (f *File) Close() error {
 }
 
 func (f *File) enterReadMode(lock bool) error {
+	log.Println("File.enterReadMode", lock)
+
 	if lock {
 		f.ioLock.Lock()
 		defer f.ioLock.Unlock()
@@ -497,16 +538,6 @@ func (f *File) Write(p []byte) (n int, err error) {
 
 	if err := f.enterWriteMode(); err != nil {
 		return -1, err
-	}
-
-	if f.writeBuf == nil {
-		writeBuf, cleanWriteBuf, err := f.getFileBuffer()
-		if err != nil {
-			return -1, err
-		}
-
-		f.writeBuf = writeBuf
-		f.cleanWriteBuf = cleanWriteBuf
 	}
 
 	n, err = f.writeBuf.Write(p)
