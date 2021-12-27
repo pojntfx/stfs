@@ -199,8 +199,6 @@ func (f *File) closeWithoutLocking() error {
 }
 
 func (f *File) enterWriteMode() error {
-	log.Println("File.enterWriteMode")
-
 	if f.readOpReader != nil || f.readOpWriter != nil {
 		if err := f.closeWithoutLocking(); err != nil {
 			return err
@@ -253,13 +251,16 @@ func (f *File) enterWriteMode() error {
 			}
 		}
 
-		// TODO: Don't do this if O_APPEND is set
-		if err := f.writeBuf.Truncate(0); err != nil {
-			return err
+		if f.flags.truncate {
+			if err := f.writeBuf.Truncate(0); err != nil {
+				return err
+			}
 		}
 
-		if _, err := f.writeBuf.Seek(0, io.SeekStart); err != nil {
-			return err
+		if !f.flags.append {
+			if _, err := f.writeBuf.Seek(0, io.SeekStart); err != nil {
+				return err
+			}
 		}
 	}
 
