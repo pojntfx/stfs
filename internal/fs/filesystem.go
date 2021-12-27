@@ -30,8 +30,9 @@ type FileSystem struct {
 
 	metadata config.MetadataConfig
 
-	compressionLevel string
-	getFileBuffer    func() (WriteCache, func() error, error)
+	compressionLevel       string
+	getFileBuffer          func() (WriteCache, func() error, error)
+	relaxedReadPermissions bool
 
 	onHeader func(hdr *models.Header)
 }
@@ -44,6 +45,7 @@ func NewFileSystem(
 
 	compressionLevel string,
 	getFileBuffer func() (WriteCache, func() error, error),
+	ignorePermissionFlags bool,
 
 	onHeader func(hdr *models.Header),
 ) afero.Fs {
@@ -53,8 +55,9 @@ func NewFileSystem(
 
 		metadata: metadata,
 
-		compressionLevel: compressionLevel,
-		getFileBuffer:    getFileBuffer,
+		compressionLevel:       compressionLevel,
+		getFileBuffer:          getFileBuffer,
+		relaxedReadPermissions: ignorePermissionFlags,
 
 		onHeader: onHeader,
 	}
@@ -192,6 +195,11 @@ func (f *FileSystem) OpenFile(name string, flag int, perm os.FileMode) (afero.Fi
 	}
 
 	if flag&os.O_RDWR != 0 {
+		flags.read = true
+		flags.write = true
+	}
+
+	if flags.write && !flags.read && f.relaxedReadPermissions {
 		flags.read = true
 		flags.write = true
 	}
