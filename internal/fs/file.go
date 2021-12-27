@@ -97,57 +97,6 @@ func NewFile(
 	}
 }
 
-func (f *File) Name() string {
-	log.Println("File.Name", f.name)
-
-	return f.name
-}
-
-func (f *File) Stat() (os.FileInfo, error) {
-	log.Println("File.Stat", f.name)
-
-	return f.info, nil
-}
-
-func (f *File) Readdir(count int) ([]os.FileInfo, error) {
-	log.Println("File.Readdir", f.name, count)
-
-	hdrs, err := inventory.List(
-		f.metadata,
-
-		f.path,
-		count,
-
-		f.onHeader,
-	)
-	if err != nil {
-		return nil, err
-	}
-
-	fileInfos := []os.FileInfo{}
-	for _, hdr := range hdrs {
-		fileInfos = append(fileInfos, NewFileInfo(hdr))
-	}
-
-	return fileInfos, nil
-}
-
-func (f *File) Readdirnames(n int) ([]string, error) {
-	log.Println("File.Readdirnames", f.name, n)
-
-	dirs, err := f.Readdir(n)
-	if err != nil {
-		return []string{}, err
-	}
-
-	names := []string{}
-	for _, dir := range dirs {
-		names = append(names, dir.Name())
-	}
-
-	return names, err
-}
-
 func (f *File) syncWithoutLocking() error {
 	log.Println("File.syncWithoutLocking", f.name)
 
@@ -202,10 +151,37 @@ func (f *File) syncWithoutLocking() error {
 	return nil
 }
 
-func (f *File) Sync() error {
-	log.Println("File.Sync", f.name)
+func (f *File) closeWithoutLocking() error {
+	log.Println("File.closeWithoutLocking", f.name)
 
-	return f.syncWithoutLocking()
+	if f.readOpReader != nil {
+		if err := f.readOpReader.Close(); err != nil {
+			return err
+		}
+	}
+
+	if f.readOpWriter != nil {
+		if err := f.readOpWriter.Close(); err != nil {
+			return err
+		}
+	}
+
+	if f.writeBuf != nil {
+		// No need to close write buffer, the `update` operation closes it itself
+		if err := f.syncWithoutLocking(); err != nil {
+			return err
+		}
+
+		if err := f.cleanWriteBuf(); err != nil {
+			return err
+		}
+	}
+
+	f.readOpReader = nil
+	f.readOpWriter = nil
+	f.writeBuf = nil
+
+	return nil
 }
 
 func (f *File) enterWriteMode() error {
@@ -276,99 +252,59 @@ func (f *File) enterWriteMode() error {
 	return nil
 }
 
-func (f *File) Truncate(size int64) error {
-	log.Println("File.Truncate", f.name, size)
+// Inventory
+func (f *File) Name() string {
+	log.Println("File.Name", f.name)
 
-	if f.info.IsDir() {
-		return ErrIsDirectory
-	}
-
-	f.ioLock.Lock()
-	defer f.ioLock.Unlock()
-
-	if err := f.enterWriteMode(); err != nil {
-		return err
-	}
-
-	return f.writeBuf.Truncate(size)
+	return f.name
 }
 
-func (f *File) WriteString(s string) (ret int, err error) {
-	log.Println("File.WriteString", f.name, s)
+func (f *File) Stat() (os.FileInfo, error) {
+	log.Println("File.Stat", f.name)
 
-	if f.info.IsDir() {
-		return -1, ErrIsDirectory
-	}
-
-	f.ioLock.Lock()
-	defer f.ioLock.Unlock()
-
-	if err := f.enterWriteMode(); err != nil {
-		return -1, err
-	}
-
-	return f.writeBuf.Write([]byte(s))
+	return f.info, nil
 }
 
-func (f *File) closeWithoutLocking() error {
-	log.Println("File.closeWithoutLocking", f.name)
+func (f *File) Readdir(count int) ([]os.FileInfo, error) {
+	log.Println("File.Readdir", f.name, count)
 
-	if f.readOpReader != nil {
-		if err := f.readOpReader.Close(); err != nil {
-			return err
-		}
+	hdrs, err := inventory.List(
+		f.metadata,
+
+		f.path,
+		count,
+
+		f.onHeader,
+	)
+	if err != nil {
+		return nil, err
 	}
 
-	if f.readOpWriter != nil {
-		if err := f.readOpWriter.Close(); err != nil {
-			return err
-		}
+	fileInfos := []os.FileInfo{}
+	for _, hdr := range hdrs {
+		fileInfos = append(fileInfos, NewFileInfo(hdr))
 	}
 
-	if f.writeBuf != nil {
-		// No need to close write buffer, the `update` operation closes it itself
-		if err := f.syncWithoutLocking(); err != nil {
-			return err
-		}
-
-		if err := f.cleanWriteBuf(); err != nil {
-			return err
-		}
-	}
-
-	f.readOpReader = nil
-	f.readOpWriter = nil
-	f.writeBuf = nil
-
-	return nil
+	return fileInfos, nil
 }
 
-func (f *File) Close() error {
-	log.Println("File.Close", f.name)
+func (f *File) Readdirnames(n int) ([]string, error) {
+	log.Println("File.Readdirnames", f.name, n)
 
-	f.ioLock.Lock()
-	defer f.ioLock.Unlock()
-
-	return f.closeWithoutLocking()
-}
-
-func (f *File) enterReadMode(lock bool) error {
-	log.Println("File.enterReadMode", lock)
-
-	if lock {
-		f.ioLock.Lock()
-		defer f.ioLock.Unlock()
+	dirs, err := f.Readdir(n)
+	if err != nil {
+		return []string{}, err
 	}
 
-	if f.writeBuf != nil {
-		if err := f.closeWithoutLocking(); err != nil {
-			return err
-		}
+	names := []string{}
+	for _, dir := range dirs {
+		names = append(names, dir.Name())
 	}
 
-	return nil
+	return names, err
 }
 
+// Read operations
 func (f *File) Read(p []byte) (n int, err error) {
 	log.Println("File.Read", f.name, len(p))
 
@@ -379,8 +315,8 @@ func (f *File) Read(p []byte) (n int, err error) {
 	f.ioLock.Lock()
 	defer f.ioLock.Unlock()
 
-	if err := f.enterReadMode(false); err != nil {
-		return -1, err
+	if f.writeBuf != nil {
+		return f.writeBuf.Read(p)
 	}
 
 	if f.readOpReader == nil || f.readOpWriter == nil {
@@ -437,10 +373,6 @@ func (f *File) ReadAt(p []byte, off int64) (n int, err error) {
 		return -1, ErrIsDirectory
 	}
 
-	if err := f.enterReadMode(true); err != nil {
-		return -1, err
-	}
-
 	if _, err := f.Seek(off, io.SeekStart); err != nil {
 		return -1, err
 	}
@@ -448,6 +380,7 @@ func (f *File) ReadAt(p []byte, off int64) (n int, err error) {
 	return f.Read(p)
 }
 
+// Read/write operations
 func (f *File) Seek(offset int64, whence int) (int64, error) {
 	log.Println("File.Seek", f.name, offset, whence)
 
@@ -458,8 +391,8 @@ func (f *File) Seek(offset int64, whence int) (int64, error) {
 	f.ioLock.Lock()
 	defer f.ioLock.Unlock()
 
-	if err := f.enterReadMode(false); err != nil {
-		return -1, err
+	if f.writeBuf != nil {
+		return f.writeBuf.Seek(offset, whence)
 	}
 
 	dst := int64(0)
@@ -526,6 +459,7 @@ func (f *File) Seek(offset int64, whence int) (int64, error) {
 	return written, nil
 }
 
+// Write operations
 func (f *File) Write(p []byte) (n int, err error) {
 	log.Println("File.Write", f.name, len(p))
 
@@ -547,7 +481,7 @@ func (f *File) Write(p []byte) (n int, err error) {
 		return -1, err
 	}
 
-	return n, f.writeBuf.Sync()
+	return n, nil
 }
 
 func (f *File) WriteAt(p []byte, off int64) (n int, err error) {
@@ -565,4 +499,57 @@ func (f *File) WriteAt(p []byte, off int64) (n int, err error) {
 	}
 
 	return -1, ErrNotImplemented
+}
+
+func (f *File) WriteString(s string) (ret int, err error) {
+	log.Println("File.WriteString", f.name, s)
+
+	if f.info.IsDir() {
+		return -1, ErrIsDirectory
+	}
+
+	f.ioLock.Lock()
+	defer f.ioLock.Unlock()
+
+	if err := f.enterWriteMode(); err != nil {
+		return -1, err
+	}
+
+	return f.writeBuf.Write([]byte(s))
+}
+
+func (f *File) Truncate(size int64) error {
+	log.Println("File.Truncate", f.name, size)
+
+	if f.info.IsDir() {
+		return ErrIsDirectory
+	}
+
+	f.ioLock.Lock()
+	defer f.ioLock.Unlock()
+
+	if err := f.enterWriteMode(); err != nil {
+		return err
+	}
+
+	return f.writeBuf.Truncate(size)
+}
+
+// Cleanup operations
+func (f *File) Sync() error {
+	log.Println("File.Sync", f.name)
+
+	f.ioLock.Lock()
+	defer f.ioLock.Unlock()
+
+	return f.syncWithoutLocking()
+}
+
+func (f *File) Close() error {
+	log.Println("File.Close", f.name)
+
+	f.ioLock.Lock()
+	defer f.ioLock.Unlock()
+
+	return f.closeWithoutLocking()
 }
