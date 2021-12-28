@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/pojntfx/stfs/internal/cache"
+	models "github.com/pojntfx/stfs/internal/db/sqlite/models/metadata"
 	sfs "github.com/pojntfx/stfs/internal/fs"
 	"github.com/pojntfx/stfs/internal/handlers"
 	"github.com/pojntfx/stfs/internal/keys"
@@ -84,8 +85,7 @@ var serveHTTPCmd = &cobra.Command{
 			return err
 		}
 
-		csvLogger := logging.NewCSVLogger()
-		structuredLogger := logging.NewJSONLogger()
+		jsonLogger := logging.NewJSONLogger()
 
 		readOps := operations.NewOperations(
 			config.BackendConfig{
@@ -114,7 +114,9 @@ var serveHTTPCmd = &cobra.Command{
 				Password:  viper.GetString(passwordFlag),
 			},
 
-			csvLogger.PrintHeaderEvent,
+			func(event *config.HeaderEvent) {
+				jsonLogger.Debug("Header read", event)
+			},
 		)
 
 		stfs := sfs.NewFileSystem(
@@ -129,8 +131,10 @@ var serveHTTPCmd = &cobra.Command{
 			nil,   // We never write
 			false, // We never write
 
-			csvLogger.PrintHeader,
-			structuredLogger,
+			func(hdr *models.Header) {
+				jsonLogger.Debug("Header transform", hdr)
+			},
+			jsonLogger,
 		)
 
 		fs, err := cache.NewCacheFilesystem(
@@ -144,7 +148,7 @@ var serveHTTPCmd = &cobra.Command{
 			return err
 		}
 
-		structuredLogger.Info("FTP server listening", map[string]interface{}{
+		jsonLogger.Info("HTTP server listening", map[string]interface{}{
 			"laddr": viper.GetString(laddrFlag),
 		})
 

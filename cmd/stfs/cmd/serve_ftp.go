@@ -9,6 +9,7 @@ import (
 
 	ftpserver "github.com/fclairamb/ftpserverlib"
 	"github.com/pojntfx/stfs/internal/cache"
+	models "github.com/pojntfx/stfs/internal/db/sqlite/models/metadata"
 	sfs "github.com/pojntfx/stfs/internal/fs"
 	"github.com/pojntfx/stfs/internal/ftp"
 	"github.com/pojntfx/stfs/internal/keys"
@@ -125,8 +126,7 @@ var serveFTPCmd = &cobra.Command{
 			return err
 		}
 
-		csvLogger := logging.NewCSVLogger()
-		structuredLogger := logging.NewJSONLogger()
+		jsonLogger := logging.NewJSONLogger()
 
 		readOps := operations.NewOperations(
 			config.BackendConfig{
@@ -155,7 +155,9 @@ var serveFTPCmd = &cobra.Command{
 				Password:  viper.GetString(encryptionPasswordFlag),
 			},
 
-			csvLogger.PrintHeaderEvent,
+			func(event *config.HeaderEvent) {
+				jsonLogger.Debug("Header read", event)
+			},
 		)
 
 		writeOps := operations.NewOperations(
@@ -185,7 +187,9 @@ var serveFTPCmd = &cobra.Command{
 				Password:  viper.GetString(signaturePasswordFlag),
 			},
 
-			csvLogger.PrintHeaderEvent,
+			func(event *config.HeaderEvent) {
+				jsonLogger.Debug("Header write", event)
+			},
 		)
 
 		stfs := sfs.NewFileSystem(
@@ -205,8 +209,10 @@ var serveFTPCmd = &cobra.Command{
 			},
 			true, // FTP needs read permission for `STOR` command even if O_WRONLY is set
 
-			csvLogger.PrintHeader,
-			structuredLogger,
+			func(hdr *models.Header) {
+				jsonLogger.Debug("Header transform", hdr)
+			},
+			jsonLogger,
 		)
 
 		fs, err := cache.NewCacheFilesystem(
@@ -233,7 +239,7 @@ var serveFTPCmd = &cobra.Command{
 			srv.Logger = &logging.JSONLogger{}
 		}
 
-		structuredLogger.Info("HTTP server listening", map[string]interface{}{
+		jsonLogger.Info("FTP server listening", map[string]interface{}{
 			"laddr": viper.GetString(laddrFlag),
 		})
 
