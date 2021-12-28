@@ -85,7 +85,7 @@ var serveHTTPCmd = &cobra.Command{
 			return err
 		}
 
-		jsonLogger := logging.NewJSONLogger()
+		jsonLogger := logging.NewJSONLogger(4)
 
 		readOps := operations.NewOperations(
 			config.BackendConfig{
@@ -132,7 +132,7 @@ var serveHTTPCmd = &cobra.Command{
 			false, // We never write
 
 			func(hdr *models.Header) {
-				jsonLogger.Debug("Header transform", hdr)
+				jsonLogger.Trace("Header transform", hdr)
 			},
 			jsonLogger,
 		)

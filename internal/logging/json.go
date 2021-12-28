@@ -24,33 +24,47 @@ func printJSON(level string, event string, keyvals interface{}) {
 		Data:  keyvals,
 	}) // We are ignoring JSON marshalling erorrs
 
-	fmt.Fprintln(os.Stderr, string(line))
+	_, _ = fmt.Fprintln(os.Stderr, string(line)) // We are ignoring printing errors in line wih the stdlib
 }
 
-type JSONLogger struct{}
+type JSONLogger struct {
+	verbosity int
+}
 
-func NewJSONLogger() *JSONLogger {
-	return &JSONLogger{}
+func NewJSONLogger(verbosity int) *JSONLogger {
+	return &JSONLogger{
+		verbosity: verbosity,
+	}
 }
 
 func (l JSONLogger) Trace(event string, keyvals ...interface{}) {
-	printJSON("TRACE", event, keyvals)
+	if l.verbosity >= 4 {
+		printJSON("TRACE", event, keyvals)
+	}
 }
 
 func (l JSONLogger) Debug(event string, keyvals ...interface{}) {
-	printJSON("DEBUG", event, keyvals)
+	if l.verbosity >= 3 {
+		printJSON("DEBUG", event, keyvals)
+	}
 }
 
 func (l JSONLogger) Info(event string, keyvals ...interface{}) {
-	printJSON("INFO", event, keyvals)
+	if l.verbosity >= 2 {
+		printJSON("INFO", event, keyvals)
+	}
 }
 
 func (l JSONLogger) Warn(event string, keyvals ...interface{}) {
-	printJSON("WARN", event, keyvals)
+	if l.verbosity >= 1 {
+		printJSON("WARN", event, keyvals)
+	}
 }
 
 func (l JSONLogger) Error(event string, keyvals ...interface{}) {
-	printJSON("ERROR", event, keyvals)
+	if l.verbosity >= 0 {
+		printJSON("ERROR", event, keyvals)
+	}
 }
 
 func (l JSONLogger) With(keyvals ...interface{}) golog.Logger {

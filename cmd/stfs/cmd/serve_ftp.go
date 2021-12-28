@@ -126,7 +126,7 @@ var serveFTPCmd = &cobra.Command{
 			return err
 		}
 
-		jsonLogger := logging.NewJSONLogger()
+		jsonLogger := logging.NewJSONLogger(4)
 
 		readOps := operations.NewOperations(
 			config.BackendConfig{
@@ -210,7 +210,7 @@ var serveFTPCmd = &cobra.Command{
 			true, // FTP needs read permission for `STOR` command even if O_WRONLY is set
 
 			func(hdr *models.Header) {
-				jsonLogger.Debug("Header transform", hdr)
+				jsonLogger.Trace("Header transform", hdr)
 			},
 			jsonLogger,
 		)
