@@ -1,10 +1,31 @@
 package logging
 
 import (
-	"log"
+	"encoding/json"
+	"fmt"
+	"os"
+	"time"
 
 	golog "github.com/fclairamb/go-log"
 )
+
+type logMessage struct {
+	Time  int64       `json:"time"`
+	Level string      `json:"level"`
+	Event string      `json:"event"`
+	Data  interface{} `json:"data"`
+}
+
+func printJSON(level string, event string, keyvals interface{}) {
+	line, _ := json.Marshal(&logMessage{
+		Time:  time.Now().Unix(),
+		Level: level,
+		Event: event,
+		Data:  keyvals,
+	}) // We are ignoring JSON marshalling erorrs
+
+	fmt.Fprintln(os.Stderr, string(line))
+}
 
 type JSONLogger struct{}
 
@@ -13,23 +34,23 @@ func NewJSONLogger() *JSONLogger {
 }
 
 func (l JSONLogger) Trace(event string, keyvals ...interface{}) {
-	log.Println("TRACE", event, keyvals)
+	printJSON("TRACE", event, keyvals)
 }
 
 func (l JSONLogger) Debug(event string, keyvals ...interface{}) {
-	log.Println("DEBUG", event, keyvals)
+	printJSON("DEBUG", event, keyvals)
 }
 
 func (l JSONLogger) Info(event string, keyvals ...interface{}) {
-	log.Println("INFO", event, keyvals)
+	printJSON("INFO", event, keyvals)
 }
 
 func (l JSONLogger) Warn(event string, keyvals ...interface{}) {
-	log.Println("WARN", event, keyvals)
+	printJSON("WARN", event, keyvals)
 }
 
 func (l JSONLogger) Error(event string, keyvals ...interface{}) {
-	log.Println("ERROR", event, keyvals)
+	printJSON("ERROR", event, keyvals)
 }
 
 func (l JSONLogger) With(keyvals ...interface{}) golog.Logger {
