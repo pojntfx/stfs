@@ -3,7 +3,6 @@ package cmd
 import (
 	"context"
 	"fmt"
-	"log"
 	"os"
 	"path/filepath"
 	"time"
@@ -126,7 +125,8 @@ var serveFTPCmd = &cobra.Command{
 			return err
 		}
 
-		logger := logging.NewLogger()
+		csvLogger := logging.NewCSVLogger()
+		structuredLogger := logging.NewJSONLogger()
 
 		readOps := operations.NewOperations(
 			config.BackendConfig{
@@ -155,7 +155,7 @@ var serveFTPCmd = &cobra.Command{
 				Password:  viper.GetString(encryptionPasswordFlag),
 			},
 
-			logger.PrintHeaderEvent,
+			csvLogger.PrintHeaderEvent,
 		)
 
 		writeOps := operations.NewOperations(
@@ -185,7 +185,7 @@ var serveFTPCmd = &cobra.Command{
 				Password:  viper.GetString(signaturePasswordFlag),
 			},
 
-			logger.PrintHeaderEvent,
+			csvLogger.PrintHeaderEvent,
 		)
 
 		stfs := sfs.NewFileSystem(
@@ -205,7 +205,8 @@ var serveFTPCmd = &cobra.Command{
 			},
 			true, // FTP needs read permission for `STOR` command even if O_WRONLY is set
 
-			logger.PrintHeader,
+			csvLogger.PrintHeader,
+			structuredLogger,
 		)
 
 		fs, err := cache.NewCacheFilesystem(
@@ -229,10 +230,12 @@ var serveFTPCmd = &cobra.Command{
 		)
 
 		if viper.GetBool(verboseFlag) {
-			srv.Logger = &ftp.Logger{}
+			srv.Logger = &logging.JSONLogger{}
 		}
 
-		log.Println("Listening on", viper.GetString(laddrFlag))
+		structuredLogger.Info("HTTP server listening", map[string]interface{}{
+			"laddr": viper.GetString(laddrFlag),
+		})
 
 		return srv.ListenAndServe()
 	},

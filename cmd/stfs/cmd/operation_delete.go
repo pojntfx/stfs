@@ -89,7 +89,7 @@ var operationDeleteCmd = &cobra.Command{
 				Password:  viper.GetString(passwordFlag),
 			},
 
-			logging.NewLogger().PrintHeaderEvent,
+			logging.NewCSVLogger().PrintHeaderEvent,
 		)
 
 		return ops.Delete(viper.GetString(nameFlag))

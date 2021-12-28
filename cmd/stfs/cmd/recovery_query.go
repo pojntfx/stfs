@@ -73,7 +73,7 @@ var recoveryQueryCmd = &cobra.Command{
 			viper.GetInt(recordFlag),
 			viper.GetInt(blockFlag),
 
-			logging.NewLogger().PrintHeader,
+			logging.NewCSVLogger().PrintHeader,
 		); err != nil {
 			return err
 		}

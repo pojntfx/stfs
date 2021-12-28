@@ -12,6 +12,7 @@ import (
 
 	models "github.com/pojntfx/stfs/internal/db/sqlite/models/metadata"
 	"github.com/pojntfx/stfs/internal/ioext"
+	"github.com/pojntfx/stfs/internal/logging"
 	"github.com/pojntfx/stfs/pkg/config"
 	"github.com/pojntfx/stfs/pkg/inventory"
 	"github.com/pojntfx/stfs/pkg/operations"
@@ -68,6 +69,7 @@ type File struct {
 	cleanWriteBuf func() error
 
 	onHeader func(hdr *models.Header)
+	log      *logging.JSONLogger
 }
 
 func NewFile(
@@ -87,6 +89,7 @@ func NewFile(
 	info os.FileInfo,
 
 	onHeader func(hdr *models.Header),
+	log *logging.JSONLogger,
 ) *File {
 	return &File{
 		readOps:  readOps,
@@ -105,11 +108,14 @@ func NewFile(
 		info: info,
 
 		onHeader: onHeader,
+		log:      log,
 	}
 }
 
 func (f *File) syncWithoutLocking() error {
-	log.Println("File.syncWithoutLocking", f.name)
+	f.log.Trace("File.syncWithoutLocking", map[string]interface{}{
+		"name": f.name,
+	})
 
 	if f.info.IsDir() {
 		return ErrIsDirectory
@@ -163,7 +169,9 @@ func (f *File) syncWithoutLocking() error {
 }
 
 func (f *File) closeWithoutLocking() error {
-	log.Println("File.closeWithoutLocking", f.name)
+	f.log.Trace("File.closeWithoutLocking", map[string]interface{}{
+		"name": f.name,
+	})
 
 	if f.readOpReader != nil {
 		if err := f.readOpReader.Close(); err != nil {
@@ -196,6 +204,10 @@ func (f *File) closeWithoutLocking() error {
 }
 
 func (f *File) enterWriteMode() error {
+	f.log.Trace("File.enterWriteMode", map[string]interface{}{
+		"name": f.name,
+	})
+
 	if f.readOpReader != nil || f.readOpWriter != nil {
 		if err := f.closeWithoutLocking(); err != nil {
 			return err
@@ -265,7 +277,11 @@ func (f *File) enterWriteMode() error {
 }
 
 func (f *File) seekWithoutLocking(offset int64, whence int) (int64, error) {
-	log.Println("File.seekWithoutLocking", f.name, offset, whence)
+	f.log.Trace("File.seekWithoutLocking", map[string]interface{}{
+		"name":   f.name,
+		"offset": offset,
+		"whence": whence,
+	})
 
 	if f.info.IsDir() {
 		return -1, ErrIsDirectory
@@ -341,19 +357,26 @@ func (f *File) seekWithoutLocking(offset int64, whence int) (int64, error) {
 
 // Inventory
 func (f *File) Name() string {
-	log.Println("File.Name", f.name)
+	f.log.Trace("File.Name", map[string]interface{}{
+		"name": f.name,
+	})
 
 	return f.name
 }
 
 func (f *File) Stat() (os.FileInfo, error) {
-	log.Println("File.Stat", f.name)
+	f.log.Trace("File.Stat", map[string]interface{}{
+		"name": f.name,
+	})
 
 	return f.info, nil
 }
 
 func (f *File) Readdir(count int) ([]os.FileInfo, error) {
-	log.Println("File.Readdir", f.name, count)
+	f.log.Trace("File.Readdir", map[string]interface{}{
+		"name":  f.name,
+		"count": count,
+	})
 
 	hdrs, err := inventory.List(
 		f.metadata,
@@ -369,14 +392,17 @@ func (f *File) Readdir(count int) ([]os.FileInfo, error) {
 
 	fileInfos := []os.FileInfo{}
 	for _, hdr := range hdrs {
-		fileInfos = append(fileInfos, NewFileInfo(hdr))
+		fileInfos = append(fileInfos, NewFileInfo(hdr, f.log))
 	}
 
 	return fileInfos, nil
 }
 
 func (f *File) Readdirnames(n int) ([]string, error) {
-	log.Println("File.Readdirnames", f.name, n)
+	f.log.Trace("File.Readdirnames", map[string]interface{}{
+		"name": f.name,
+		"n":    n,
+	})
 
 	dirs, err := f.Readdir(n)
 	if err != nil {
@@ -393,7 +419,10 @@ func (f *File) Readdirnames(n int) ([]string, error) {
 
 // Read operations
 func (f *File) Read(p []byte) (n int, err error) {
-	log.Println("File.Read", f.name, len(p))
+	f.log.Trace("File.Read", map[string]interface{}{
+		"name": f.name,
+		"p":    len(p),
+	})
 
 	if f.info.IsDir() {
 		return -1, ErrIsDirectory
@@ -458,7 +487,11 @@ func (f *File) Read(p []byte) (n int, err error) {
 }
 
 func (f *File) ReadAt(p []byte, off int64) (n int, err error) {
-	log.Println("File.ReadAt", f.name, p, off)
+	f.log.Trace("File.ReadAt", map[string]interface{}{
+		"name": f.name,
+		"p":    len(p),
+		"off":  off,
+	})
 
 	if f.info.IsDir() {
 		return -1, ErrIsDirectory
@@ -477,7 +510,11 @@ func (f *File) ReadAt(p []byte, off int64) (n int, err error) {
 
 // Read/write operations
 func (f *File) Seek(offset int64, whence int) (int64, error) {
-	log.Println("File.Seek", f.name, offset, whence)
+	f.log.Trace("File.Seek", map[string]interface{}{
+		"name":   f.name,
+		"offset": offset,
+		"whence": whence,
+	})
 
 	f.ioLock.Lock()
 	defer f.ioLock.Unlock()
@@ -487,7 +524,10 @@ func (f *File) Seek(offset int64, whence int) (int64, error) {
 
 // Write operations
 func (f *File) Write(p []byte) (n int, err error) {
-	log.Println("File.Write", f.name, len(p))
+	f.log.Trace("File.Write", map[string]interface{}{
+		"name": f.name,
+		"p":    len(p),
+	})
 
 	if f.info.IsDir() {
 		return -1, ErrIsDirectory
@@ -515,7 +555,11 @@ func (f *File) Write(p []byte) (n int, err error) {
 }
 
 func (f *File) WriteAt(p []byte, off int64) (n int, err error) {
-	log.Println("File.WriteAt", f.name, p, off)
+	f.log.Trace("File.WriteAt", map[string]interface{}{
+		"name": f.name,
+		"p":    len(p),
+		"off":  off,
+	})
 
 	if f.info.IsDir() {
 		return -1, ErrIsDirectory
@@ -540,7 +584,10 @@ func (f *File) WriteAt(p []byte, off int64) (n int, err error) {
 }
 
 func (f *File) WriteString(s string) (ret int, err error) {
-	log.Println("File.WriteString", f.name, s)
+	f.log.Trace("File.WriteString", map[string]interface{}{
+		"name": f.name,
+		"s":    len(s),
+	})
 
 	if f.info.IsDir() {
 		return -1, ErrIsDirectory
@@ -561,7 +608,10 @@ func (f *File) WriteString(s string) (ret int, err error) {
 }
 
 func (f *File) Truncate(size int64) error {
-	log.Println("File.Truncate", f.name, size)
+	f.log.Trace("File.Truncate", map[string]interface{}{
+		"name": f.name,
+		"size": size,
+	})
 
 	if f.info.IsDir() {
 		return ErrIsDirectory
@@ -583,7 +633,9 @@ func (f *File) Truncate(size int64) error {
 
 // Cleanup operations
 func (f *File) Sync() error {
-	log.Println("File.Sync", f.name)
+	f.log.Trace("File.Sync", map[string]interface{}{
+		"name": f.name,
+	})
 
 	f.ioLock.Lock()
 	defer f.ioLock.Unlock()
@@ -592,7 +644,9 @@ func (f *File) Sync() error {
 }
 
 func (f *File) Close() error {
-	log.Println("File.Close", f.name)
+	f.log.Debug("File.Close", map[string]interface{}{
+		"name": f.name,
+	})
 
 	f.ioLock.Lock()
 	defer f.ioLock.Unlock()

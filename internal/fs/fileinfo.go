@@ -3,9 +3,10 @@ package fs
 import (
 	"archive/tar"
 	"io/fs"
-	"log"
 	"os"
 	"time"
+
+	"github.com/pojntfx/stfs/internal/logging"
 )
 
 type FileInfo struct {
@@ -16,50 +17,70 @@ type FileInfo struct {
 	mode    fs.FileMode
 	modTime time.Time
 	isDir   bool
+
+	log *logging.JSONLogger
 }
 
-func NewFileInfo(hdr *tar.Header) *FileInfo {
+func NewFileInfo(
+	hdr *tar.Header,
+
+	log *logging.JSONLogger,
+) *FileInfo {
 	return &FileInfo{
 		name:    hdr.FileInfo().Name(),
 		size:    hdr.FileInfo().Size(),
 		mode:    hdr.FileInfo().Mode(),
 		modTime: hdr.FileInfo().ModTime(),
 		isDir:   hdr.FileInfo().IsDir(),
+
+		log: log,
 	}
 }
 
 func (f *FileInfo) Name() string {
-	log.Println("FileInfo.Name", f.name)
+	f.log.Trace("FileInfo.Name", map[string]interface{}{
+		"name": f.name,
+	})
 
 	return f.name
 }
 
 func (f *FileInfo) Size() int64 {
-	log.Println("FileInfo.Size", f.name)
+	f.log.Trace("FileInfo.Size", map[string]interface{}{
+		"name": f.name,
+	})
 
 	return f.size
 }
 
 func (f *FileInfo) Mode() os.FileMode {
-	log.Println("FileInfo.Mode", f.name)
+	f.log.Trace("FileInfo.Mode", map[string]interface{}{
+		"name": f.name,
+	})
 
 	return f.mode
 }
 
 func (f *FileInfo) ModTime() time.Time {
-	log.Println("FileInfo.ModTime", f.name)
+	f.log.Trace("FileInfo.ModTime", map[string]interface{}{
+		"name": f.name,
+	})
 
 	return f.modTime
 }
 
 func (f *FileInfo) IsDir() bool {
-	log.Println("FileInfo.IsDir", f.name)
+	f.log.Trace("FileInfo.IsDir", map[string]interface{}{
+		"name": f.name,
+	})
 
 	return f.isDir
 }
 
 func (f *FileInfo) Sys() interface{} {
-	log.Println("FileInfo.Sys", f.name)
+	f.log.Trace("FileInfo.Sys", map[string]interface{}{
+		"name": f.name,
+	})
 
 	return nil
 }

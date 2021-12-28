@@ -93,7 +93,7 @@ var operationRestoreCmd = &cobra.Command{
 				Password:  viper.GetString(passwordFlag),
 			},
 
-			logging.NewLogger().PrintHeaderEvent,
+			logging.NewCSVLogger().PrintHeaderEvent,
 		)
 
 		return ops.Restore(
