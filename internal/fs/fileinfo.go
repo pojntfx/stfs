@@ -22,6 +22,26 @@ type FileInfo struct {
 }
 
 func NewFileInfo(
+	name string,
+	size int64,
+	mode fs.FileMode,
+	modTime time.Time,
+	isDir bool,
+
+	log *logging.JSONLogger,
+) *FileInfo {
+	return &FileInfo{
+		name:    name,
+		size:    size,
+		mode:    mode,
+		modTime: modTime,
+		isDir:   isDir,
+
+		log: log,
+	}
+}
+
+func NewFileInfoFromTarHeader(
 	hdr *tar.Header,
 
 	log *logging.JSONLogger,

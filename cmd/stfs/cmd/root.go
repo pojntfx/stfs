@@ -55,11 +55,11 @@ https://github.com/pojntfx/stfs`,
 	},
 }
 
-func Execute() {
+func Execute() error {
 	// Get default working dir
 	home, err := os.UserHomeDir()
 	if err != nil {
-		panic(err)
+		return err
 	}
 	metadataPath := filepath.Join(home, ".local", "share", "stfs", "var", "lib", "stfs", "metadata.sqlite")
 
@@ -71,12 +71,10 @@ func Execute() {
 	rootCmd.PersistentFlags().StringP(signatureFlag, "s", config.NoneKey, fmt.Sprintf("Signature format to use (default %v, available are %v)", config.NoneKey, config.KnownSignatureFormats))
 
 	if err := viper.BindPFlags(rootCmd.PersistentFlags()); err != nil {
-		panic(err)
+		return err
 	}
 
 	viper.AutomaticEnv()
 
-	if err := rootCmd.Execute(); err != nil {
-		panic(err)
-	}
+	return rootCmd.Execute()
 }

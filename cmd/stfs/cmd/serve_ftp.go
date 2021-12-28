@@ -236,7 +236,7 @@ var serveFTPCmd = &cobra.Command{
 		)
 
 		if viper.GetBool(verboseFlag) {
-			srv.Logger = &logging.JSONLogger{}
+			srv.Logger = jsonLogger
 		}
 
 		jsonLogger.Info("FTP server listening", map[string]interface{}{
