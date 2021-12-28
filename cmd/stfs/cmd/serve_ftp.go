@@ -126,7 +126,7 @@ var serveFTPCmd = &cobra.Command{
 			return err
 		}
 
-		jsonLogger := logging.NewJSONLogger(4)
+		jsonLogger := logging.NewJSONLogger(viper.GetInt(verboseFlag))
 
 		readOps := operations.NewOperations(
 			config.BackendConfig{
@@ -235,9 +235,7 @@ var serveFTPCmd = &cobra.Command{
 			},
 		)
 
-		if viper.GetBool(verboseFlag) {
-			srv.Logger = jsonLogger
-		}
+		srv.Logger = jsonLogger
 
 		jsonLogger.Info("FTP server listening", map[string]interface{}{
 			"laddr": viper.GetString(laddrFlag),

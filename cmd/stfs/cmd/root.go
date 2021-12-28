@@ -40,9 +40,9 @@ https://github.com/pojntfx/stfs`,
 			return err
 		}
 
-		if viper.GetBool(verboseFlag) {
+		if verbosity := viper.GetInt(verboseFlag); verbosity >= 4 {
 			boil.DebugMode = true
-			boil.DebugWriter = logging.NewJSONLoggerWriter(4, "SQL Query", "query")
+			boil.DebugWriter = logging.NewJSONLoggerWriter(verbosity, "SQL Query", "query")
 		}
 
 		if err := compression.CheckCompressionFormat(viper.GetString(compressionFlag)); err != nil {
@@ -67,7 +67,7 @@ func Execute() error {
 
 	rootCmd.PersistentFlags().StringP(driveFlag, "d", "/dev/nst0", "Tape or tar file to use")
 	rootCmd.PersistentFlags().StringP(metadataFlag, "m", metadataPath, "Metadata database to use")
-	rootCmd.PersistentFlags().BoolP(verboseFlag, "v", false, "Enable verbose logging")
+	rootCmd.PersistentFlags().IntP(verboseFlag, "v", 2, fmt.Sprintf("Verbosity level (default %v, available are %v)", 2, []int{0, 1, 2, 3, 4}))
 	rootCmd.PersistentFlags().StringP(compressionFlag, "c", config.NoneKey, fmt.Sprintf("Compression format to use (default %v, available are %v)", config.NoneKey, config.KnownCompressionFormats))
 	rootCmd.PersistentFlags().StringP(encryptionFlag, "e", config.NoneKey, fmt.Sprintf("Encryption format to use (default %v, available are %v)", config.NoneKey, config.KnownEncryptionFormats))
 	rootCmd.PersistentFlags().StringP(signatureFlag, "s", config.NoneKey, fmt.Sprintf("Signature format to use (default %v, available are %v)", config.NoneKey, config.KnownSignatureFormats))

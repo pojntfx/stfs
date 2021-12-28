@@ -85,7 +85,7 @@ var serveHTTPCmd = &cobra.Command{
 			return err
 		}
 
-		jsonLogger := logging.NewJSONLogger(4)
+		jsonLogger := logging.NewJSONLogger(viper.GetInt(verboseFlag))
 
 		readOps := operations.NewOperations(
 			config.BackendConfig{
