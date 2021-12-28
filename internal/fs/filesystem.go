@@ -285,7 +285,7 @@ func (f *FileSystem) OpenFile(name string, flag int, perm os.FileMode) (afero.Fi
 		f.getFileBuffer,
 
 		path.Base(hdr.Name),
-		NewFileInfo(hdr, f.log),
+		NewFileInfoFromTarHeader(hdr, f.log),
 
 		f.onHeader,
 		f.log,
@@ -334,10 +334,10 @@ func (f *FileSystem) Stat(name string) (os.FileInfo, error) {
 			return nil, os.ErrNotExist
 		}
 
-		panic(err)
+		return nil, err
 	}
 
-	return NewFileInfo(hdr, f.log), nil
+	return NewFileInfoFromTarHeader(hdr, f.log), nil
 }
 
 func (f *FileSystem) updateMetadata(hdr *tar.Header) error {
@@ -384,7 +384,7 @@ func (f *FileSystem) Chmod(name string, mode os.FileMode) error {
 			return os.ErrNotExist
 		}
 
-		panic(err)
+		return err
 	}
 
 	hdr.Mode = int64(mode)
@@ -411,7 +411,7 @@ func (f *FileSystem) Chown(name string, uid, gid int) error {
 			return os.ErrNotExist
 		}
 
-		panic(err)
+		return err
 	}
 
 	hdr.Uid = uid
@@ -439,7 +439,7 @@ func (f *FileSystem) Chtimes(name string, atime time.Time, mtime time.Time) erro
 			return os.ErrNotExist
 		}
 
-		panic(err)
+		return err
 	}
 
 	hdr.AccessTime = atime
@@ -453,7 +453,7 @@ func (f *FileSystem) LstatIfPossible(name string) (os.FileInfo, bool, error) {
 		"name": name,
 	})
 
-	panic(ErrNotImplemented)
+	return nil, false, ErrNotImplemented
 }
 
 func (f *FileSystem) SymlinkIfPossible(oldname, newname string) error {
@@ -462,7 +462,7 @@ func (f *FileSystem) SymlinkIfPossible(oldname, newname string) error {
 		"newname": newname,
 	})
 
-	panic(ErrNotImplemented)
+	return ErrNotImplemented
 }
 
 func (f *FileSystem) ReadlinkIfPossible(name string) (string, error) {
@@ -470,5 +470,5 @@ func (f *FileSystem) ReadlinkIfPossible(name string) (string, error) {
 		"name": name,
 	})
 
-	panic(ErrNotImplemented)
+	return "", ErrNotImplemented
 }

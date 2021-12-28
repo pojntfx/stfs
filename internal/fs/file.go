@@ -136,13 +136,14 @@ func (f *File) syncWithoutLocking() error {
 					return config.FileConfig{}, err
 				}
 
-				f.info = &FileInfo{
-					name:    f.info.Name(),
-					size:    size,
-					mode:    f.info.Mode(),
-					modTime: f.info.ModTime(),
-					isDir:   f.info.IsDir(),
-				}
+				f.info = NewFileInfo(
+					f.info.Name(),
+					size,
+					f.info.Mode(),
+					f.info.ModTime(),
+					f.info.IsDir(),
+					f.log,
+				)
 
 				return config.FileConfig{
 					GetFile: func() (io.ReadSeekCloser, error) {
@@ -392,7 +393,7 @@ func (f *File) Readdir(count int) ([]os.FileInfo, error) {
 
 	fileInfos := []os.FileInfo{}
 	for _, hdr := range hdrs {
-		fileInfos = append(fileInfos, NewFileInfo(hdr, f.log))
+		fileInfos = append(fileInfos, NewFileInfoFromTarHeader(hdr, f.log))
 	}
 
 	return fileInfos, nil

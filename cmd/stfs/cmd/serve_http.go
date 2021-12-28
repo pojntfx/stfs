@@ -158,6 +158,7 @@ var serveHTTPCmd = &cobra.Command{
 				http.FileServer(
 					afero.NewHttpFs(fs),
 				),
+				jsonLogger,
 			),
 		)
 	},

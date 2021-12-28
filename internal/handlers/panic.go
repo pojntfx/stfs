@@ -2,18 +2,20 @@ package handlers
 
 import (
 	"fmt"
-	"log"
 	"net/http"
-	"runtime/debug"
+
+	"github.com/pojntfx/stfs/internal/logging"
 )
 
-func PanicHandler(h http.Handler) http.Handler {
+func PanicHandler(h http.Handler, log *logging.JSONLogger) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		defer func() {
-			if r := recover(); r != nil {
-				http.Error(w, fmt.Sprintf("%v", r), http.StatusInternalServerError)
+			if err := recover(); err != nil {
+				http.Error(w, fmt.Sprintf("%v", err), http.StatusInternalServerError)
 
-				log.Println("Error:", r, "\nStack:", string(debug.Stack()))
+				log.Error("Error during HTTP request", map[string]interface{}{
+					"err": err,
+				})
 			}
 		}()
 
