@@ -99,7 +99,7 @@ var recoveryIndexCmd = &cobra.Command{
 				return signature.VerifyHeader(hdr, isRegular, viper.GetString(signatureFlag), recipient)
 			},
 
-			logging.NewLogger().PrintHeader,
+			logging.NewCSVLogger().PrintHeader,
 		)
 	},
 }

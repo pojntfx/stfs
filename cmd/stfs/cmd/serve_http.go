@@ -3,7 +3,6 @@ package cmd
 import (
 	"context"
 	"fmt"
-	"log"
 	"net/http"
 	"path/filepath"
 	"time"
@@ -85,7 +84,8 @@ var serveHTTPCmd = &cobra.Command{
 			return err
 		}
 
-		logger := logging.NewLogger()
+		csvLogger := logging.NewCSVLogger()
+		structuredLogger := logging.NewJSONLogger()
 
 		readOps := operations.NewOperations(
 			config.BackendConfig{
@@ -114,7 +114,7 @@ var serveHTTPCmd = &cobra.Command{
 				Password:  viper.GetString(passwordFlag),
 			},
 
-			logger.PrintHeaderEvent,
+			csvLogger.PrintHeaderEvent,
 		)
 
 		stfs := sfs.NewFileSystem(
@@ -129,7 +129,8 @@ var serveHTTPCmd = &cobra.Command{
 			nil,   // We never write
 			false, // We never write
 
-			logger.PrintHeader,
+			csvLogger.PrintHeader,
+			structuredLogger,
 		)
 
 		fs, err := cache.NewCacheFilesystem(
@@ -143,7 +144,9 @@ var serveHTTPCmd = &cobra.Command{
 			return err
 		}
 
-		log.Println("Listening on", viper.GetString(laddrFlag))
+		structuredLogger.Info("FTP server listening", map[string]interface{}{
+			"laddr": viper.GetString(laddrFlag),
+		})
 
 		return http.ListenAndServe(
 			viper.GetString(laddrFlag),

@@ -34,7 +34,7 @@ var inventoryFindCmd = &cobra.Command{
 
 			viper.GetString(expressionFlag),
 
-			logging.NewLogger().PrintHeader,
+			logging.NewCSVLogger().PrintHeader,
 		); err != nil {
 			return err
 		}

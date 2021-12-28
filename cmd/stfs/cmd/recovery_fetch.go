@@ -106,7 +106,7 @@ var recoveryFetchCmd = &cobra.Command{
 			viper.GetString(toFlag),
 			viper.GetBool(previewFlag),
 
-			logging.NewLogger().PrintHeader,
+			logging.NewCSVLogger().PrintHeader,
 		)
 	},
 }

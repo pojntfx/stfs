@@ -27,15 +27,15 @@ func headerEventToCSV(event *config.HeaderEvent) []string {
 	return append([]string{event.Type, fmt.Sprintf("%v", event.Indexed)}, headerToCSV(event.Header)...)
 }
 
-type Logger struct {
+type CSVLogger struct {
 	n int
 }
 
-func NewLogger() *Logger {
-	return &Logger{}
+func NewCSVLogger() *CSVLogger {
+	return &CSVLogger{}
 }
 
-func (l *Logger) PrintHeader(hdr *models.Header) {
+func (l *CSVLogger) PrintHeader(hdr *models.Header) {
 	w := csv.NewWriter(os.Stdout)
 
 	if l.n <= 0 {
@@ -49,7 +49,7 @@ func (l *Logger) PrintHeader(hdr *models.Header) {
 	l.n++
 }
 
-func (l *Logger) PrintHeaderEvent(event *config.HeaderEvent) {
+func (l *CSVLogger) PrintHeaderEvent(event *config.HeaderEvent) {
 	w := csv.NewWriter(os.Stdout)
 
 	if l.n <= 0 {

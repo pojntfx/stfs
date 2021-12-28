@@ -30,7 +30,7 @@ var inventoryStatCmd = &cobra.Command{
 
 			viper.GetString(nameFlag),
 
-			logging.NewLogger().PrintHeader,
+			logging.NewCSVLogger().PrintHeader,
 		); err != nil {
 			return err
 		}

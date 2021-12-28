@@ -96,7 +96,7 @@ var operationUpdateCmd = &cobra.Command{
 				Password:  viper.GetString(passwordFlag),
 			},
 
-			logging.NewLogger().PrintHeaderEvent,
+			logging.NewCSVLogger().PrintHeaderEvent,
 		)
 
 		files := make(chan config.FileConfig)
