@@ -1,8 +1,10 @@
 package logging
 
 import (
+	"bufio"
 	"encoding/json"
 	"fmt"
+	"io"
 	"os"
 	"time"
 
@@ -35,6 +37,22 @@ func NewJSONLogger(verbosity int) *JSONLogger {
 	return &JSONLogger{
 		verbosity: verbosity,
 	}
+}
+
+func NewJSONLoggerWriter(verbosity int, event, key string) io.Writer {
+	jsonLogger := NewJSONLogger(verbosity)
+
+	reader, writer := io.Pipe()
+	scanner := bufio.NewScanner(reader)
+	go func() {
+		for scanner.Scan() {
+			jsonLogger.Trace(event, map[string]interface{}{
+				key: scanner.Text(),
+			})
+		}
+	}()
+
+	return writer
 }
 
 func (l JSONLogger) Trace(event string, keyvals ...interface{}) {

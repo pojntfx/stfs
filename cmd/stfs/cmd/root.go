@@ -8,6 +8,7 @@ import (
 
 	"github.com/pojntfx/stfs/internal/compression"
 	"github.com/pojntfx/stfs/internal/encryption"
+	"github.com/pojntfx/stfs/internal/logging"
 	"github.com/pojntfx/stfs/internal/signature"
 	"github.com/pojntfx/stfs/pkg/config"
 	"github.com/spf13/cobra"
@@ -41,6 +42,7 @@ https://github.com/pojntfx/stfs`,
 
 		if viper.GetBool(verboseFlag) {
 			boil.DebugMode = true
+			boil.DebugWriter = logging.NewJSONLoggerWriter(4, "SQL Query", "query")
 		}
 
 		if err := compression.CheckCompressionFormat(viper.GetString(compressionFlag)); err != nil {
