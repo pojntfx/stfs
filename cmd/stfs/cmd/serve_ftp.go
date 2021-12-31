@@ -8,15 +8,16 @@ import (
 	"time"
 
 	ftpserver "github.com/fclairamb/ftpserverlib"
-	"github.com/pojntfx/stfs/internal/cache"
+	"github.com/pojntfx/stfs/internal/check"
 	models "github.com/pojntfx/stfs/internal/db/sqlite/models/metadata"
-	sfs "github.com/pojntfx/stfs/internal/fs"
 	"github.com/pojntfx/stfs/internal/ftp"
 	"github.com/pojntfx/stfs/internal/keys"
 	"github.com/pojntfx/stfs/internal/logging"
-	"github.com/pojntfx/stfs/internal/persisters"
+	"github.com/pojntfx/stfs/pkg/cache"
 	"github.com/pojntfx/stfs/pkg/config"
+	sfs "github.com/pojntfx/stfs/pkg/fs"
 	"github.com/pojntfx/stfs/pkg/operations"
+	"github.com/pojntfx/stfs/pkg/persisters"
 	"github.com/pojntfx/stfs/pkg/tape"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
@@ -47,27 +48,27 @@ var serveFTPCmd = &cobra.Command{
 			return err
 		}
 
-		if err := cache.CheckFileSystemCacheType(viper.GetString(cacheFileSystemFlag)); err != nil {
+		if err := check.CheckFileSystemCacheType(viper.GetString(cacheFileSystemFlag)); err != nil {
 			return err
 		}
 
-		if err := cache.CheckWriteCacheType(viper.GetString(cacheWriteFlag)); err != nil {
+		if err := check.CheckWriteCacheType(viper.GetString(cacheWriteFlag)); err != nil {
 			return err
 		}
 
-		if err := keys.CheckKeyAccessible(viper.GetString(encryptionFlag), viper.GetString(encryptionIdentityFlag)); err != nil {
+		if err := check.CheckKeyAccessible(viper.GetString(encryptionFlag), viper.GetString(encryptionIdentityFlag)); err != nil {
 			return err
 		}
 
-		if err := keys.CheckKeyAccessible(viper.GetString(encryptionFlag), viper.GetString(encryptionRecipientFlag)); err != nil {
+		if err := check.CheckKeyAccessible(viper.GetString(encryptionFlag), viper.GetString(encryptionRecipientFlag)); err != nil {
 			return err
 		}
 
-		if err := keys.CheckKeyAccessible(viper.GetString(signatureFlag), viper.GetString(signatureIdentityFlag)); err != nil {
+		if err := check.CheckKeyAccessible(viper.GetString(signatureFlag), viper.GetString(signatureIdentityFlag)); err != nil {
 			return err
 		}
 
-		return keys.CheckKeyAccessible(viper.GetString(signatureFlag), viper.GetString(signatureRecipientFlag))
+		return check.CheckKeyAccessible(viper.GetString(signatureFlag), viper.GetString(signatureRecipientFlag))
 	},
 	RunE: func(cmd *cobra.Command, args []string) error {
 		signaturePubkey, err := keys.ReadKey(viper.GetString(signatureFlag), viper.GetString(signatureRecipientFlag))
@@ -192,7 +193,7 @@ var serveFTPCmd = &cobra.Command{
 			},
 		)
 
-		stfs := sfs.NewFileSystem(
+		stfs := sfs.NewSTFS(
 			readOps,
 			writeOps,
 
@@ -201,7 +202,7 @@ var serveFTPCmd = &cobra.Command{
 			},
 
 			viper.GetString(compressionLevelFlag),
-			func() (sfs.WriteCache, func() error, error) {
+			func() (cache.WriteCache, func() error, error) {
 				return cache.NewCacheWrite(
 					filepath.Join(viper.GetString(cacheDirFlag), "write"),
 					viper.GetString(cacheWriteFlag),
@@ -258,8 +259,8 @@ func init() {
 
 	serveFTPCmd.PersistentFlags().StringP(compressionLevelFlag, "l", config.CompressionLevelBalanced, fmt.Sprintf("Compression level to use (default %v, available are %v)", config.CompressionLevelBalanced, config.KnownCompressionLevels))
 	serveFTPCmd.PersistentFlags().StringP(laddrFlag, "a", "localhost:1337", "Listen address")
-	serveFTPCmd.PersistentFlags().StringP(cacheFileSystemFlag, "n", config.NoneKey, fmt.Sprintf("File system cache to use (default %v, available are %v)", config.NoneKey, cache.KnownFileSystemCacheTypes))
-	serveFTPCmd.PersistentFlags().StringP(cacheWriteFlag, "q", cache.WriteCacheTypeFile, fmt.Sprintf("Write cache to use (default %v, available are %v)", cache.WriteCacheTypeFile, cache.KnownWriteCacheTypes))
+	serveFTPCmd.PersistentFlags().StringP(cacheFileSystemFlag, "n", config.NoneKey, fmt.Sprintf("File system cache to use (default %v, available are %v)", config.NoneKey, config.KnownFileSystemCacheTypes))
+	serveFTPCmd.PersistentFlags().StringP(cacheWriteFlag, "q", config.WriteCacheTypeFile, fmt.Sprintf("Write cache to use (default %v, available are %v)", config.WriteCacheTypeFile, config.KnownWriteCacheTypes))
 	serveFTPCmd.PersistentFlags().DurationP(cacheDurationFlag, "u", time.Hour, "Duration until cache is invalidated")
 	serveFTPCmd.PersistentFlags().StringP(cacheDirFlag, "w", cacheDir, "Directory to use if dir cache is enabled")
 

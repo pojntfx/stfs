@@ -26,6 +26,14 @@ const (
 	HeaderEventTypeMove    = "move"
 	HeaderEventTypeRestore = "restore"
 	HeaderEventTypeUpdate  = "update"
+
+	FileSystemNameSTFS = "STFS"
+
+	FileSystemCacheTypeMemory = "memory"
+	FileSystemCacheTypeDir    = "dir"
+
+	WriteCacheTypeMemory = "memory"
+	WriteCacheTypeFile   = "file"
 )
 
 var (
@@ -36,4 +44,8 @@ var (
 	KnownEncryptionFormats = []string{NoneKey, EncryptionFormatAgeKey, EncryptionFormatPGPKey}
 
 	KnownSignatureFormats = []string{NoneKey, SignatureFormatMinisignKey, SignatureFormatPGPKey}
+
+	KnownFileSystemCacheTypes = []string{NoneKey, FileSystemCacheTypeMemory, FileSystemCacheTypeDir}
+
+	KnownWriteCacheTypes = []string{WriteCacheTypeMemory, WriteCacheTypeFile}
 )

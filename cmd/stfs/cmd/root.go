@@ -6,10 +6,8 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/pojntfx/stfs/internal/compression"
-	"github.com/pojntfx/stfs/internal/encryption"
+	"github.com/pojntfx/stfs/internal/check"
 	"github.com/pojntfx/stfs/internal/logging"
-	"github.com/pojntfx/stfs/internal/signature"
 	"github.com/pojntfx/stfs/pkg/config"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
@@ -45,15 +43,15 @@ https://github.com/pojntfx/stfs`,
 			boil.DebugWriter = logging.NewJSONLoggerWriter(verbosity, "SQL Query", "query")
 		}
 
-		if err := compression.CheckCompressionFormat(viper.GetString(compressionFlag)); err != nil {
+		if err := check.CheckCompressionFormat(viper.GetString(compressionFlag)); err != nil {
 			return err
 		}
 
-		if err := encryption.CheckEncryptionFormat(viper.GetString(encryptionFlag)); err != nil {
+		if err := check.CheckEncryptionFormat(viper.GetString(encryptionFlag)); err != nil {
 			return err
 		}
 
-		return signature.CheckSignatureFormat(viper.GetString(signatureFlag))
+		return check.CheckSignatureFormat(viper.GetString(signatureFlag))
 	},
 }
 

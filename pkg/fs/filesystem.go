@@ -3,7 +3,6 @@ package fs
 import (
 	"archive/tar"
 	"database/sql"
-	"errors"
 	"io"
 	"os"
 	"os/user"
@@ -13,49 +12,43 @@ import (
 	"time"
 
 	models "github.com/pojntfx/stfs/internal/db/sqlite/models/metadata"
+	ifs "github.com/pojntfx/stfs/internal/fs"
 	"github.com/pojntfx/stfs/internal/logging"
+	"github.com/pojntfx/stfs/pkg/cache"
 	"github.com/pojntfx/stfs/pkg/config"
 	"github.com/pojntfx/stfs/pkg/inventory"
 	"github.com/pojntfx/stfs/pkg/operations"
 	"github.com/spf13/afero"
 )
 
-var (
-	ErrNotImplemented = errors.New("not implemented")
-)
-
-const (
-	FileSystemNameSTFS = "STFS"
-)
-
-type FileSystem struct {
+type STFS struct {
 	readOps  *operations.Operations
 	writeOps *operations.Operations
 
 	metadata config.MetadataConfig
 
 	compressionLevel           string
-	getFileBuffer              func() (WriteCache, func() error, error)
+	getFileBuffer              func() (cache.WriteCache, func() error, error)
 	ignoreReadWritePermissions bool
 
 	onHeader func(hdr *models.Header)
 	log      *logging.JSONLogger
 }
 
-func NewFileSystem(
+func NewSTFS(
 	readOps *operations.Operations,
 	writeOps *operations.Operations,
 
 	metadata config.MetadataConfig,
 
 	compressionLevel string,
-	getFileBuffer func() (WriteCache, func() error, error),
+	getFileBuffer func() (cache.WriteCache, func() error, error),
 	ignorePermissionFlags bool,
 
 	onHeader func(hdr *models.Header),
 	log *logging.JSONLogger,
 ) afero.Fs {
-	return &FileSystem{
+	return &STFS{
 		readOps:  readOps,
 		writeOps: writeOps,
 
@@ -70,15 +63,15 @@ func NewFileSystem(
 	}
 }
 
-func (f *FileSystem) Name() string {
+func (f *STFS) Name() string {
 	f.log.Debug("FileSystem.Name", map[string]interface{}{
-		"name": FileSystemNameSTFS,
+		"name": config.FileSystemNameSTFS,
 	})
 
-	return FileSystemNameSTFS
+	return config.FileSystemNameSTFS
 }
 
-func (f *FileSystem) Create(name string) (afero.File, error) {
+func (f *STFS) Create(name string) (afero.File, error) {
 	f.log.Debug("FileSystem.Name", map[string]interface{}{
 		"name": name,
 	})
@@ -86,7 +79,7 @@ func (f *FileSystem) Create(name string) (afero.File, error) {
 	return os.OpenFile(name, os.O_CREATE, 0666)
 }
 
-func (f *FileSystem) mknode(dir bool, name string, perm os.FileMode) error {
+func (f *STFS) mknode(dir bool, name string, perm os.FileMode) error {
 	f.log.Trace("FileSystem.mknode", map[string]interface{}{
 		"name": name,
 		"perm": perm,
@@ -163,7 +156,7 @@ func (f *FileSystem) mknode(dir bool, name string, perm os.FileMode) error {
 	return nil
 }
 
-func (f *FileSystem) Mkdir(name string, perm os.FileMode) error {
+func (f *STFS) Mkdir(name string, perm os.FileMode) error {
 	f.log.Debug("FileSystem.Mkdir", map[string]interface{}{
 		"name": name,
 		"perm": perm,
@@ -172,7 +165,7 @@ func (f *FileSystem) Mkdir(name string, perm os.FileMode) error {
 	return f.mknode(true, name, perm)
 }
 
-func (f *FileSystem) MkdirAll(path string, perm os.FileMode) error {
+func (f *STFS) MkdirAll(path string, perm os.FileMode) error {
 	f.log.Debug("FileSystem.MkdirAll", map[string]interface{}{
 		"path": path,
 		"perm": perm,
@@ -196,7 +189,7 @@ func (f *FileSystem) MkdirAll(path string, perm os.FileMode) error {
 	return nil
 }
 
-func (f *FileSystem) Open(name string) (afero.File, error) {
+func (f *STFS) Open(name string) (afero.File, error) {
 	f.log.Debug("FileSystem.Open", map[string]interface{}{
 		"name": name,
 	})
@@ -204,38 +197,38 @@ func (f *FileSystem) Open(name string) (afero.File, error) {
 	return f.OpenFile(name, os.O_RDWR, os.ModePerm)
 }
 
-func (f *FileSystem) OpenFile(name string, flag int, perm os.FileMode) (afero.File, error) {
+func (f *STFS) OpenFile(name string, flag int, perm os.FileMode) (afero.File, error) {
 	f.log.Debug("FileSystem.OpenFile", map[string]interface{}{
 		"name": name,
 		"flag": flag,
 		"perm": perm,
 	})
 
-	flags := &FileFlags{}
+	flags := &ifs.FileFlags{}
 	if flag&os.O_RDONLY != 0 {
-		flags.read = true
+		flags.Read = true
 	}
 
 	if flag&os.O_WRONLY != 0 {
-		flags.write = true
+		flags.Write = true
 	}
 
 	if flag&os.O_RDWR != 0 {
-		flags.read = true
-		flags.write = true
+		flags.Read = true
+		flags.Write = true
 	}
 
 	if f.ignoreReadWritePermissions {
-		flags.read = true
-		flags.write = true
+		flags.Read = true
+		flags.Write = true
 	}
 
 	if flag&os.O_APPEND != 0 {
-		flags.append = true
+		flags.Append = true
 	}
 
 	if flag&os.O_TRUNC != 0 {
-		flags.truncate = true
+		flags.Truncate = true
 	}
 
 	hdr, err := inventory.Stat(
@@ -271,7 +264,7 @@ func (f *FileSystem) OpenFile(name string, flag int, perm os.FileMode) (afero.Fi
 		}
 	}
 
-	return NewFile(
+	return ifs.NewFile(
 		f.readOps,
 		f.writeOps,
 
@@ -285,14 +278,14 @@ func (f *FileSystem) OpenFile(name string, flag int, perm os.FileMode) (afero.Fi
 		f.getFileBuffer,
 
 		path.Base(hdr.Name),
-		NewFileInfoFromTarHeader(hdr, f.log),
+		ifs.NewFileInfoFromTarHeader(hdr, f.log),
 
 		f.onHeader,
 		f.log,
 	), nil
 }
 
-func (f *FileSystem) Remove(name string) error {
+func (f *STFS) Remove(name string) error {
 	f.log.Debug("FileSystem.Remove", map[string]interface{}{
 		"name": name,
 	})
@@ -300,7 +293,7 @@ func (f *FileSystem) Remove(name string) error {
 	return f.writeOps.Delete(name)
 }
 
-func (f *FileSystem) RemoveAll(path string) error {
+func (f *STFS) RemoveAll(path string) error {
 	f.log.Debug("FileSystem.RemoveAll", map[string]interface{}{
 		"path": path,
 	})
@@ -308,7 +301,7 @@ func (f *FileSystem) RemoveAll(path string) error {
 	return f.writeOps.Delete(path)
 }
 
-func (f *FileSystem) Rename(oldname, newname string) error {
+func (f *STFS) Rename(oldname, newname string) error {
 	f.log.Debug("FileSystem.Rename", map[string]interface{}{
 		"oldname": oldname,
 		"newname": newname,
@@ -317,7 +310,7 @@ func (f *FileSystem) Rename(oldname, newname string) error {
 	return f.writeOps.Move(oldname, newname)
 }
 
-func (f *FileSystem) Stat(name string) (os.FileInfo, error) {
+func (f *STFS) Stat(name string) (os.FileInfo, error) {
 	f.log.Debug("FileSystem.Stat", map[string]interface{}{
 		"name": name,
 	})
@@ -337,10 +330,10 @@ func (f *FileSystem) Stat(name string) (os.FileInfo, error) {
 		return nil, err
 	}
 
-	return NewFileInfoFromTarHeader(hdr, f.log), nil
+	return ifs.NewFileInfoFromTarHeader(hdr, f.log), nil
 }
 
-func (f *FileSystem) updateMetadata(hdr *tar.Header) error {
+func (f *STFS) updateMetadata(hdr *tar.Header) error {
 	done := false
 	if _, err := f.writeOps.Update(
 		func() (config.FileConfig, error) {
@@ -367,7 +360,7 @@ func (f *FileSystem) updateMetadata(hdr *tar.Header) error {
 	return nil
 }
 
-func (f *FileSystem) Chmod(name string, mode os.FileMode) error {
+func (f *STFS) Chmod(name string, mode os.FileMode) error {
 	f.log.Debug("FileSystem.Chmod", map[string]interface{}{
 		"name": mode,
 	})
@@ -392,7 +385,7 @@ func (f *FileSystem) Chmod(name string, mode os.FileMode) error {
 	return f.updateMetadata(hdr)
 }
 
-func (f *FileSystem) Chown(name string, uid, gid int) error {
+func (f *STFS) Chown(name string, uid, gid int) error {
 	f.log.Debug("FileSystem.Chown", map[string]interface{}{
 		"name": name,
 		"uid":  uid,
@@ -420,7 +413,7 @@ func (f *FileSystem) Chown(name string, uid, gid int) error {
 	return f.updateMetadata(hdr)
 }
 
-func (f *FileSystem) Chtimes(name string, atime time.Time, mtime time.Time) error {
+func (f *STFS) Chtimes(name string, atime time.Time, mtime time.Time) error {
 	f.log.Debug("FileSystem.Chtimes", map[string]interface{}{
 		"name":  name,
 		"atime": atime,
@@ -448,27 +441,27 @@ func (f *FileSystem) Chtimes(name string, atime time.Time, mtime time.Time) erro
 	return f.updateMetadata(hdr)
 }
 
-func (f *FileSystem) LstatIfPossible(name string) (os.FileInfo, bool, error) {
+func (f *STFS) LstatIfPossible(name string) (os.FileInfo, bool, error) {
 	f.log.Debug("FileSystem.LstatIfPossible", map[string]interface{}{
 		"name": name,
 	})
 
-	return nil, false, ErrNotImplemented
+	return nil, false, config.ErrNotImplemented
 }
 
-func (f *FileSystem) SymlinkIfPossible(oldname, newname string) error {
+func (f *STFS) SymlinkIfPossible(oldname, newname string) error {
 	f.log.Debug("FileSystem.SymlinkIfPossible", map[string]interface{}{
 		"oldname": oldname,
 		"newname": newname,
 	})
 
-	return ErrNotImplemented
+	return config.ErrNotImplemented
 }
 
-func (f *FileSystem) ReadlinkIfPossible(name string) (string, error) {
+func (f *STFS) ReadlinkIfPossible(name string) (string, error) {
 	f.log.Debug("FileSystem.ReadlinkIfPossible", map[string]interface{}{
 		"name": name,
 	})
 
-	return "", ErrNotImplemented
+	return "", config.ErrNotImplemented
 }

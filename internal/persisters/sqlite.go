@@ -13,7 +13,7 @@ type SQLite struct {
 	DBPath     string
 	Migrations migrate.MigrationSource
 
-	db *sql.DB
+	DB *sql.DB
 }
 
 func (s *SQLite) Open() error {
@@ -31,11 +31,11 @@ func (s *SQLite) Open() error {
 
 	// Configure the db
 	db.SetMaxOpenConns(1) // Prevent "database locked" errors
-	s.db = db
+	s.DB = db
 
 	// Run migrations if set
 	if s.Migrations != nil {
-		if _, err := migrate.Exec(s.db, "sqlite3", s.Migrations, migrate.Up); err != nil {
+		if _, err := migrate.Exec(s.DB, "sqlite3", s.Migrations, migrate.Up); err != nil {
 			return err
 		}
 	}

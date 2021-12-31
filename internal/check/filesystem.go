@@ -1,16 +1,18 @@
-package cache
+package check
+
+import "github.com/pojntfx/stfs/pkg/config"
 
 func CheckFileSystemCacheType(cacheType string) error {
 	cacheTypeIsKnown := false
 
-	for _, candidate := range KnownFileSystemCacheTypes {
+	for _, candidate := range config.KnownFileSystemCacheTypes {
 		if cacheType == candidate {
 			cacheTypeIsKnown = true
 		}
 	}
 
 	if !cacheTypeIsKnown {
-		return ErrFileSystemCacheTypeUnknown
+		return config.ErrFileSystemCacheTypeUnknown
 	}
 
 	return nil
@@ -19,14 +21,14 @@ func CheckFileSystemCacheType(cacheType string) error {
 func CheckWriteCacheType(cacheType string) error {
 	cacheTypeIsKnown := false
 
-	for _, candidate := range KnownWriteCacheTypes {
+	for _, candidate := range config.KnownWriteCacheTypes {
 		if cacheType == candidate {
 			cacheTypeIsKnown = true
 		}
 	}
 
 	if !cacheTypeIsKnown {
-		return ErrWriteCacheTypeUnknown
+		return config.ErrWriteCacheTypeUnknown
 	}
 
 	return nil

@@ -2,9 +2,9 @@ package cmd
 
 import (
 	"github.com/pojntfx/stfs/internal/logging"
-	"github.com/pojntfx/stfs/internal/persisters"
 	"github.com/pojntfx/stfs/pkg/config"
 	"github.com/pojntfx/stfs/pkg/inventory"
+	"github.com/pojntfx/stfs/pkg/persisters"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 )

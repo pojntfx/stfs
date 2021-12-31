@@ -5,7 +5,7 @@ import (
 	"io/fs"
 	"os"
 
-	"github.com/pojntfx/stfs/internal/persisters"
+	"github.com/pojntfx/stfs/pkg/persisters"
 )
 
 type DriveReaderConfig struct {
