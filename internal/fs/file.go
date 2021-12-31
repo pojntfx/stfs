@@ -3,7 +3,6 @@ package fs
 import (
 	"bytes"
 	"database/sql"
-	"errors"
 	"io"
 	"io/fs"
 	"log"
@@ -13,33 +12,19 @@ import (
 	models "github.com/pojntfx/stfs/internal/db/sqlite/models/metadata"
 	"github.com/pojntfx/stfs/internal/ioext"
 	"github.com/pojntfx/stfs/internal/logging"
+	"github.com/pojntfx/stfs/pkg/cache"
 	"github.com/pojntfx/stfs/pkg/config"
 	"github.com/pojntfx/stfs/pkg/inventory"
 	"github.com/pojntfx/stfs/pkg/operations"
 	"github.com/spf13/afero"
 )
 
-var (
-	ErrIsDirectory = errors.New("is a directory")
-)
-
-type WriteCache interface {
-	io.Closer
-	io.Reader
-	io.Seeker
-	io.Writer
-
-	Truncate(size int64) error
-	Size() (int64, error)
-	Sync() error
-}
-
 type FileFlags struct {
-	read  bool
-	write bool
+	Read  bool
+	Write bool
 
-	append   bool
-	truncate bool
+	Append   bool
+	Truncate bool
 }
 
 type File struct {
@@ -55,7 +40,7 @@ type File struct {
 	flags *FileFlags
 
 	compressionLevel string
-	getFileBuffer    func() (WriteCache, func() error, error)
+	getFileBuffer    func() (cache.WriteCache, func() error, error)
 
 	name string
 	info os.FileInfo
@@ -65,7 +50,7 @@ type File struct {
 	readOpReader *ioext.CounterReadCloser
 	readOpWriter io.WriteCloser
 
-	writeBuf      WriteCache
+	writeBuf      cache.WriteCache
 	cleanWriteBuf func() error
 
 	onHeader func(hdr *models.Header)
@@ -83,7 +68,7 @@ func NewFile(
 	flags *FileFlags,
 
 	compressionLevel string,
-	getFileBuffer func() (WriteCache, func() error, error),
+	getFileBuffer func() (cache.WriteCache, func() error, error),
 
 	name string,
 	info os.FileInfo,
@@ -118,7 +103,7 @@ func (f *File) syncWithoutLocking() error {
 	})
 
 	if f.info.IsDir() {
-		return ErrIsDirectory
+		return config.ErrIsDirectory
 	}
 
 	if f.writeBuf != nil {
@@ -261,13 +246,13 @@ func (f *File) enterWriteMode() error {
 			}
 		}
 
-		if f.flags.truncate {
+		if f.flags.Truncate {
 			if err := f.writeBuf.Truncate(0); err != nil {
 				return err
 			}
 		}
 
-		if !f.flags.append {
+		if !f.flags.Append {
 			if _, err := f.writeBuf.Seek(0, io.SeekStart); err != nil {
 				return err
 			}
@@ -285,7 +270,7 @@ func (f *File) seekWithoutLocking(offset int64, whence int) (int64, error) {
 	})
 
 	if f.info.IsDir() {
-		return -1, ErrIsDirectory
+		return -1, config.ErrIsDirectory
 	}
 
 	if f.writeBuf != nil {
@@ -305,7 +290,7 @@ func (f *File) seekWithoutLocking(offset int64, whence int) (int64, error) {
 	case io.SeekEnd:
 		dst = f.info.Size() - offset
 	default:
-		return -1, ErrNotImplemented
+		return -1, config.ErrNotImplemented
 	}
 
 	if f.readOpReader == nil || f.readOpWriter == nil || dst < int64(f.readOpReader.BytesRead) { // We have to re-open as we can't seek backwards
@@ -426,10 +411,10 @@ func (f *File) Read(p []byte) (n int, err error) {
 	})
 
 	if f.info.IsDir() {
-		return -1, ErrIsDirectory
+		return -1, config.ErrIsDirectory
 	}
 
-	if !f.flags.read {
+	if !f.flags.Read {
 		return -1, os.ErrPermission
 	}
 
@@ -495,10 +480,10 @@ func (f *File) ReadAt(p []byte, off int64) (n int, err error) {
 	})
 
 	if f.info.IsDir() {
-		return -1, ErrIsDirectory
+		return -1, config.ErrIsDirectory
 	}
 
-	if !f.flags.read {
+	if !f.flags.Read {
 		return -1, os.ErrPermission
 	}
 
@@ -531,10 +516,10 @@ func (f *File) Write(p []byte) (n int, err error) {
 	})
 
 	if f.info.IsDir() {
-		return -1, ErrIsDirectory
+		return -1, config.ErrIsDirectory
 	}
 
-	if !f.flags.write {
+	if !f.flags.Write {
 		return -1, os.ErrPermission
 	}
 
@@ -563,10 +548,10 @@ func (f *File) WriteAt(p []byte, off int64) (n int, err error) {
 	})
 
 	if f.info.IsDir() {
-		return -1, ErrIsDirectory
+		return -1, config.ErrIsDirectory
 	}
 
-	if !f.flags.write {
+	if !f.flags.Write {
 		return -1, os.ErrPermission
 	}
 
@@ -591,10 +576,10 @@ func (f *File) WriteString(s string) (ret int, err error) {
 	})
 
 	if f.info.IsDir() {
-		return -1, ErrIsDirectory
+		return -1, config.ErrIsDirectory
 	}
 
-	if !f.flags.write {
+	if !f.flags.Write {
 		return -1, os.ErrPermission
 	}
 
@@ -615,10 +600,10 @@ func (f *File) Truncate(size int64) error {
 	})
 
 	if f.info.IsDir() {
-		return ErrIsDirectory
+		return config.ErrIsDirectory
 	}
 
-	if !f.flags.write {
+	if !f.flags.Write {
 		return os.ErrPermission
 	}
 

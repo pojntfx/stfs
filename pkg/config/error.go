@@ -32,4 +32,13 @@ var (
 
 	ErrSTFSVersionUnsupported = errors.New("STFS version unsupported")
 	ErrSTFSActionUnsupported  = errors.New("STFS action unsupported")
+
+	ErrNotImplemented = errors.New("not implemented")
+	ErrIsDirectory    = errors.New("is a directory")
+
+	ErrFileSystemCacheTypeUnsupported = errors.New("file system cache type unsupported")
+	ErrFileSystemCacheTypeUnknown     = errors.New("file system cache type unknown")
+
+	ErrWriteCacheTypeUnsupported = errors.New("write cache type unsupported")
+	ErrWriteCacheTypeUnknown     = errors.New("write cache type unknown")
 )

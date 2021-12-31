@@ -6,7 +6,7 @@ import (
 	"path/filepath"
 
 	"github.com/mattetti/filebuffer"
-	"github.com/pojntfx/stfs/internal/fs"
+	"github.com/pojntfx/stfs/pkg/config"
 	"github.com/spf13/afero"
 )
 
@@ -45,9 +45,9 @@ func (f filebufferWithSize) Truncate(size int64) error {
 func NewCacheWrite(
 	root string,
 	cacheType string,
-) (cache fs.WriteCache, cleanup func() error, err error) {
+) (cache WriteCache, cleanup func() error, err error) {
 	switch cacheType {
-	case WriteCacheTypeMemory:
+	case config.WriteCacheTypeMemory:
 		buff := &filebufferWithSize{filebuffer.New([]byte{})}
 
 		return buff, func() error {
@@ -55,7 +55,7 @@ func NewCacheWrite(
 
 			return nil
 		}, nil
-	case WriteCacheTypeFile:
+	case config.WriteCacheTypeFile:
 		tmpdir := filepath.Join(root, "io")
 
 		if err := os.MkdirAll(tmpdir, os.ModePerm); err != nil {
@@ -71,6 +71,6 @@ func NewCacheWrite(
 			return os.Remove(f.Name())
 		}, nil
 	default:
-		return nil, nil, ErrWriteCacheTypeUnsupported
+		return nil, nil, config.ErrWriteCacheTypeUnsupported
 	}
 }

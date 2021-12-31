@@ -14,6 +14,7 @@ import (
 	"github.com/pojntfx/stfs/internal/db/sqlite/migrations/metadata"
 	models "github.com/pojntfx/stfs/internal/db/sqlite/models/metadata"
 	"github.com/pojntfx/stfs/internal/pathext"
+	ipersisters "github.com/pojntfx/stfs/internal/persisters"
 	migrate "github.com/rubenv/sql-migrate"
 	"github.com/volatiletech/sqlboiler/v4/boil"
 	"github.com/volatiletech/sqlboiler/v4/queries"
@@ -25,12 +26,12 @@ type depth struct {
 }
 
 type MetadataPersister struct {
-	*SQLite
+	*ipersisters.SQLite
 }
 
 func NewMetadataPersister(dbPath string) *MetadataPersister {
 	return &MetadataPersister{
-		&SQLite{
+		&ipersisters.SQLite{
 			DBPath: dbPath,
 			Migrations: migrate.AssetMigrationSource{
 				Asset:    metadata.Asset,
@@ -44,12 +45,12 @@ func NewMetadataPersister(dbPath string) *MetadataPersister {
 func (p *MetadataPersister) UpsertHeader(ctx context.Context, dbhdr *models.Header) error {
 	hdr := *dbhdr
 
-	if _, err := models.FindHeader(ctx, p.db, hdr.Name, models.HeaderColumns.Name); err != nil {
+	if _, err := models.FindHeader(ctx, p.DB, hdr.Name, models.HeaderColumns.Name); err != nil {
 		if err == sql.ErrNoRows {
-			if _, err := models.FindHeader(ctx, p.db, p.withRelativeRoot(ctx, hdr.Name), models.HeaderColumns.Name); err == nil {
+			if _, err := models.FindHeader(ctx, p.DB, p.withRelativeRoot(ctx, hdr.Name), models.HeaderColumns.Name); err == nil {
 				hdr.Name = p.withRelativeRoot(ctx, hdr.Name)
 			} else {
-				if err := hdr.Insert(ctx, p.db, boil.Infer()); err != nil {
+				if err := hdr.Insert(ctx, p.DB, boil.Infer()); err != nil {
 					return err
 				}
 
@@ -61,7 +62,7 @@ func (p *MetadataPersister) UpsertHeader(ctx context.Context, dbhdr *models.Head
 		}
 	}
 
-	if _, err := hdr.Update(ctx, p.db, boil.Infer()); err != nil {
+	if _, err := hdr.Update(ctx, p.DB, boil.Infer()); err != nil {
 		return err
 	}
 
@@ -69,12 +70,12 @@ func (p *MetadataPersister) UpsertHeader(ctx context.Context, dbhdr *models.Head
 }
 
 func (p *MetadataPersister) UpdateHeaderMetadata(ctx context.Context, dbhdr *models.Header) error {
-	if _, err := dbhdr.Update(ctx, p.db, boil.Infer()); err != nil {
+	if _, err := dbhdr.Update(ctx, p.DB, boil.Infer()); err != nil {
 		if err == sql.ErrNoRows {
 			hdr := *dbhdr
 			hdr.Name = p.withRelativeRoot(ctx, dbhdr.Name)
 
-			if _, err := hdr.Update(ctx, p.db, boil.Infer()); err != nil {
+			if _, err := hdr.Update(ctx, p.DB, boil.Infer()); err != nil {
 				return err
 			}
 		} else {
@@ -100,7 +101,7 @@ func (p *MetadataPersister) MoveHeader(ctx context.Context, oldName string, newN
 		lastknownrecord,
 		lastknownblock,
 		oldName,
-	).ExecContext(ctx, p.db)
+	).ExecContext(ctx, p.DB)
 	if err != nil {
 		return err
 	}
@@ -124,7 +125,7 @@ func (p *MetadataPersister) MoveHeader(ctx context.Context, oldName string, newN
 			lastknownrecord,
 			lastknownblock,
 			oldName,
-		).ExecContext(ctx, p.db); err != nil {
+		).ExecContext(ctx, p.DB); err != nil {
 			return err
 		}
 	}
@@ -135,20 +136,20 @@ func (p *MetadataPersister) MoveHeader(ctx context.Context, oldName string, newN
 func (p *MetadataPersister) GetHeaders(ctx context.Context) (models.HeaderSlice, error) {
 	return models.Headers(
 		qm.Where(models.HeaderColumns.Deleted+" != 1"),
-	).All(ctx, p.db)
+	).All(ctx, p.DB)
 }
 
 func (p *MetadataPersister) GetHeader(ctx context.Context, name string) (*models.Header, error) {
 	hdr, err := models.Headers(
 		qm.Where(models.HeaderColumns.Name+" = ?", name),
 		qm.Where(models.HeaderColumns.Deleted+" != 1"),
-	).One(ctx, p.db)
+	).One(ctx, p.DB)
 	if err != nil {
 		if err == sql.ErrNoRows {
 			hdr, err = models.Headers(
 				qm.Where(models.HeaderColumns.Name+" = ?", p.withRelativeRoot(ctx, name)),
 				qm.Where(models.HeaderColumns.Deleted+" != 1"),
-			).One(ctx, p.db)
+			).One(ctx, p.DB)
 			if err != nil {
 				return nil, err
 			}
@@ -164,7 +165,7 @@ func (p *MetadataPersister) GetHeaderChildren(ctx context.Context, name string) 
 	headers, err := models.Headers(
 		qm.Where(models.HeaderColumns.Name+" like ?", strings.TrimSuffix(name, "/")+"/%"), // Prevent double trailing slashes
 		qm.Where(models.HeaderColumns.Deleted+" != 1"),
-	).All(ctx, p.db)
+	).All(ctx, p.DB)
 	if err != nil {
 		return nil, err
 	}
@@ -173,7 +174,7 @@ func (p *MetadataPersister) GetHeaderChildren(ctx context.Context, name string) 
 		headers, err = models.Headers(
 			qm.Where(models.HeaderColumns.Name+" like ?", p.withRelativeRoot(ctx, strings.TrimSuffix(name, "/")+"/%")), // Prevent double trailing slashes
 			qm.Where(models.HeaderColumns.Deleted+" != 1"),
-		).All(ctx, p.db)
+		).All(ctx, p.DB)
 		if err != nil {
 			return nil, err
 		}
@@ -201,7 +202,7 @@ func (p *MetadataPersister) GetRootPath(ctx context.Context) (string, error) {
 			models.TableNames.Headers,
 			models.HeaderColumns.Deleted,
 		),
-	).Bind(ctx, p.db, &root); err != nil {
+	).Bind(ctx, p.DB, &root); err != nil {
 		return "", err
 	}
 
@@ -226,7 +227,7 @@ func (p *MetadataPersister) GetHeaderDirectChildren(ctx context.Context, name st
 				models.TableNames.Headers,
 				models.HeaderColumns.Deleted,
 			),
-		).Bind(ctx, p.db, &depth); err != nil {
+		).Bind(ctx, p.DB, &depth); err != nil {
 			if err == sql.ErrNoRows {
 				return headers, nil
 			}
@@ -291,7 +292,7 @@ where %v like ?
 				rootDepth,
 				rootDepth+1,
 				limit+1, // +1 to accomodate the parent directory if it exists
-			).Bind(ctx, p.db, &headers); err != nil {
+			).Bind(ctx, p.DB, &headers); err != nil {
 				if err == sql.ErrNoRows {
 					return headers, nil
 				}
@@ -307,7 +308,7 @@ where %v like ?
 			prefix+"%",
 			rootDepth,
 			rootDepth+1,
-		).Bind(ctx, p.db, &headers); err != nil {
+		).Bind(ctx, p.DB, &headers); err != nil {
 			if err == sql.ErrNoRows {
 				return headers, nil
 			}
@@ -346,10 +347,10 @@ where %v like ?
 }
 
 func (p *MetadataPersister) DeleteHeader(ctx context.Context, name string, lastknownrecord, lastknownblock int64) (*models.Header, error) {
-	hdr, err := models.FindHeader(ctx, p.db, name)
+	hdr, err := models.FindHeader(ctx, p.DB, name)
 	if err != nil {
 		if err == sql.ErrNoRows {
-			hdr, err = models.FindHeader(ctx, p.db, p.withRelativeRoot(ctx, name))
+			hdr, err = models.FindHeader(ctx, p.DB, p.withRelativeRoot(ctx, name))
 			if err == sql.ErrNoRows {
 				return nil, err
 			}
@@ -366,7 +367,7 @@ func (p *MetadataPersister) DeleteHeader(ctx context.Context, name string, lastk
 	hdr.Lastknownrecord = lastknownrecord
 	hdr.Lastknownblock = lastknownblock
 
-	if _, err := hdr.Update(ctx, p.db, boil.Infer()); err != nil {
+	if _, err := hdr.Update(ctx, p.DB, boil.Infer()); err != nil {
 		return nil, err
 	}
 
@@ -385,7 +386,7 @@ func (p *MetadataPersister) GetLastIndexedRecordAndBlock(ctx context.Context, re
 			models.TableNames.Headers,
 		),
 		recordSize,
-	).Bind(ctx, p.db, &header); err != nil {
+	).Bind(ctx, p.DB, &header); err != nil {
 		if err == sql.ErrNoRows {
 			return 0, 0, nil
 		}
@@ -397,7 +398,7 @@ func (p *MetadataPersister) GetLastIndexedRecordAndBlock(ctx context.Context, re
 }
 
 func (p *MetadataPersister) PurgeAllHeaders(ctx context.Context) error {
-	if _, err := models.Headers().DeleteAll(ctx, p.db); err != nil {
+	if _, err := models.Headers().DeleteAll(ctx, p.DB); err != nil {
 		return err
 	}
 
@@ -408,7 +409,7 @@ func (p *MetadataPersister) headerExistsExact(ctx context.Context, name string) 
 	exists, err := models.Headers(
 		qm.Where(models.HeaderColumns.Name+" = ?", name),
 		qm.Where(models.HeaderColumns.Deleted+" != 1"),
-	).Exists(ctx, p.db)
+	).Exists(ctx, p.DB)
 	if err != nil {
 		return err
 	}

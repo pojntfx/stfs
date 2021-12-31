@@ -1,4 +1,4 @@
-package encryption
+package check
 
 import "github.com/pojntfx/stfs/pkg/config"
 

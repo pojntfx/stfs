@@ -7,15 +7,16 @@ import (
 	"path/filepath"
 	"time"
 
-	"github.com/pojntfx/stfs/internal/cache"
+	"github.com/pojntfx/stfs/internal/check"
 	models "github.com/pojntfx/stfs/internal/db/sqlite/models/metadata"
-	sfs "github.com/pojntfx/stfs/internal/fs"
 	"github.com/pojntfx/stfs/internal/handlers"
 	"github.com/pojntfx/stfs/internal/keys"
 	"github.com/pojntfx/stfs/internal/logging"
-	"github.com/pojntfx/stfs/internal/persisters"
+	"github.com/pojntfx/stfs/pkg/cache"
 	"github.com/pojntfx/stfs/pkg/config"
+	sfs "github.com/pojntfx/stfs/pkg/fs"
 	"github.com/pojntfx/stfs/pkg/operations"
+	"github.com/pojntfx/stfs/pkg/persisters"
 	"github.com/pojntfx/stfs/pkg/tape"
 	"github.com/spf13/afero"
 	"github.com/spf13/cobra"
@@ -38,15 +39,15 @@ var serveHTTPCmd = &cobra.Command{
 			return err
 		}
 
-		if err := cache.CheckFileSystemCacheType(viper.GetString(cacheFileSystemFlag)); err != nil {
+		if err := check.CheckFileSystemCacheType(viper.GetString(cacheFileSystemFlag)); err != nil {
 			return err
 		}
 
-		if err := keys.CheckKeyAccessible(viper.GetString(encryptionFlag), viper.GetString(identityFlag)); err != nil {
+		if err := check.CheckKeyAccessible(viper.GetString(encryptionFlag), viper.GetString(identityFlag)); err != nil {
 			return err
 		}
 
-		return keys.CheckKeyAccessible(viper.GetString(signatureFlag), viper.GetString(recipientFlag))
+		return check.CheckKeyAccessible(viper.GetString(signatureFlag), viper.GetString(recipientFlag))
 	},
 	RunE: func(cmd *cobra.Command, args []string) error {
 		pubkey, err := keys.ReadKey(viper.GetString(signatureFlag), viper.GetString(recipientFlag))
@@ -119,7 +120,7 @@ var serveHTTPCmd = &cobra.Command{
 			},
 		)
 
-		stfs := sfs.NewFileSystem(
+		stfs := sfs.NewSTFS(
 			readOps,
 			nil,
 
@@ -170,7 +171,7 @@ func init() {
 	serveHTTPCmd.PersistentFlags().StringP(passwordFlag, "p", "", "Password for the private key")
 	serveHTTPCmd.PersistentFlags().StringP(recipientFlag, "r", "", "Path to the public key to verify with")
 	serveHTTPCmd.PersistentFlags().StringP(laddrFlag, "a", "localhost:1337", "Listen address")
-	serveHTTPCmd.PersistentFlags().StringP(cacheFileSystemFlag, "n", config.NoneKey, fmt.Sprintf("File system cache to use (default %v, available are %v)", config.NoneKey, cache.KnownFileSystemCacheTypes))
+	serveHTTPCmd.PersistentFlags().StringP(cacheFileSystemFlag, "n", config.NoneKey, fmt.Sprintf("File system cache to use (default %v, available are %v)", config.NoneKey, config.KnownFileSystemCacheTypes))
 	serveHTTPCmd.PersistentFlags().DurationP(cacheDurationFlag, "u", time.Hour, "Duration until cache is invalidated")
 	serveHTTPCmd.PersistentFlags().StringP(cacheDirFlag, "w", cacheDir, "Directory to use if dir cache is enabled")
 
