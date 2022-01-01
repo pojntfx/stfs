@@ -45,7 +45,7 @@ type File struct {
 	name string
 	info os.FileInfo
 
-	ioLock sync.Mutex
+	ioLock *sync.Mutex
 
 	readOpReader *ioext.CounterReadCloser
 	readOpWriter io.WriteCloser
@@ -69,6 +69,7 @@ func NewFile(
 
 	compressionLevel string,
 	getFileBuffer func() (cache.WriteCache, func() error, error),
+	ioLock *sync.Mutex,
 
 	name string,
 	info os.FileInfo,
@@ -88,6 +89,7 @@ func NewFile(
 
 		compressionLevel: compressionLevel,
 		getFileBuffer:    getFileBuffer,
+		ioLock:           ioLock,
 
 		name: name,
 		info: info,

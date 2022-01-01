@@ -9,6 +9,7 @@ import (
 	"path"
 	"path/filepath"
 	"strconv"
+	"sync"
 	"time"
 
 	models "github.com/pojntfx/stfs/internal/db/sqlite/models/metadata"
@@ -30,6 +31,8 @@ type STFS struct {
 	compressionLevel           string
 	getFileBuffer              func() (cache.WriteCache, func() error, error)
 	ignoreReadWritePermissions bool
+
+	ioLock sync.Mutex
 
 	onHeader func(hdr *models.Header)
 	log      *logging.JSONLogger
@@ -75,6 +78,9 @@ func (f *STFS) Create(name string) (afero.File, error) {
 	f.log.Debug("FileSystem.Name", map[string]interface{}{
 		"name": name,
 	})
+
+	f.ioLock.Lock()
+	defer f.ioLock.Unlock()
 
 	return os.OpenFile(name, os.O_CREATE, 0666)
 }
@@ -162,6 +168,9 @@ func (f *STFS) MkdirRoot(name string, perm os.FileMode) error {
 		"perm": perm,
 	})
 
+	f.ioLock.Lock()
+	defer f.ioLock.Unlock()
+
 	return f.mknode(true, name, perm, true)
 }
 
@@ -171,6 +180,9 @@ func (f *STFS) Mkdir(name string, perm os.FileMode) error {
 		"perm": perm,
 	})
 
+	f.ioLock.Lock()
+	defer f.ioLock.Unlock()
+
 	return f.mknode(true, name, perm, false)
 }
 
@@ -179,6 +191,9 @@ func (f *STFS) MkdirAll(path string, perm os.FileMode) error {
 		"path": path,
 		"perm": perm,
 	})
+
+	f.ioLock.Lock()
+	defer f.ioLock.Unlock()
 
 	parts := filepath.SplitList(path)
 	currentPath := ""
@@ -212,6 +227,9 @@ func (f *STFS) OpenFile(name string, flag int, perm os.FileMode) (afero.File, er
 		"flag": flag,
 		"perm": perm,
 	})
+
+	f.ioLock.Lock()
+	defer f.ioLock.Unlock()
 
 	flags := &ifs.FileFlags{}
 	if flag&os.O_RDONLY != 0 {
@@ -285,6 +303,7 @@ func (f *STFS) OpenFile(name string, flag int, perm os.FileMode) (afero.File, er
 
 		f.compressionLevel,
 		f.getFileBuffer,
+		&f.ioLock,
 
 		path.Base(hdr.Name),
 		ifs.NewFileInfoFromTarHeader(hdr, f.log),
@@ -299,6 +318,9 @@ func (f *STFS) Remove(name string) error {
 		"name": name,
 	})
 
+	f.ioLock.Lock()
+	defer f.ioLock.Unlock()
+
 	return f.writeOps.Delete(name)
 }
 
@@ -306,6 +328,9 @@ func (f *STFS) RemoveAll(path string) error {
 	f.log.Debug("FileSystem.RemoveAll", map[string]interface{}{
 		"path": path,
 	})
+
+	f.ioLock.Lock()
+	defer f.ioLock.Unlock()
 
 	return f.writeOps.Delete(path)
 }
@@ -316,6 +341,9 @@ func (f *STFS) Rename(oldname, newname string) error {
 		"newname": newname,
 	})
 
+	f.ioLock.Lock()
+	defer f.ioLock.Unlock()
+
 	return f.writeOps.Move(oldname, newname)
 }
 
@@ -323,6 +351,9 @@ func (f *STFS) Stat(name string) (os.FileInfo, error) {
 	f.log.Debug("FileSystem.Stat", map[string]interface{}{
 		"name": name,
 	})
+
+	f.ioLock.Lock()
+	defer f.ioLock.Unlock()
 
 	hdr, err := inventory.Stat(
 		f.metadata,
@@ -374,6 +405,9 @@ func (f *STFS) Chmod(name string, mode os.FileMode) error {
 		"name": mode,
 	})
 
+	f.ioLock.Lock()
+	defer f.ioLock.Unlock()
+
 	hdr, err := inventory.Stat(
 		f.metadata,
 
@@ -400,6 +434,9 @@ func (f *STFS) Chown(name string, uid, gid int) error {
 		"uid":  uid,
 		"gid":  gid,
 	})
+
+	f.ioLock.Lock()
+	defer f.ioLock.Unlock()
 
 	hdr, err := inventory.Stat(
 		f.metadata,
@@ -429,6 +466,9 @@ func (f *STFS) Chtimes(name string, atime time.Time, mtime time.Time) error {
 		"mtime": mtime,
 	})
 
+	f.ioLock.Lock()
+	defer f.ioLock.Unlock()
+
 	hdr, err := inventory.Stat(
 		f.metadata,
 
@@ -455,6 +495,9 @@ func (f *STFS) LstatIfPossible(name string) (os.FileInfo, bool, error) {
 		"name": name,
 	})
 
+	f.ioLock.Lock()
+	defer f.ioLock.Unlock()
+
 	return nil, false, config.ErrNotImplemented
 }
 
@@ -464,6 +507,9 @@ func (f *STFS) SymlinkIfPossible(oldname, newname string) error {
 		"newname": newname,
 	})
 
+	f.ioLock.Lock()
+	defer f.ioLock.Unlock()
+
 	return config.ErrNotImplemented
 }
 
@@ -471,6 +517,9 @@ func (f *STFS) ReadlinkIfPossible(name string) (string, error) {
 	f.log.Debug("FileSystem.ReadlinkIfPossible", map[string]interface{}{
 		"name": name,
 	})
+
+	f.ioLock.Lock()
+	defer f.ioLock.Unlock()
 
 	return "", config.ErrNotImplemented
 }
