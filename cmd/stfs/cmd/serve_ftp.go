@@ -1,6 +1,7 @@
 package cmd
 
 import (
+	"archive/tar"
 	"context"
 	"fmt"
 	"os"
@@ -10,14 +11,17 @@ import (
 	ftpserver "github.com/fclairamb/ftpserverlib"
 	"github.com/pojntfx/stfs/internal/check"
 	models "github.com/pojntfx/stfs/internal/db/sqlite/models/metadata"
+	"github.com/pojntfx/stfs/internal/encryption"
 	"github.com/pojntfx/stfs/internal/ftp"
 	"github.com/pojntfx/stfs/internal/keys"
 	"github.com/pojntfx/stfs/internal/logging"
+	"github.com/pojntfx/stfs/internal/signature"
 	"github.com/pojntfx/stfs/pkg/cache"
 	"github.com/pojntfx/stfs/pkg/config"
 	sfs "github.com/pojntfx/stfs/pkg/fs"
 	"github.com/pojntfx/stfs/pkg/operations"
 	"github.com/pojntfx/stfs/pkg/persisters"
+	"github.com/pojntfx/stfs/pkg/recovery"
 	"github.com/pojntfx/stfs/pkg/tape"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
@@ -124,6 +128,21 @@ var serveFTPCmd = &cobra.Command{
 
 		jsonLogger := logging.NewJSONLogger(viper.GetInt(verboseFlag))
 
+		metadataConfig := config.MetadataConfig{
+			Metadata: metadataPersister,
+		}
+		pipeConfig := config.PipeConfig{
+			Compression: viper.GetString(compressionFlag),
+			Encryption:  viper.GetString(encryptionFlag),
+			Signature:   viper.GetString(signatureFlag),
+			RecordSize:  viper.GetInt(recordSizeFlag),
+		}
+		cryptoConfig := config.CryptoConfig{
+			Recipient: signatureRecipient,
+			Identity:  encryptionIdentity,
+			Password:  viper.GetString(encryptionPasswordFlag),
+		}
+
 		readOps := operations.NewOperations(
 			config.BackendConfig{
 				GetWriter:   tm.GetWriter,
@@ -135,21 +154,10 @@ var serveFTPCmd = &cobra.Command{
 				GetDrive:   tm.GetDrive,
 				CloseDrive: tm.Close,
 			},
-			config.MetadataConfig{
-				Metadata: metadataPersister,
-			},
+			metadataConfig,
 
-			config.PipeConfig{
-				Compression: viper.GetString(compressionFlag),
-				Encryption:  viper.GetString(encryptionFlag),
-				Signature:   viper.GetString(signatureFlag),
-				RecordSize:  viper.GetInt(recordSizeFlag),
-			},
-			config.CryptoConfig{
-				Recipient: signatureRecipient,
-				Identity:  encryptionIdentity,
-				Password:  viper.GetString(encryptionPasswordFlag),
-			},
+			pipeConfig,
+			cryptoConfig,
 
 			func(event *config.HeaderEvent) {
 				jsonLogger.Debug("Header read", event)
@@ -214,10 +222,58 @@ var serveFTPCmd = &cobra.Command{
 		root, err := metadataPersister.GetRootPath(context.Background())
 		if err != nil {
 			if err == config.ErrNoRootDirectory {
-				// FIXME: Re-index first, and only `Mkdir` if it still fails after indexing, otherwise this would prevent usage of non-indexed, existing tar files
-
 				root = "/"
-				if err := stfs.MkdirRoot(root, os.ModePerm); err != nil {
+
+				drive, err := tm.GetDrive()
+				if err == nil {
+					err = recovery.Index(
+						config.DriveReaderConfig{
+							Drive:          drive.Drive,
+							DriveIsRegular: drive.DriveIsRegular,
+						},
+						config.DriveConfig{
+							Drive:          drive.Drive,
+							DriveIsRegular: drive.DriveIsRegular,
+						},
+						metadataConfig,
+						pipeConfig,
+						cryptoConfig,
+
+						viper.GetInt(recordSizeFlag),
+						0,
+						0,
+						true,
+						0,
+
+						func(hdr *tar.Header, i int) error {
+							return encryption.DecryptHeader(hdr, viper.GetString(encryptionFlag), encryptionIdentity)
+						},
+						func(hdr *tar.Header, isRegular bool) error {
+							return signature.VerifyHeader(hdr, isRegular, viper.GetString(signatureFlag), signatureRecipient)
+						},
+
+						func(hdr *models.Header) {
+							jsonLogger.Debug("Header read", hdr)
+						},
+					)
+					if err != nil {
+						if err := tm.Close(); err != nil {
+							return err
+						}
+
+						if err := stfs.MkdirRoot(root, os.ModePerm); err != nil {
+							return err
+						}
+					}
+				} else if os.IsNotExist(err) {
+					if err := tm.Close(); err != nil {
+						return err
+					}
+
+					if err := stfs.MkdirRoot(root, os.ModePerm); err != nil {
+						return err
+					}
+				} else {
 					return err
 				}
 			} else {
