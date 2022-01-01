@@ -47,7 +47,7 @@ func NewSTFS(
 
 	onHeader func(hdr *models.Header),
 	log *logging.JSONLogger,
-) afero.Fs {
+) *STFS {
 	return &STFS{
 		readOps:  readOps,
 		writeOps: writeOps,
@@ -79,7 +79,7 @@ func (f *STFS) Create(name string) (afero.File, error) {
 	return os.OpenFile(name, os.O_CREATE, 0666)
 }
 
-func (f *STFS) mknode(dir bool, name string, perm os.FileMode) error {
+func (f *STFS) mknode(dir bool, name string, perm os.FileMode, overwrite bool) error {
 	f.log.Trace("FileSystem.mknode", map[string]interface{}{
 		"name": name,
 		"perm": perm,
@@ -148,12 +148,21 @@ func (f *STFS) mknode(dir bool, name string, perm os.FileMode) error {
 			}, nil
 		},
 		f.compressionLevel,
-		false,
+		overwrite,
 	); err != nil {
 		return err
 	}
 
 	return nil
+}
+
+func (f *STFS) MkdirRoot(name string, perm os.FileMode) error {
+	f.log.Debug("FileSystem.MkdirRoot", map[string]interface{}{
+		"name": name,
+		"perm": perm,
+	})
+
+	return f.mknode(true, name, perm, true)
 }
 
 func (f *STFS) Mkdir(name string, perm os.FileMode) error {
@@ -162,7 +171,7 @@ func (f *STFS) Mkdir(name string, perm os.FileMode) error {
 		"perm": perm,
 	})
 
-	return f.mknode(true, name, perm)
+	return f.mknode(true, name, perm, false)
 }
 
 func (f *STFS) MkdirAll(path string, perm os.FileMode) error {
@@ -181,7 +190,7 @@ func (f *STFS) MkdirAll(path string, perm os.FileMode) error {
 			currentPath = filepath.Join(currentPath, part)
 		}
 
-		if err := f.mknode(true, currentPath, perm); err != nil {
+		if err := f.mknode(true, currentPath, perm, false); err != nil {
 			return err
 		}
 	}
@@ -241,7 +250,7 @@ func (f *STFS) OpenFile(name string, flag int, perm os.FileMode) (afero.File, er
 	if err != nil {
 		if err == sql.ErrNoRows {
 			if flag&os.O_CREATE != 0 && flag&os.O_EXCL == 0 {
-				if err := f.mknode(false, name, perm); err != nil {
+				if err := f.mknode(false, name, perm, false); err != nil {
 					return nil, err
 				}
 

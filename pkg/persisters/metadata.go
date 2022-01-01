@@ -15,6 +15,7 @@ import (
 	models "github.com/pojntfx/stfs/internal/db/sqlite/models/metadata"
 	"github.com/pojntfx/stfs/internal/pathext"
 	ipersisters "github.com/pojntfx/stfs/internal/persisters"
+	"github.com/pojntfx/stfs/pkg/config"
 	migrate "github.com/rubenv/sql-migrate"
 	"github.com/volatiletech/sqlboiler/v4/boil"
 	"github.com/volatiletech/sqlboiler/v4/queries"
@@ -203,6 +204,10 @@ func (p *MetadataPersister) GetRootPath(ctx context.Context) (string, error) {
 			models.HeaderColumns.Deleted,
 		),
 	).Bind(ctx, p.DB, &root); err != nil {
+		if strings.Contains(err.Error(), "converting NULL to string is unsupported") {
+			return "", config.ErrNoRootDirectory
+		}
+
 		return "", err
 	}
 
