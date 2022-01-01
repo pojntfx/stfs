@@ -12,7 +12,6 @@ import (
 	"sync"
 	"time"
 
-	models "github.com/pojntfx/stfs/internal/db/sqlite/models/metadata"
 	ifs "github.com/pojntfx/stfs/internal/fs"
 	"github.com/pojntfx/stfs/pkg/cache"
 	"github.com/pojntfx/stfs/pkg/config"
@@ -34,7 +33,7 @@ type STFS struct {
 
 	ioLock sync.Mutex
 
-	onHeader func(hdr *models.Header)
+	onHeader func(hdr *config.Header)
 	log      logging.StructuredLogger
 }
 
@@ -48,7 +47,7 @@ func NewSTFS(
 	getFileBuffer func() (cache.WriteCache, func() error, error),
 	ignorePermissionFlags bool,
 
-	onHeader func(hdr *models.Header),
+	onHeader func(hdr *config.Header),
 	log logging.StructuredLogger,
 ) *STFS {
 	return &STFS{

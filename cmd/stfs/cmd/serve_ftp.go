@@ -10,7 +10,6 @@ import (
 
 	ftpserver "github.com/fclairamb/ftpserverlib"
 	"github.com/pojntfx/stfs/internal/check"
-	models "github.com/pojntfx/stfs/internal/db/sqlite/models/metadata"
 	"github.com/pojntfx/stfs/internal/encryption"
 	"github.com/pojntfx/stfs/internal/ftp"
 	"github.com/pojntfx/stfs/internal/keys"
@@ -213,7 +212,7 @@ var serveFTPCmd = &cobra.Command{
 			},
 			true, // FTP needs read permission for `STOR` command even if O_WRONLY is set
 
-			func(hdr *models.Header) {
+			func(hdr *config.Header) {
 				jsonLogger.Trace("Header transform", hdr)
 			},
 			jsonLogger,
@@ -252,7 +251,7 @@ var serveFTPCmd = &cobra.Command{
 							return signature.VerifyHeader(hdr, isRegular, viper.GetString(signatureFlag), signatureRecipient)
 						},
 
-						func(hdr *models.Header) {
+						func(hdr *config.Header) {
 							jsonLogger.Debug("Header read", hdr)
 						},
 					)

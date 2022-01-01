@@ -9,7 +9,6 @@ import (
 
 	"github.com/pojntfx/stfs/internal/compression"
 	"github.com/pojntfx/stfs/internal/converters"
-	models "github.com/pojntfx/stfs/internal/db/sqlite/models/metadata"
 	"github.com/pojntfx/stfs/internal/encryption"
 	"github.com/pojntfx/stfs/internal/ioext"
 	"github.com/pojntfx/stfs/internal/mtio"
@@ -163,7 +162,7 @@ func (o *Operations) Update(
 				o.onHeader(&config.HeaderEvent{
 					Type:    config.HeaderEventTypeUpdate,
 					Indexed: false,
-					Header:  dbhdr,
+					Header:  converters.DBHeaderToConfigHeader(dbhdr),
 				})
 			}
 
@@ -253,7 +252,7 @@ func (o *Operations) Update(
 				o.onHeader(&config.HeaderEvent{
 					Type:    config.HeaderEventTypeUpdate,
 					Indexed: false,
-					Header:  dbhdr,
+					Header:  converters.DBHeaderToConfigHeader(dbhdr),
 				})
 			}
 
@@ -322,7 +321,7 @@ func (o *Operations) Update(
 			return nil // We sign above, no need to verify
 		},
 
-		func(hdr *models.Header) {
+		func(hdr *config.Header) {
 			o.onHeader(&config.HeaderEvent{
 				Type:    config.HeaderEventTypeUpdate,
 				Indexed: true,

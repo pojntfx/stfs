@@ -5,8 +5,7 @@ import (
 	"io"
 	"io/fs"
 	"os"
-
-	models "github.com/pojntfx/stfs/internal/db/sqlite/models/metadata"
+	"time"
 )
 
 type DriveReaderConfig struct {
@@ -35,16 +34,40 @@ type BackendConfig struct {
 	CloseDrive func() error
 }
 
+type Header struct {
+	Record          int64
+	Lastknownrecord int64
+	Block           int64
+	Lastknownblock  int64
+	Deleted         int64
+	Typeflag        int64
+	Name            string
+	Linkname        string
+	Size            int64
+	Mode            int64
+	UID             int64
+	Gid             int64
+	Uname           string
+	Gname           string
+	Modtime         time.Time
+	Accesstime      time.Time
+	Changetime      time.Time
+	Devmajor        int64
+	Devminor        int64
+	Paxrecords      string
+	Format          int64
+}
+
 type MetadataPersister interface {
-	UpsertHeader(ctx context.Context, dbhdr *models.Header) error
-	UpdateHeaderMetadata(ctx context.Context, dbhdr *models.Header) error
+	UpsertHeader(ctx context.Context, dbhdr *Header) error
+	UpdateHeaderMetadata(ctx context.Context, dbhdr *Header) error
 	MoveHeader(ctx context.Context, oldName string, newName string, lastknownrecord, lastknownblock int64) error
-	GetHeaders(ctx context.Context) (models.HeaderSlice, error)
-	GetHeader(ctx context.Context, name string) (*models.Header, error)
-	GetHeaderChildren(ctx context.Context, name string) (models.HeaderSlice, error)
+	GetHeaders(ctx context.Context) ([]*Header, error)
+	GetHeader(ctx context.Context, name string) (*Header, error)
+	GetHeaderChildren(ctx context.Context, name string) ([]*Header, error)
 	GetRootPath(ctx context.Context) (string, error)
-	GetHeaderDirectChildren(ctx context.Context, name string, limit int) (models.HeaderSlice, error)
-	DeleteHeader(ctx context.Context, name string, lastknownrecord, lastknownblock int64) (*models.Header, error)
+	GetHeaderDirectChildren(ctx context.Context, name string, limit int) ([]*Header, error)
+	DeleteHeader(ctx context.Context, name string, lastknownrecord, lastknownblock int64) (*Header, error)
 	GetLastIndexedRecordAndBlock(ctx context.Context, recordSize int) (int64, int64, error)
 	PurgeAllHeaders(ctx context.Context) error
 }

@@ -10,7 +10,6 @@ import (
 
 	"github.com/pojntfx/stfs/internal/compression"
 	"github.com/pojntfx/stfs/internal/converters"
-	models "github.com/pojntfx/stfs/internal/db/sqlite/models/metadata"
 	"github.com/pojntfx/stfs/internal/encryption"
 	"github.com/pojntfx/stfs/internal/mtio"
 	"github.com/pojntfx/stfs/internal/records"
@@ -33,7 +32,7 @@ func Fetch(
 	to string,
 	preview bool,
 
-	onHeader func(hdr *models.Header),
+	onHeader func(hdr *config.Header),
 ) error {
 	to = filepath.ToSlash(to)
 
@@ -79,7 +78,7 @@ func Fetch(
 			return err
 		}
 
-		onHeader(dbhdr)
+		onHeader(converters.DBHeaderToConfigHeader(dbhdr))
 	}
 
 	if !preview {

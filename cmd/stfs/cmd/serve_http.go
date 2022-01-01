@@ -8,7 +8,6 @@ import (
 	"time"
 
 	"github.com/pojntfx/stfs/internal/check"
-	models "github.com/pojntfx/stfs/internal/db/sqlite/models/metadata"
 	"github.com/pojntfx/stfs/internal/handlers"
 	"github.com/pojntfx/stfs/internal/keys"
 	"github.com/pojntfx/stfs/internal/logging"
@@ -132,7 +131,7 @@ var serveHTTPCmd = &cobra.Command{
 			nil,   // We never write
 			false, // We never write
 
-			func(hdr *models.Header) {
+			func(hdr *config.Header) {
 				jsonLogger.Trace("Header transform", hdr)
 			},
 			jsonLogger,

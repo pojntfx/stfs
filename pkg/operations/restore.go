@@ -10,7 +10,6 @@ import (
 	"path/filepath"
 	"strings"
 
-	models "github.com/pojntfx/stfs/internal/db/sqlite/models/metadata"
 	"github.com/pojntfx/stfs/pkg/config"
 	"github.com/pojntfx/stfs/pkg/recovery"
 )
@@ -28,7 +27,7 @@ func (o *Operations) Restore(
 	o.diskOperationLock.Lock()
 	defer o.diskOperationLock.Unlock()
 
-	headersToRestore := []*models.Header{}
+	headersToRestore := []*config.Header{}
 	src := strings.TrimSuffix(from, "/")
 	dbhdr, err := o.metadata.Metadata.GetHeader(context.Background(), src)
 	if err != nil {

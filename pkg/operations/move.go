@@ -8,7 +8,6 @@ import (
 	"strings"
 
 	"github.com/pojntfx/stfs/internal/converters"
-	models "github.com/pojntfx/stfs/internal/db/sqlite/models/metadata"
 	"github.com/pojntfx/stfs/internal/encryption"
 	"github.com/pojntfx/stfs/internal/records"
 	"github.com/pojntfx/stfs/internal/signature"
@@ -44,7 +43,7 @@ func (o *Operations) Move(from string, to string) error {
 		return err
 	}
 
-	headersToMove := []*models.Header{}
+	headersToMove := []*config.Header{}
 	dbhdr, err := o.metadata.Metadata.GetHeader(context.Background(), from)
 	if err != nil {
 		return err
@@ -74,7 +73,7 @@ func (o *Operations) Move(from string, to string) error {
 	// Append move headers to the tape or tar file
 	hdrs := []tar.Header{}
 	for _, dbhdr := range headersToMove {
-		hdr, err := converters.DBHeaderToTarHeader(dbhdr)
+		hdr, err := converters.DBHeaderToTarHeader(converters.ConfigHeaderToDBHeader(dbhdr))
 		if err != nil {
 			return err
 		}
@@ -96,7 +95,7 @@ func (o *Operations) Move(from string, to string) error {
 			o.onHeader(&config.HeaderEvent{
 				Type:    config.HeaderEventTypeMove,
 				Indexed: false,
-				Header:  dbhdr,
+				Header:  converters.DBHeaderToConfigHeader(dbhdr),
 			})
 		}
 
@@ -161,7 +160,7 @@ func (o *Operations) Move(from string, to string) error {
 			return nil // We sign above, no need to verify
 		},
 
-		func(hdr *models.Header) {
+		func(hdr *config.Header) {
 			o.onHeader(&config.HeaderEvent{
 				Type:    config.HeaderEventTypeMove,
 				Indexed: true,

@@ -5,7 +5,6 @@ import (
 	"context"
 
 	"github.com/pojntfx/stfs/internal/converters"
-	models "github.com/pojntfx/stfs/internal/db/sqlite/models/metadata"
 	"github.com/pojntfx/stfs/pkg/config"
 )
 
@@ -15,7 +14,7 @@ func List(
 	name string,
 	limit int,
 
-	onHeader func(hdr *models.Header),
+	onHeader func(hdr *config.Header),
 ) ([]*tar.Header, error) {
 	dbHdrs, err := metadata.Metadata.GetHeaderDirectChildren(context.Background(), name, limit)
 	if err != nil {
@@ -24,7 +23,7 @@ func List(
 
 	headers := []*tar.Header{}
 	for _, dbhdr := range dbHdrs {
-		hdr, err := converters.DBHeaderToTarHeader(dbhdr)
+		hdr, err := converters.DBHeaderToTarHeader(converters.ConfigHeaderToDBHeader(dbhdr))
 		if err != nil {
 			return []*tar.Header{}, err
 		}

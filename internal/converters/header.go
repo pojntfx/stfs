@@ -5,7 +5,60 @@ import (
 	"encoding/json"
 
 	models "github.com/pojntfx/stfs/internal/db/sqlite/models/metadata"
+	"github.com/pojntfx/stfs/pkg/config"
 )
+
+func ConfigHeaderToDBHeader(confighdr *config.Header) *models.Header {
+	return &models.Header{
+		Record:          confighdr.Record,
+		Lastknownrecord: confighdr.Lastknownrecord,
+		Block:           confighdr.Block,
+		Lastknownblock:  confighdr.Lastknownblock,
+		Typeflag:        confighdr.Typeflag,
+		Name:            confighdr.Name,
+		Linkname:        confighdr.Linkname,
+		Size:            confighdr.Size,
+		Mode:            confighdr.Mode,
+		UID:             confighdr.UID,
+		Gid:             confighdr.Gid,
+		Uname:           confighdr.Uname,
+		Gname:           confighdr.Gname,
+		Modtime:         confighdr.Modtime,
+		Accesstime:      confighdr.Accesstime,
+		Changetime:      confighdr.Changetime,
+		Devmajor:        confighdr.Devmajor,
+		Devminor:        confighdr.Devminor,
+		Paxrecords:      confighdr.Paxrecords,
+		Format:          confighdr.Format,
+		Deleted:         confighdr.Deleted,
+	}
+}
+
+func DBHeaderToConfigHeader(dbhdr *models.Header) *config.Header {
+	return &config.Header{
+		Record:          dbhdr.Record,
+		Lastknownrecord: dbhdr.Lastknownrecord,
+		Block:           dbhdr.Block,
+		Lastknownblock:  dbhdr.Lastknownblock,
+		Typeflag:        dbhdr.Typeflag,
+		Name:            dbhdr.Name,
+		Linkname:        dbhdr.Linkname,
+		Size:            dbhdr.Size,
+		Mode:            dbhdr.Mode,
+		UID:             dbhdr.UID,
+		Gid:             dbhdr.Gid,
+		Uname:           dbhdr.Uname,
+		Gname:           dbhdr.Gname,
+		Modtime:         dbhdr.Modtime,
+		Accesstime:      dbhdr.Accesstime,
+		Changetime:      dbhdr.Changetime,
+		Devmajor:        dbhdr.Devmajor,
+		Devminor:        dbhdr.Devminor,
+		Paxrecords:      dbhdr.Paxrecords,
+		Format:          dbhdr.Format,
+		Deleted:         dbhdr.Deleted,
+	}
+}
 
 func DBHeaderToTarHeader(dbhdr *models.Header) (*tar.Header, error) {
 	paxRecords := map[string]string{}

@@ -11,6 +11,7 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/pojntfx/stfs/internal/converters"
 	"github.com/pojntfx/stfs/internal/db/sqlite/migrations/metadata"
 	models "github.com/pojntfx/stfs/internal/db/sqlite/models/metadata"
 	"github.com/pojntfx/stfs/internal/pathext"
@@ -43,8 +44,8 @@ func NewMetadataPersister(dbPath string) *MetadataPersister {
 	}
 }
 
-func (p *MetadataPersister) UpsertHeader(ctx context.Context, dbhdr *models.Header) error {
-	hdr := *dbhdr
+func (p *MetadataPersister) UpsertHeader(ctx context.Context, dbhdr *config.Header) error {
+	hdr := converters.ConfigHeaderToDBHeader(dbhdr)
 
 	if _, err := models.FindHeader(ctx, p.DB, hdr.Name, models.HeaderColumns.Name); err != nil {
 		if err == sql.ErrNoRows {
@@ -70,11 +71,13 @@ func (p *MetadataPersister) UpsertHeader(ctx context.Context, dbhdr *models.Head
 	return nil
 }
 
-func (p *MetadataPersister) UpdateHeaderMetadata(ctx context.Context, dbhdr *models.Header) error {
-	if _, err := dbhdr.Update(ctx, p.DB, boil.Infer()); err != nil {
+func (p *MetadataPersister) UpdateHeaderMetadata(ctx context.Context, dbhdr *config.Header) error {
+	idbhdr := converters.ConfigHeaderToDBHeader(dbhdr)
+
+	if _, err := idbhdr.Update(ctx, p.DB, boil.Infer()); err != nil {
 		if err == sql.ErrNoRows {
-			hdr := *dbhdr
-			hdr.Name = p.withRelativeRoot(ctx, dbhdr.Name)
+			hdr := *idbhdr
+			hdr.Name = p.withRelativeRoot(ctx, idbhdr.Name)
 
 			if _, err := hdr.Update(ctx, p.DB, boil.Infer()); err != nil {
 				return err
@@ -134,13 +137,23 @@ func (p *MetadataPersister) MoveHeader(ctx context.Context, oldName string, newN
 	return nil
 }
 
-func (p *MetadataPersister) GetHeaders(ctx context.Context) (models.HeaderSlice, error) {
-	return models.Headers(
+func (p *MetadataPersister) GetHeaders(ctx context.Context) ([]*config.Header, error) {
+	dbhdrs, err := models.Headers(
 		qm.Where(models.HeaderColumns.Deleted+" != 1"),
 	).All(ctx, p.DB)
+	if err != nil {
+		return []*config.Header{}, err
+	}
+
+	hdrs := []*config.Header{}
+	for _, dbhdr := range dbhdrs {
+		hdrs = append(hdrs, converters.DBHeaderToConfigHeader(dbhdr))
+	}
+
+	return hdrs, nil
 }
 
-func (p *MetadataPersister) GetHeader(ctx context.Context, name string) (*models.Header, error) {
+func (p *MetadataPersister) GetHeader(ctx context.Context, name string) (*config.Header, error) {
 	hdr, err := models.Headers(
 		qm.Where(models.HeaderColumns.Name+" = ?", name),
 		qm.Where(models.HeaderColumns.Deleted+" != 1"),
@@ -159,10 +172,10 @@ func (p *MetadataPersister) GetHeader(ctx context.Context, name string) (*models
 		}
 	}
 
-	return hdr, nil
+	return converters.DBHeaderToConfigHeader(hdr), nil
 }
 
-func (p *MetadataPersister) GetHeaderChildren(ctx context.Context, name string) (models.HeaderSlice, error) {
+func (p *MetadataPersister) GetHeaderChildren(ctx context.Context, name string) ([]*config.Header, error) {
 	headers, err := models.Headers(
 		qm.Where(models.HeaderColumns.Name+" like ?", strings.TrimSuffix(name, "/")+"/%"), // Prevent double trailing slashes
 		qm.Where(models.HeaderColumns.Deleted+" != 1"),
@@ -181,11 +194,11 @@ func (p *MetadataPersister) GetHeaderChildren(ctx context.Context, name string) 
 		}
 	}
 
-	outhdrs := models.HeaderSlice{}
+	outhdrs := []*config.Header{}
 	for _, hdr := range headers {
 		prefix := strings.TrimSuffix(hdr.Name, "/")
 		if name != prefix && name != prefix+"/" {
-			outhdrs = append(outhdrs, hdr)
+			outhdrs = append(outhdrs, converters.DBHeaderToConfigHeader(hdr))
 		}
 	}
 
@@ -214,10 +227,10 @@ func (p *MetadataPersister) GetRootPath(ctx context.Context) (string, error) {
 	return root.Name, nil
 }
 
-func (p *MetadataPersister) GetHeaderDirectChildren(ctx context.Context, name string, limit int) (models.HeaderSlice, error) {
+func (p *MetadataPersister) GetHeaderDirectChildren(ctx context.Context, name string, limit int) ([]*config.Header, error) {
 	prefix := strings.TrimSuffix(name, "/") + "/"
 	rootDepth := 0
-	headers := models.HeaderSlice{}
+	headers := []*config.Header{}
 
 	// Root node
 	if pathext.IsRoot(name) {
@@ -243,7 +256,7 @@ func (p *MetadataPersister) GetHeaderDirectChildren(ctx context.Context, name st
 		rootDepth = int(depth.Depth)
 	}
 
-	getHeaders := func(prefix string) (models.HeaderSlice, error) {
+	getHeaders := func(prefix string) ([]*config.Header, error) {
 		query := fmt.Sprintf(
 			`select %v, %v, %v, %v, %v, %v, %v, %v, %v, %v, %v, %v, %v, %v, %v, %v, %v, %v, %v, %v, %v,
     length(replace(%v, ?, '')) - length(replace(replace(%v, ?, ''), '/', '')) as depth
@@ -336,7 +349,7 @@ where %v like ?
 		}
 	}
 
-	outhdrs := models.HeaderSlice{}
+	outhdrs := []*config.Header{}
 	for _, hdr := range headers {
 		prefix := strings.TrimSuffix(hdr.Name, "/")
 		if name != prefix && name != prefix+"/" {
@@ -351,7 +364,7 @@ where %v like ?
 	return outhdrs[:limit-1], nil
 }
 
-func (p *MetadataPersister) DeleteHeader(ctx context.Context, name string, lastknownrecord, lastknownblock int64) (*models.Header, error) {
+func (p *MetadataPersister) DeleteHeader(ctx context.Context, name string, lastknownrecord, lastknownblock int64) (*config.Header, error) {
 	hdr, err := models.FindHeader(ctx, p.DB, name)
 	if err != nil {
 		if err == sql.ErrNoRows {
@@ -376,7 +389,7 @@ func (p *MetadataPersister) DeleteHeader(ctx context.Context, name string, lastk
 		return nil, err
 	}
 
-	return hdr, nil
+	return converters.DBHeaderToConfigHeader(hdr), nil
 }
 
 func (p *MetadataPersister) GetLastIndexedRecordAndBlock(ctx context.Context, recordSize int) (int64, int64, error) {

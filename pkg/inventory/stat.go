@@ -8,7 +8,6 @@ import (
 	"strings"
 
 	"github.com/pojntfx/stfs/internal/converters"
-	models "github.com/pojntfx/stfs/internal/db/sqlite/models/metadata"
 	"github.com/pojntfx/stfs/pkg/config"
 )
 
@@ -17,7 +16,7 @@ func Stat(
 
 	name string,
 
-	onHeader func(hdr *models.Header),
+	onHeader func(hdr *config.Header),
 ) (*tar.Header, error) {
 	name = filepath.ToSlash(name)
 
@@ -33,7 +32,7 @@ func Stat(
 		}
 	}
 
-	hdr, err := converters.DBHeaderToTarHeader(dbhdr)
+	hdr, err := converters.DBHeaderToTarHeader(converters.ConfigHeaderToDBHeader(dbhdr))
 	if err != nil {
 		return nil, err
 	}
