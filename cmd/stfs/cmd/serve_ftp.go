@@ -122,11 +122,6 @@ var serveFTPCmd = &cobra.Command{
 			return err
 		}
 
-		root, err := metadataPersister.GetRootPath(context.Background())
-		if err != nil {
-			return err
-		}
-
 		jsonLogger := logging.NewJSONLogger(viper.GetInt(verboseFlag))
 
 		readOps := operations.NewOperations(
@@ -215,6 +210,20 @@ var serveFTPCmd = &cobra.Command{
 			},
 			jsonLogger,
 		)
+
+		root, err := metadataPersister.GetRootPath(context.Background())
+		if err != nil {
+			if err == config.ErrNoRootDirectory {
+				// FIXME: Re-index first, and only `Mkdir` if it still fails after indexing, otherwise this would prevent usage of non-indexed, existing tar files
+
+				root = "/"
+				if err := stfs.MkdirRoot(root, os.ModePerm); err != nil {
+					return err
+				}
+			} else {
+				return err
+			}
+		}
 
 		fs, err := cache.NewCacheFilesystem(
 			stfs,

@@ -1,11 +1,12 @@
 package config
 
 import (
+	"context"
 	"io"
 	"io/fs"
 	"os"
 
-	"github.com/pojntfx/stfs/pkg/persisters"
+	models "github.com/pojntfx/stfs/internal/db/sqlite/models/metadata"
 )
 
 type DriveReaderConfig struct {
@@ -34,8 +35,22 @@ type BackendConfig struct {
 	CloseDrive func() error
 }
 
+type MetadataPersister interface {
+	UpsertHeader(ctx context.Context, dbhdr *models.Header) error
+	UpdateHeaderMetadata(ctx context.Context, dbhdr *models.Header) error
+	MoveHeader(ctx context.Context, oldName string, newName string, lastknownrecord, lastknownblock int64) error
+	GetHeaders(ctx context.Context) (models.HeaderSlice, error)
+	GetHeader(ctx context.Context, name string) (*models.Header, error)
+	GetHeaderChildren(ctx context.Context, name string) (models.HeaderSlice, error)
+	GetRootPath(ctx context.Context) (string, error)
+	GetHeaderDirectChildren(ctx context.Context, name string, limit int) (models.HeaderSlice, error)
+	DeleteHeader(ctx context.Context, name string, lastknownrecord, lastknownblock int64) (*models.Header, error)
+	GetLastIndexedRecordAndBlock(ctx context.Context, recordSize int) (int64, int64, error)
+	PurgeAllHeaders(ctx context.Context) error
+}
+
 type MetadataConfig struct {
-	Metadata *persisters.MetadataPersister
+	Metadata MetadataPersister
 }
 
 type PipeConfig struct {

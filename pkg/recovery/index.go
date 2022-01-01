@@ -17,7 +17,6 @@ import (
 	"github.com/pojntfx/stfs/internal/records"
 	"github.com/pojntfx/stfs/internal/suffix"
 	"github.com/pojntfx/stfs/pkg/config"
-	"github.com/pojntfx/stfs/pkg/persisters"
 )
 
 func Index(
@@ -237,7 +236,7 @@ func Index(
 func indexHeader(
 	record, block int64,
 	hdr *tar.Header,
-	metadataPersister *persisters.MetadataPersister,
+	metadataPersister config.MetadataPersister,
 	compressionFormat string,
 	encryptionFormat string,
 	onHeader func(hdr *models.Header),
