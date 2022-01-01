@@ -6,7 +6,7 @@ import (
 	"os"
 	"time"
 
-	"github.com/pojntfx/stfs/internal/logging"
+	"github.com/pojntfx/stfs/pkg/logging"
 )
 
 type FileInfo struct {
@@ -18,7 +18,7 @@ type FileInfo struct {
 	modTime time.Time
 	isDir   bool
 
-	log *logging.JSONLogger
+	log logging.StructuredLogger
 }
 
 func NewFileInfo(
@@ -28,7 +28,7 @@ func NewFileInfo(
 	modTime time.Time,
 	isDir bool,
 
-	log *logging.JSONLogger,
+	log logging.StructuredLogger,
 ) *FileInfo {
 	return &FileInfo{
 		name:    name,
@@ -44,7 +44,7 @@ func NewFileInfo(
 func NewFileInfoFromTarHeader(
 	hdr *tar.Header,
 
-	log *logging.JSONLogger,
+	log logging.StructuredLogger,
 ) *FileInfo {
 	return &FileInfo{
 		name:    hdr.FileInfo().Name(),

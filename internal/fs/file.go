@@ -11,10 +11,10 @@ import (
 
 	models "github.com/pojntfx/stfs/internal/db/sqlite/models/metadata"
 	"github.com/pojntfx/stfs/internal/ioext"
-	"github.com/pojntfx/stfs/internal/logging"
 	"github.com/pojntfx/stfs/pkg/cache"
 	"github.com/pojntfx/stfs/pkg/config"
 	"github.com/pojntfx/stfs/pkg/inventory"
+	"github.com/pojntfx/stfs/pkg/logging"
 	"github.com/pojntfx/stfs/pkg/operations"
 	"github.com/spf13/afero"
 )
@@ -54,7 +54,7 @@ type File struct {
 	cleanWriteBuf func() error
 
 	onHeader func(hdr *models.Header)
-	log      *logging.JSONLogger
+	log      logging.StructuredLogger
 }
 
 func NewFile(
@@ -75,7 +75,7 @@ func NewFile(
 	info os.FileInfo,
 
 	onHeader func(hdr *models.Header),
-	log *logging.JSONLogger,
+	log logging.StructuredLogger,
 ) *File {
 	return &File{
 		readOps:  readOps,
