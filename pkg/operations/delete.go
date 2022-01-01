@@ -6,7 +6,6 @@ import (
 	"path/filepath"
 
 	"github.com/pojntfx/stfs/internal/converters"
-	models "github.com/pojntfx/stfs/internal/db/sqlite/models/metadata"
 	"github.com/pojntfx/stfs/internal/encryption"
 	"github.com/pojntfx/stfs/internal/records"
 	"github.com/pojntfx/stfs/internal/signature"
@@ -37,7 +36,7 @@ func (o *Operations) Delete(name string) error {
 		return err
 	}
 
-	headersToDelete := []*models.Header{}
+	headersToDelete := []*config.Header{}
 	dbhdr, err := o.metadata.Metadata.GetHeader(context.Background(), name)
 	if err != nil {
 		return err
@@ -57,7 +56,7 @@ func (o *Operations) Delete(name string) error {
 	// Append deletion hdrs to the tape or tar file
 	hdrs := []tar.Header{}
 	for _, dbhdr := range headersToDelete {
-		hdr, err := converters.DBHeaderToTarHeader(dbhdr)
+		hdr, err := converters.DBHeaderToTarHeader(converters.ConfigHeaderToDBHeader(dbhdr))
 		if err != nil {
 			return err
 		}
@@ -77,7 +76,7 @@ func (o *Operations) Delete(name string) error {
 			o.onHeader(&config.HeaderEvent{
 				Type:    config.HeaderEventTypeDelete,
 				Indexed: false,
-				Header:  dbhdr,
+				Header:  converters.DBHeaderToConfigHeader(dbhdr),
 			})
 		}
 
@@ -142,7 +141,7 @@ func (o *Operations) Delete(name string) error {
 			return nil // We sign above, no need to verify
 		},
 
-		func(hdr *models.Header) {
+		func(hdr *config.Header) {
 			o.onHeader(&config.HeaderEvent{
 				Type:    config.HeaderEventTypeDelete,
 				Indexed: true,

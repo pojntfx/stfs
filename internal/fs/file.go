@@ -9,7 +9,6 @@ import (
 	"os"
 	"sync"
 
-	models "github.com/pojntfx/stfs/internal/db/sqlite/models/metadata"
 	"github.com/pojntfx/stfs/internal/ioext"
 	"github.com/pojntfx/stfs/pkg/cache"
 	"github.com/pojntfx/stfs/pkg/config"
@@ -53,7 +52,7 @@ type File struct {
 	writeBuf      cache.WriteCache
 	cleanWriteBuf func() error
 
-	onHeader func(hdr *models.Header)
+	onHeader func(hdr *config.Header)
 	log      logging.StructuredLogger
 }
 
@@ -74,7 +73,7 @@ func NewFile(
 	name string,
 	info os.FileInfo,
 
-	onHeader func(hdr *models.Header),
+	onHeader func(hdr *config.Header),
 	log logging.StructuredLogger,
 ) *File {
 	return &File{

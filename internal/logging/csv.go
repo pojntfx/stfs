@@ -6,7 +6,6 @@ import (
 	"os"
 	"time"
 
-	models "github.com/pojntfx/stfs/internal/db/sqlite/models/metadata"
 	"github.com/pojntfx/stfs/pkg/config"
 )
 
@@ -17,7 +16,7 @@ var (
 	tarHeaderEventCSV = append([]string{"type", "indexed"}, tarHeaderCSV...)
 )
 
-func headerToCSV(hdr *models.Header) []string {
+func headerToCSV(hdr *config.Header) []string {
 	return []string{
 		fmt.Sprintf("%v", hdr.Record), fmt.Sprintf("%v", hdr.Lastknownrecord), fmt.Sprintf("%v", hdr.Block), fmt.Sprintf("%v", hdr.Lastknownblock), fmt.Sprintf("%v", hdr.Typeflag), hdr.Name, hdr.Linkname, fmt.Sprintf("%v", hdr.Size), fmt.Sprintf("%v", hdr.Mode), fmt.Sprintf("%v", hdr.UID), fmt.Sprintf("%v", hdr.Gid), fmt.Sprintf("%v", hdr.Uname), fmt.Sprintf("%v", hdr.Gname), hdr.Modtime.Format(time.RFC3339), hdr.Accesstime.Format(time.RFC3339), hdr.Changetime.Format(time.RFC3339), fmt.Sprintf("%v", hdr.Devmajor), fmt.Sprintf("%v", hdr.Devminor), fmt.Sprintf("%v", hdr.Paxrecords), fmt.Sprintf("%v", hdr.Format),
 	}
@@ -35,7 +34,7 @@ func NewCSVLogger() *CSVLogger {
 	return &CSVLogger{}
 }
 
-func (l *CSVLogger) PrintHeader(hdr *models.Header) {
+func (l *CSVLogger) PrintHeader(hdr *config.Header) {
 	w := csv.NewWriter(os.Stdout)
 
 	if l.n <= 0 {

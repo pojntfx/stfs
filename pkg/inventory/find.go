@@ -6,7 +6,6 @@ import (
 	"regexp"
 
 	"github.com/pojntfx/stfs/internal/converters"
-	models "github.com/pojntfx/stfs/internal/db/sqlite/models/metadata"
 	"github.com/pojntfx/stfs/pkg/config"
 )
 
@@ -15,7 +14,7 @@ func Find(
 
 	expression string,
 
-	onHeader func(hdr *models.Header),
+	onHeader func(hdr *config.Header),
 ) ([]*tar.Header, error) {
 	dbHdrs, err := metadata.Metadata.GetHeaders(context.Background())
 	if err != nil {
@@ -25,7 +24,7 @@ func Find(
 	headers := []*tar.Header{}
 	for _, dbhdr := range dbHdrs {
 		if regexp.MustCompile(expression).Match([]byte(dbhdr.Name)) {
-			hdr, err := converters.DBHeaderToTarHeader(dbhdr)
+			hdr, err := converters.DBHeaderToTarHeader(converters.ConfigHeaderToDBHeader(dbhdr))
 			if err != nil {
 				return []*tar.Header{}, err
 			}

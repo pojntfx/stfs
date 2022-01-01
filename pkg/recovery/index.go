@@ -41,7 +41,7 @@ func Index(
 		isRegular bool,
 	) error,
 
-	onHeader func(hdr *models.Header),
+	onHeader func(hdr *config.Header),
 ) error {
 	if overwrite {
 		if err := metadata.Metadata.PurgeAllHeaders(context.Background()); err != nil {
@@ -239,7 +239,7 @@ func indexHeader(
 	metadataPersister config.MetadataPersister,
 	compressionFormat string,
 	encryptionFormat string,
-	onHeader func(hdr *models.Header),
+	onHeader func(hdr *config.Header),
 ) error {
 	uncompressedSize, ok := hdr.PAXRecords[records.STFSRecordUncompressedSize]
 	if ok {
@@ -265,7 +265,7 @@ func indexHeader(
 			return err
 		}
 
-		onHeader(dbhdr)
+		onHeader(converters.DBHeaderToConfigHeader(dbhdr))
 	}
 
 	stfsVersion, ok := hdr.PAXRecords[records.STFSRecordVersion]
@@ -287,7 +287,7 @@ func indexHeader(
 				return err
 			}
 
-			if err := metadataPersister.UpsertHeader(context.Background(), dbhdr); err != nil {
+			if err := metadataPersister.UpsertHeader(context.Background(), converters.DBHeaderToConfigHeader(dbhdr)); err != nil {
 				return err
 			}
 		case records.STFSRecordActionDelete:
@@ -312,7 +312,7 @@ func indexHeader(
 
 				newHdr = h
 
-				if err := metadataPersister.UpdateHeaderMetadata(context.Background(), newHdr); err != nil {
+				if err := metadataPersister.UpdateHeaderMetadata(context.Background(), converters.DBHeaderToConfigHeader(newHdr)); err != nil {
 					return err
 				}
 			} else {
@@ -326,7 +326,7 @@ func indexHeader(
 
 					newHdr = h
 
-					if err := metadataPersister.UpdateHeaderMetadata(context.Background(), newHdr); err != nil {
+					if err := metadataPersister.UpdateHeaderMetadata(context.Background(), converters.DBHeaderToConfigHeader(newHdr)); err != nil {
 						return err
 					}
 				}

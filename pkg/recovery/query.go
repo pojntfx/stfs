@@ -8,7 +8,6 @@ import (
 	"math"
 
 	"github.com/pojntfx/stfs/internal/converters"
-	models "github.com/pojntfx/stfs/internal/db/sqlite/models/metadata"
 	"github.com/pojntfx/stfs/internal/encryption"
 	"github.com/pojntfx/stfs/internal/ioext"
 	"github.com/pojntfx/stfs/internal/mtio"
@@ -25,7 +24,7 @@ func Query(
 	record int,
 	block int,
 
-	onHeader func(hdr *models.Header),
+	onHeader func(hdr *config.Header),
 ) ([]*tar.Header, error) {
 	headers := []*tar.Header{}
 
@@ -103,7 +102,7 @@ func Query(
 					return []*tar.Header{}, err
 				}
 
-				onHeader(dbhdr)
+				onHeader(converters.DBHeaderToConfigHeader(dbhdr))
 			}
 
 			headers = append(headers, hdr)
@@ -191,7 +190,7 @@ func Query(
 					return []*tar.Header{}, err
 				}
 
-				onHeader(dbhdr)
+				onHeader(converters.DBHeaderToConfigHeader(dbhdr))
 			}
 
 			headers = append(headers, hdr)
