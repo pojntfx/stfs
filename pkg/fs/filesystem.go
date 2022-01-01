@@ -14,10 +14,10 @@ import (
 
 	models "github.com/pojntfx/stfs/internal/db/sqlite/models/metadata"
 	ifs "github.com/pojntfx/stfs/internal/fs"
-	"github.com/pojntfx/stfs/internal/logging"
 	"github.com/pojntfx/stfs/pkg/cache"
 	"github.com/pojntfx/stfs/pkg/config"
 	"github.com/pojntfx/stfs/pkg/inventory"
+	"github.com/pojntfx/stfs/pkg/logging"
 	"github.com/pojntfx/stfs/pkg/operations"
 	"github.com/spf13/afero"
 )
@@ -35,7 +35,7 @@ type STFS struct {
 	ioLock sync.Mutex
 
 	onHeader func(hdr *models.Header)
-	log      *logging.JSONLogger
+	log      logging.StructuredLogger
 }
 
 func NewSTFS(
@@ -49,7 +49,7 @@ func NewSTFS(
 	ignorePermissionFlags bool,
 
 	onHeader func(hdr *models.Header),
-	log *logging.JSONLogger,
+	log logging.StructuredLogger,
 ) *STFS {
 	return &STFS{
 		readOps:  readOps,
