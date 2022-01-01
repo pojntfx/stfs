@@ -80,6 +80,7 @@ var recoveryIndexCmd = &cobra.Command{
 				Compression: viper.GetString(compressionFlag),
 				Encryption:  viper.GetString(encryptionFlag),
 				Signature:   viper.GetString(signatureFlag),
+				RecordSize:  viper.GetInt(recordSizeFlag),
 			},
 			config.CryptoConfig{
 				Recipient: recipient,

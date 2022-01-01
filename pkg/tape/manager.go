@@ -85,8 +85,10 @@ func (m *TapeManager) GetDrive() (config.DriveConfig, error) {
 }
 
 func (m *TapeManager) Close() error {
-	if err := m.closer(); err != nil {
-		return err
+	if m.closer != nil {
+		if err := m.closer(); err != nil {
+			return err
+		}
 	}
 
 	m.driveLock.Unlock()
