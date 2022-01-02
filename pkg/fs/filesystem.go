@@ -264,6 +264,7 @@ func (f *STFS) OpenFile(name string, flag int, perm os.FileMode) (afero.File, er
 		f.metadata,
 
 		name,
+		false,
 
 		f.onHeader,
 	)
@@ -278,6 +279,7 @@ func (f *STFS) OpenFile(name string, flag int, perm os.FileMode) (afero.File, er
 					f.metadata,
 
 					name,
+					false,
 
 					f.onHeader,
 				)
@@ -361,6 +363,7 @@ func (f *STFS) Stat(name string) (os.FileInfo, error) {
 		f.metadata,
 
 		name,
+		false,
 
 		f.onHeader,
 	)
@@ -414,6 +417,7 @@ func (f *STFS) Chmod(name string, mode os.FileMode) error {
 		f.metadata,
 
 		name,
+		false,
 
 		f.onHeader,
 	)
@@ -444,6 +448,7 @@ func (f *STFS) Chown(name string, uid, gid int) error {
 		f.metadata,
 
 		name,
+		false,
 
 		f.onHeader,
 	)
@@ -475,6 +480,7 @@ func (f *STFS) Chtimes(name string, atime time.Time, mtime time.Time) error {
 		f.metadata,
 
 		name,
+		false,
 
 		f.onHeader,
 	)
@@ -500,7 +506,23 @@ func (f *STFS) LstatIfPossible(name string) (os.FileInfo, bool, error) {
 	f.ioLock.Lock()
 	defer f.ioLock.Unlock()
 
-	return nil, false, config.ErrNotImplemented
+	hdr, err := inventory.Stat(
+		f.metadata,
+
+		name,
+		true,
+
+		f.onHeader,
+	)
+	if err != nil {
+		if err == sql.ErrNoRows {
+			return nil, true, os.ErrNotExist
+		}
+
+		return nil, true, err
+	}
+
+	return ifs.NewFileInfoFromTarHeader(hdr, f.log), true, nil
 }
 
 func (f *STFS) SymlinkIfPossible(oldname, newname string) error {

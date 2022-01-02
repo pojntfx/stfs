@@ -9,6 +9,10 @@ import (
 	"github.com/spf13/viper"
 )
 
+const (
+	linkFlag = "link"
+)
+
 var inventoryStatCmd = &cobra.Command{
 	Use:     "stat",
 	Aliases: []string{"sta", "s"},
@@ -29,6 +33,7 @@ var inventoryStatCmd = &cobra.Command{
 			},
 
 			viper.GetString(nameFlag),
+			viper.GetBool(linkFlag),
 
 			logging.NewCSVLogger().PrintHeader,
 		); err != nil {
@@ -41,6 +46,7 @@ var inventoryStatCmd = &cobra.Command{
 
 func init() {
 	inventoryStatCmd.PersistentFlags().StringP(nameFlag, "n", "", "File or directory to get info for")
+	inventoryStatCmd.PersistentFlags().BoolP(linkFlag, "l", false, "Resolve as symlink")
 
 	viper.AutomaticEnv()
 

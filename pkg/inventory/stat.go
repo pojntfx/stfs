@@ -15,10 +15,28 @@ func Stat(
 	metadata config.MetadataConfig,
 
 	name string,
+	symlink bool,
 
 	onHeader func(hdr *config.Header),
 ) (*tar.Header, error) {
 	name = filepath.ToSlash(name)
+
+	if symlink {
+		// Resolve symlink
+		link, err := metadata.Metadata.GetHeader(context.Background(), name)
+		if err != nil {
+			if err == sql.ErrNoRows {
+				link, err = metadata.Metadata.GetHeader(context.Background(), strings.TrimSuffix(name, "/")+"/")
+				if err != nil {
+					return nil, err
+				}
+			} else {
+				return nil, err
+			}
+		}
+
+		name = link.Linkname
+	}
 
 	dbhdr, err := metadata.Metadata.GetHeader(context.Background(), name)
 	if err != nil {
