@@ -84,8 +84,8 @@ func (f *STFS) Create(name string) (afero.File, error) {
 	return os.OpenFile(name, os.O_CREATE, 0666)
 }
 
-func (f *STFS) mknode(dir bool, name string, perm os.FileMode, overwrite bool, linkname string) error {
-	f.log.Trace("FileSystem.mknode", map[string]interface{}{
+func (f *STFS) mknodeWithoutLocking(dir bool, name string, perm os.FileMode, overwrite bool, linkname string) error {
+	f.log.Trace("FileSystem.mknodeWithoutLocking", map[string]interface{}{
 		"name": name,
 		"perm": perm,
 	})
@@ -173,7 +173,7 @@ func (f *STFS) MkdirRoot(name string, perm os.FileMode) error {
 	f.ioLock.Lock()
 	defer f.ioLock.Unlock()
 
-	return f.mknode(true, name, perm, true, "")
+	return f.mknodeWithoutLocking(true, name, perm, true, "")
 }
 
 func (f *STFS) Mkdir(name string, perm os.FileMode) error {
@@ -185,7 +185,7 @@ func (f *STFS) Mkdir(name string, perm os.FileMode) error {
 	f.ioLock.Lock()
 	defer f.ioLock.Unlock()
 
-	return f.mknode(true, name, perm, false, "")
+	return f.mknodeWithoutLocking(true, name, perm, false, "")
 }
 
 func (f *STFS) MkdirAll(path string, perm os.FileMode) error {
@@ -207,7 +207,7 @@ func (f *STFS) MkdirAll(path string, perm os.FileMode) error {
 			currentPath = filepath.Join(currentPath, part)
 		}
 
-		if err := f.mknode(true, currentPath, perm, false, ""); err != nil {
+		if err := f.mknodeWithoutLocking(true, currentPath, perm, false, ""); err != nil {
 			return err
 		}
 	}
@@ -271,7 +271,7 @@ func (f *STFS) OpenFile(name string, flag int, perm os.FileMode) (afero.File, er
 	if err != nil {
 		if err == sql.ErrNoRows {
 			if flag&os.O_CREATE != 0 && flag&os.O_EXCL == 0 {
-				if err := f.mknode(false, name, perm, false, ""); err != nil {
+				if err := f.mknodeWithoutLocking(false, name, perm, false, ""); err != nil {
 					return nil, err
 				}
 
@@ -498,13 +498,10 @@ func (f *STFS) Chtimes(name string, atime time.Time, mtime time.Time) error {
 	return f.updateMetadata(hdr)
 }
 
-func (f *STFS) LstatIfPossible(name string) (os.FileInfo, bool, error) {
-	f.log.Debug("FileSystem.LstatIfPossible", map[string]interface{}{
+func (f *STFS) lstatIfPossibleWithoutLocking(name string) (os.FileInfo, bool, error) {
+	f.log.Debug("FileSystem.lstatIfPossibleWithoutLocking", map[string]interface{}{
 		"name": name,
 	})
-
-	f.ioLock.Lock()
-	defer f.ioLock.Unlock()
 
 	hdr, err := inventory.Stat(
 		f.metadata,
@@ -525,6 +522,17 @@ func (f *STFS) LstatIfPossible(name string) (os.FileInfo, bool, error) {
 	return ifs.NewFileInfoFromTarHeader(hdr, f.log), true, nil
 }
 
+func (f *STFS) LstatIfPossible(name string) (os.FileInfo, bool, error) {
+	f.log.Debug("FileSystem.LstatIfPossible", map[string]interface{}{
+		"name": name,
+	})
+
+	f.ioLock.Lock()
+	defer f.ioLock.Unlock()
+
+	return f.lstatIfPossibleWithoutLocking(name)
+}
+
 func (f *STFS) SymlinkIfPossible(oldname, newname string) error {
 	f.log.Debug("FileSystem.SymlinkIfPossible", map[string]interface{}{
 		"oldname": oldname,
@@ -534,7 +542,7 @@ func (f *STFS) SymlinkIfPossible(oldname, newname string) error {
 	f.ioLock.Lock()
 	defer f.ioLock.Unlock()
 
-	return f.mknode(false, oldname, os.ModePerm, false, newname)
+	return f.mknodeWithoutLocking(false, oldname, os.ModePerm, false, newname)
 }
 
 func (f *STFS) ReadlinkIfPossible(name string) (string, error) {
@@ -545,5 +553,10 @@ func (f *STFS) ReadlinkIfPossible(name string) (string, error) {
 	f.ioLock.Lock()
 	defer f.ioLock.Unlock()
 
-	return "", config.ErrNotImplemented
+	info, _, err := f.lstatIfPossibleWithoutLocking(name)
+	if err != nil {
+		return "", err
+	}
+
+	return info.Name(), nil
 }
