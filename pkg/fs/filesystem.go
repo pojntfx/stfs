@@ -84,7 +84,7 @@ func (f *STFS) Create(name string) (afero.File, error) {
 	return os.OpenFile(name, os.O_CREATE, 0666)
 }
 
-func (f *STFS) mknode(dir bool, name string, perm os.FileMode, overwrite bool) error {
+func (f *STFS) mknode(dir bool, name string, perm os.FileMode, overwrite bool, linkname string) error {
 	f.log.Trace("FileSystem.mknode", map[string]interface{}{
 		"name": name,
 		"perm": perm,
@@ -120,12 +120,15 @@ func (f *STFS) mknode(dir bool, name string, perm os.FileMode, overwrite bool) e
 	typeflag := tar.TypeReg
 	if dir {
 		typeflag = tar.TypeDir
+	} else if linkname != "" {
+		typeflag = tar.TypeSymlink
 	}
 
 	hdr := &tar.Header{
 		Typeflag: byte(typeflag),
 
-		Name: name,
+		Name:     name,
+		Linkname: linkname,
 
 		Mode:  int64(perm),
 		Uid:   uid,
@@ -170,7 +173,7 @@ func (f *STFS) MkdirRoot(name string, perm os.FileMode) error {
 	f.ioLock.Lock()
 	defer f.ioLock.Unlock()
 
-	return f.mknode(true, name, perm, true)
+	return f.mknode(true, name, perm, true, "")
 }
 
 func (f *STFS) Mkdir(name string, perm os.FileMode) error {
@@ -182,7 +185,7 @@ func (f *STFS) Mkdir(name string, perm os.FileMode) error {
 	f.ioLock.Lock()
 	defer f.ioLock.Unlock()
 
-	return f.mknode(true, name, perm, false)
+	return f.mknode(true, name, perm, false, "")
 }
 
 func (f *STFS) MkdirAll(path string, perm os.FileMode) error {
@@ -204,7 +207,7 @@ func (f *STFS) MkdirAll(path string, perm os.FileMode) error {
 			currentPath = filepath.Join(currentPath, part)
 		}
 
-		if err := f.mknode(true, currentPath, perm, false); err != nil {
+		if err := f.mknode(true, currentPath, perm, false, ""); err != nil {
 			return err
 		}
 	}
@@ -267,7 +270,7 @@ func (f *STFS) OpenFile(name string, flag int, perm os.FileMode) (afero.File, er
 	if err != nil {
 		if err == sql.ErrNoRows {
 			if flag&os.O_CREATE != 0 && flag&os.O_EXCL == 0 {
-				if err := f.mknode(false, name, perm, false); err != nil {
+				if err := f.mknode(false, name, perm, false, ""); err != nil {
 					return nil, err
 				}
 
@@ -509,7 +512,7 @@ func (f *STFS) SymlinkIfPossible(oldname, newname string) error {
 	f.ioLock.Lock()
 	defer f.ioLock.Unlock()
 
-	return config.ErrNotImplemented
+	return f.mknode(false, oldname, os.ModePerm, false, newname)
 }
 
 func (f *STFS) ReadlinkIfPossible(name string) (string, error) {
