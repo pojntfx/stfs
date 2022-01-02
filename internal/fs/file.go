@@ -207,6 +207,7 @@ func (f *File) enterWriteMode() error {
 			f.metadata,
 
 			f.path,
+			false,
 
 			f.onHeader,
 		)
