@@ -1,7 +1,7 @@
 package persisters
 
-//go:generate sqlboiler sqlite3 -o ../db/sqlite/models/metadata -c ../../configs/sqlboiler/metadata.yaml
-//go:generate go-bindata -pkg metadata -o ../db/sqlite/migrations/metadata/migrations.go ../../db/sqlite/migrations/metadata
+//go:generate sqlboiler sqlite3 -o ../../internal/db/sqlite/models/metadata -c ../../configs/sqlboiler/metadata.yaml
+//go:generate go-bindata -pkg metadata -o ../../internal/db/sqlite/migrations/metadata/migrations.go ../../db/sqlite/migrations/metadata
 
 import (
 	"context"

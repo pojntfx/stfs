@@ -8,11 +8,11 @@ import (
 	"math"
 
 	"github.com/pojntfx/stfs/internal/converters"
-	"github.com/pojntfx/stfs/internal/encryption"
 	"github.com/pojntfx/stfs/internal/ioext"
 	"github.com/pojntfx/stfs/internal/mtio"
-	"github.com/pojntfx/stfs/internal/signature"
 	"github.com/pojntfx/stfs/pkg/config"
+	"github.com/pojntfx/stfs/pkg/encryption"
+	"github.com/pojntfx/stfs/pkg/signature"
 )
 
 func Query(

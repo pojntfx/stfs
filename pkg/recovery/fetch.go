@@ -8,13 +8,13 @@ import (
 	"path"
 	"path/filepath"
 
-	"github.com/pojntfx/stfs/internal/compression"
 	"github.com/pojntfx/stfs/internal/converters"
-	"github.com/pojntfx/stfs/internal/encryption"
 	"github.com/pojntfx/stfs/internal/mtio"
 	"github.com/pojntfx/stfs/internal/records"
-	"github.com/pojntfx/stfs/internal/signature"
+	"github.com/pojntfx/stfs/pkg/compression"
 	"github.com/pojntfx/stfs/pkg/config"
+	"github.com/pojntfx/stfs/pkg/encryption"
+	"github.com/pojntfx/stfs/pkg/signature"
 )
 
 func Fetch(
