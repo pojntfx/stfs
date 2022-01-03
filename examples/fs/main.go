@@ -242,6 +242,15 @@ func main() {
 
 	log.Println("Result of open /:", dir)
 
+	log.Println("readdir /")
+
+	children, err := dir.Readdir(-1)
+	if err != nil {
+		panic(err)
+	}
+
+	log.Println("Result of readdir /:", children)
+
 	log.Println("create /test.txt")
 
 	file, err := fs.Create("/test.txt")
@@ -266,12 +275,12 @@ func main() {
 
 	log.Println("readdir /")
 
-	children, err := dir.Readdir(-1)
+	children, err = dir.Readdir(-1)
 	if err != nil {
 		panic(err)
 	}
 
-	log.Println("Result of readdir /test.txt:", children)
+	log.Println("Result of readdir /:", children)
 
 	if err := dir.Close(); err != nil {
 		panic(err)
