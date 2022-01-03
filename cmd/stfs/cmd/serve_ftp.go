@@ -137,27 +137,28 @@ var serveFTPCmd = &cobra.Command{
 			Signature:   viper.GetString(signatureFlag),
 			RecordSize:  viper.GetInt(recordSizeFlag),
 		}
-		cryptoConfig := config.CryptoConfig{
+		backendConfig := config.BackendConfig{
+			GetWriter:   tm.GetWriter,
+			CloseWriter: tm.Close,
+
+			GetReader:   tm.GetReader,
+			CloseReader: tm.Close,
+
+			GetDrive:   tm.GetDrive,
+			CloseDrive: tm.Close,
+		}
+		readCryptoConfig := config.CryptoConfig{
 			Recipient: signatureRecipient,
 			Identity:  encryptionIdentity,
 			Password:  viper.GetString(encryptionPasswordFlag),
 		}
 
 		readOps := operations.NewOperations(
-			config.BackendConfig{
-				GetWriter:   tm.GetWriter,
-				CloseWriter: tm.Close,
-
-				GetReader:   tm.GetReader,
-				CloseReader: tm.Close,
-
-				GetDrive:   tm.GetDrive,
-				CloseDrive: tm.Close,
-			},
+			backendConfig,
 			metadataConfig,
 
 			pipeConfig,
-			cryptoConfig,
+			readCryptoConfig,
 
 			func(event *config.HeaderEvent) {
 				jsonLogger.Debug("Header read", event)
@@ -165,26 +166,10 @@ var serveFTPCmd = &cobra.Command{
 		)
 
 		writeOps := operations.NewOperations(
-			config.BackendConfig{
-				GetWriter:   tm.GetWriter,
-				CloseWriter: tm.Close,
+			backendConfig,
+			metadataConfig,
 
-				GetReader:   tm.GetReader,
-				CloseReader: tm.Close,
-
-				GetDrive:   tm.GetDrive,
-				CloseDrive: tm.Close,
-			},
-			config.MetadataConfig{
-				Metadata: metadataPersister,
-			},
-
-			config.PipeConfig{
-				Compression: viper.GetString(compressionFlag),
-				Encryption:  viper.GetString(encryptionFlag),
-				Signature:   viper.GetString(signatureFlag),
-				RecordSize:  viper.GetInt(recordSizeFlag),
-			},
+			pipeConfig,
 			config.CryptoConfig{
 				Recipient: encryptionRecipient,
 				Identity:  signatureIdentity,
@@ -237,7 +222,7 @@ var serveFTPCmd = &cobra.Command{
 						},
 						metadataConfig,
 						pipeConfig,
-						cryptoConfig,
+						readCryptoConfig,
 
 						viper.GetInt(recordSizeFlag),
 						0,
