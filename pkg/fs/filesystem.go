@@ -78,10 +78,7 @@ func (f *STFS) Create(name string) (afero.File, error) {
 		"name": name,
 	})
 
-	f.ioLock.Lock()
-	defer f.ioLock.Unlock()
-
-	return os.OpenFile(name, os.O_CREATE, 0666)
+	return f.OpenFile(name, os.O_CREATE|os.O_RDWR, 0666)
 }
 
 func (f *STFS) mknodeWithoutLocking(dir bool, name string, perm os.FileMode, overwrite bool, linkname string) error {
