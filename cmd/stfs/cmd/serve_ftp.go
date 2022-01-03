@@ -10,17 +10,18 @@ import (
 
 	ftpserver "github.com/fclairamb/ftpserverlib"
 	"github.com/pojntfx/stfs/internal/check"
-	"github.com/pojntfx/stfs/internal/encryption"
 	"github.com/pojntfx/stfs/internal/ftp"
-	"github.com/pojntfx/stfs/internal/keys"
+	"github.com/pojntfx/stfs/internal/keyext"
 	"github.com/pojntfx/stfs/internal/logging"
-	"github.com/pojntfx/stfs/internal/signature"
 	"github.com/pojntfx/stfs/pkg/cache"
 	"github.com/pojntfx/stfs/pkg/config"
+	"github.com/pojntfx/stfs/pkg/encryption"
 	sfs "github.com/pojntfx/stfs/pkg/fs"
+	"github.com/pojntfx/stfs/pkg/keys"
 	"github.com/pojntfx/stfs/pkg/operations"
 	"github.com/pojntfx/stfs/pkg/persisters"
 	"github.com/pojntfx/stfs/pkg/recovery"
+	"github.com/pojntfx/stfs/pkg/signature"
 	"github.com/pojntfx/stfs/pkg/tape"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
@@ -74,22 +75,22 @@ var serveFTPCmd = &cobra.Command{
 		return check.CheckKeyAccessible(viper.GetString(signatureFlag), viper.GetString(signatureRecipientFlag))
 	},
 	RunE: func(cmd *cobra.Command, args []string) error {
-		signaturePubkey, err := keys.ReadKey(viper.GetString(signatureFlag), viper.GetString(signatureRecipientFlag))
+		signaturePubkey, err := keyext.ReadKey(viper.GetString(signatureFlag), viper.GetString(signatureRecipientFlag))
 		if err != nil {
 			return err
 		}
 
-		signaturePrivkey, err := keys.ReadKey(viper.GetString(signatureFlag), viper.GetString(signatureIdentityFlag))
+		signaturePrivkey, err := keyext.ReadKey(viper.GetString(signatureFlag), viper.GetString(signatureIdentityFlag))
 		if err != nil {
 			return err
 		}
 
-		encryptionPubkey, err := keys.ReadKey(viper.GetString(encryptionFlag), viper.GetString(encryptionRecipientFlag))
+		encryptionPubkey, err := keyext.ReadKey(viper.GetString(encryptionFlag), viper.GetString(encryptionRecipientFlag))
 		if err != nil {
 			return err
 		}
 
-		encryptionPrivkey, err := keys.ReadKey(viper.GetString(encryptionFlag), viper.GetString(encryptionIdentityFlag))
+		encryptionPrivkey, err := keyext.ReadKey(viper.GetString(encryptionFlag), viper.GetString(encryptionIdentityFlag))
 		if err != nil {
 			return err
 		}

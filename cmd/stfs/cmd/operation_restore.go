@@ -6,9 +6,10 @@ import (
 	"os"
 
 	"github.com/pojntfx/stfs/internal/check"
-	"github.com/pojntfx/stfs/internal/keys"
+	"github.com/pojntfx/stfs/internal/keyext"
 	"github.com/pojntfx/stfs/internal/logging"
 	"github.com/pojntfx/stfs/pkg/config"
+	"github.com/pojntfx/stfs/pkg/keys"
 	"github.com/pojntfx/stfs/pkg/operations"
 	"github.com/pojntfx/stfs/pkg/persisters"
 	"github.com/pojntfx/stfs/pkg/tape"
@@ -36,7 +37,7 @@ var operationRestoreCmd = &cobra.Command{
 		return check.CheckKeyAccessible(viper.GetString(signatureFlag), viper.GetString(recipientFlag))
 	},
 	RunE: func(cmd *cobra.Command, args []string) error {
-		pubkey, err := keys.ReadKey(viper.GetString(signatureFlag), viper.GetString(recipientFlag))
+		pubkey, err := keyext.ReadKey(viper.GetString(signatureFlag), viper.GetString(recipientFlag))
 		if err != nil {
 			return err
 		}
@@ -46,7 +47,7 @@ var operationRestoreCmd = &cobra.Command{
 			return err
 		}
 
-		privkey, err := keys.ReadKey(viper.GetString(encryptionFlag), viper.GetString(identityFlag))
+		privkey, err := keyext.ReadKey(viper.GetString(encryptionFlag), viper.GetString(identityFlag))
 		if err != nil {
 			return err
 		}

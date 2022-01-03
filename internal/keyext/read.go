@@ -1,4 +1,4 @@
-package keys
+package keyext
 
 import (
 	"io/ioutil"
