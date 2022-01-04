@@ -28,7 +28,10 @@ type depth struct {
 }
 
 type MetadataPersister struct {
-	*ipersisters.SQLite
+	sqlite *ipersisters.SQLite
+
+	root              string
+	rootIsEmptyString bool
 }
 
 func NewMetadataPersister(dbPath string) *MetadataPersister {
@@ -41,30 +44,49 @@ func NewMetadataPersister(dbPath string) *MetadataPersister {
 				Dir:      "../../db/sqlite/migrations/metadata",
 			},
 		},
+		"",
+		false,
 	}
 }
 
+func (p *MetadataPersister) Open() error {
+	if err := p.sqlite.Open(); err != nil {
+		return err
+	}
+
+	root, err := p.GetRootPath(context.Background())
+
+	// Ignore if root directory can't be found, which can happen i.e. on initial archiving
+	if err == config.ErrNoRootDirectory {
+		return nil
+	}
+
+	if err != nil {
+		return err
+	}
+
+	p.root = root
+
+	return nil
+}
+
 func (p *MetadataPersister) UpsertHeader(ctx context.Context, dbhdr *config.Header) error {
-	hdr := converters.ConfigHeaderToDBHeader(dbhdr)
+	idbhdr := converters.ConfigHeaderToDBHeader(dbhdr)
 
-	if _, err := models.FindHeader(ctx, p.DB, hdr.Name, models.HeaderColumns.Name); err != nil {
+	hdr := *idbhdr
+	hdr.Name = p.getSanitizedPath(ctx, idbhdr.Name)
+
+	if _, err := models.FindHeader(ctx, p.sqlite.DB, hdr.Name, models.HeaderColumns.Name); err != nil {
 		if err == sql.ErrNoRows {
-			if _, err := models.FindHeader(ctx, p.DB, p.withRelativeRoot(ctx, hdr.Name), models.HeaderColumns.Name); err == nil {
-				hdr.Name = p.withRelativeRoot(ctx, hdr.Name)
-			} else {
-				if err := hdr.Insert(ctx, p.DB, boil.Infer()); err != nil {
-					return err
-				}
-
-				return nil
+			if err := hdr.Insert(ctx, p.sqlite.DB, boil.Infer()); err != nil {
+				return err
 			}
-
 		} else {
 			return err
 		}
 	}
 
-	if _, err := hdr.Update(ctx, p.DB, boil.Infer()); err != nil {
+	if _, err := hdr.Update(ctx, p.sqlite.DB, boil.Infer()); err != nil {
 		return err
 	}
 
@@ -74,23 +96,20 @@ func (p *MetadataPersister) UpsertHeader(ctx context.Context, dbhdr *config.Head
 func (p *MetadataPersister) UpdateHeaderMetadata(ctx context.Context, dbhdr *config.Header) error {
 	idbhdr := converters.ConfigHeaderToDBHeader(dbhdr)
 
-	if _, err := idbhdr.Update(ctx, p.DB, boil.Infer()); err != nil {
-		if err == sql.ErrNoRows {
-			hdr := *idbhdr
-			hdr.Name = p.withRelativeRoot(ctx, idbhdr.Name)
+	hdr := *idbhdr
+	hdr.Name = p.getSanitizedPath(ctx, idbhdr.Name)
 
-			if _, err := hdr.Update(ctx, p.DB, boil.Infer()); err != nil {
-				return err
-			}
-		} else {
-			return err
-		}
+	if _, err := hdr.Update(ctx, p.sqlite.DB, boil.Infer()); err != nil {
+		return err
 	}
 
 	return nil
 }
 
 func (p *MetadataPersister) MoveHeader(ctx context.Context, oldName string, newName string, lastknownrecord, lastknownblock int64) error {
+	newName = p.getSanitizedPath(ctx, newName)
+	oldName = p.getSanitizedPath(ctx, oldName)
+
 	// We can't do this with `dbhdr.Update` because we are renaming the primary key
 	n, err := queries.Raw(
 		fmt.Sprintf(
@@ -105,7 +124,7 @@ func (p *MetadataPersister) MoveHeader(ctx context.Context, oldName string, newN
 		lastknownrecord,
 		lastknownblock,
 		oldName,
-	).ExecContext(ctx, p.DB)
+	).ExecContext(ctx, p.sqlite.DB)
 	if err != nil {
 		return err
 	}
@@ -120,16 +139,16 @@ func (p *MetadataPersister) MoveHeader(ctx context.Context, oldName string, newN
 			fmt.Sprintf(
 				`update %v set %v = ?, %v = ?, %v = ? where %v = ?;`,
 				models.TableNames.Headers,
-				p.withRelativeRoot(ctx, models.HeaderColumns.Name),
+				models.HeaderColumns.Name,
 				models.HeaderColumns.Lastknownrecord,
 				models.HeaderColumns.Lastknownblock,
-				p.withRelativeRoot(ctx, models.HeaderColumns.Name),
+				models.HeaderColumns.Name,
 			),
 			newName,
 			lastknownrecord,
 			lastknownblock,
 			oldName,
-		).ExecContext(ctx, p.DB); err != nil {
+		).ExecContext(ctx, p.sqlite.DB); err != nil {
 			return err
 		}
 	}
@@ -140,7 +159,7 @@ func (p *MetadataPersister) MoveHeader(ctx context.Context, oldName string, newN
 func (p *MetadataPersister) GetHeaders(ctx context.Context) ([]*config.Header, error) {
 	dbhdrs, err := models.Headers(
 		qm.Where(models.HeaderColumns.Deleted+" != 1"),
-	).All(ctx, p.DB)
+	).All(ctx, p.sqlite.DB)
 	if err != nil {
 		return []*config.Header{}, err
 	}
@@ -154,44 +173,28 @@ func (p *MetadataPersister) GetHeaders(ctx context.Context) ([]*config.Header, e
 }
 
 func (p *MetadataPersister) GetHeader(ctx context.Context, name string) (*config.Header, error) {
+	name = p.getSanitizedPath(ctx, name)
+
 	hdr, err := models.Headers(
 		qm.Where(models.HeaderColumns.Name+" = ?", name),
 		qm.Where(models.HeaderColumns.Deleted+" != 1"),
-	).One(ctx, p.DB)
+	).One(ctx, p.sqlite.DB)
 	if err != nil {
-		if err == sql.ErrNoRows {
-			hdr, err = models.Headers(
-				qm.Where(models.HeaderColumns.Name+" = ?", p.withRelativeRoot(ctx, name)),
-				qm.Where(models.HeaderColumns.Deleted+" != 1"),
-			).One(ctx, p.DB)
-			if err != nil {
-				return nil, err
-			}
-		} else {
-			return nil, err
-		}
+		return nil, err
 	}
 
 	return converters.DBHeaderToConfigHeader(hdr), nil
 }
 
 func (p *MetadataPersister) GetHeaderChildren(ctx context.Context, name string) ([]*config.Header, error) {
+	name = p.getSanitizedPath(ctx, name)
+
 	headers, err := models.Headers(
 		qm.Where(models.HeaderColumns.Name+" like ?", strings.TrimSuffix(name, "/")+"/%"), // Prevent double trailing slashes
 		qm.Where(models.HeaderColumns.Deleted+" != 1"),
-	).All(ctx, p.DB)
+	).All(ctx, p.sqlite.DB)
 	if err != nil {
 		return nil, err
-	}
-
-	if len(headers) < 1 {
-		headers, err = models.Headers(
-			qm.Where(models.HeaderColumns.Name+" like ?", p.withRelativeRoot(ctx, strings.TrimSuffix(name, "/")+"/%")), // Prevent double trailing slashes
-			qm.Where(models.HeaderColumns.Deleted+" != 1"),
-		).All(ctx, p.DB)
-		if err != nil {
-			return nil, err
-		}
 	}
 
 	outhdrs := []*config.Header{}
@@ -206,6 +209,11 @@ func (p *MetadataPersister) GetHeaderChildren(ctx context.Context, name string) 
 }
 
 func (p *MetadataPersister) GetRootPath(ctx context.Context) (string, error) {
+	// Cache the root directory
+	if p.root != "" {
+		return p.root, nil
+	}
+
 	root := models.Header{}
 
 	if err := queries.Raw(
@@ -216,7 +224,7 @@ func (p *MetadataPersister) GetRootPath(ctx context.Context) (string, error) {
 			models.TableNames.Headers,
 			models.HeaderColumns.Deleted,
 		),
-	).Bind(ctx, p.DB, &root); err != nil {
+	).Bind(ctx, p.sqlite.DB, &root); err != nil {
 		if strings.Contains(err.Error(), "converting NULL to string is unsupported") {
 			return "", config.ErrNoRootDirectory
 		}
@@ -224,10 +232,13 @@ func (p *MetadataPersister) GetRootPath(ctx context.Context) (string, error) {
 		return "", err
 	}
 
+	p.root = root.Name
+
 	return root.Name, nil
 }
 
 func (p *MetadataPersister) GetHeaderDirectChildren(ctx context.Context, name string, limit int) ([]*config.Header, error) {
+	name = p.getSanitizedPath(ctx, name)
 	prefix := strings.TrimSuffix(name, "/") + "/"
 	rootDepth := 0
 	headers := []*config.Header{}
@@ -245,7 +256,7 @@ func (p *MetadataPersister) GetHeaderDirectChildren(ctx context.Context, name st
 				models.TableNames.Headers,
 				models.HeaderColumns.Deleted,
 			),
-		).Bind(ctx, p.DB, &depth); err != nil {
+		).Bind(ctx, p.sqlite.DB, &depth); err != nil {
 			if err == sql.ErrNoRows {
 				return headers, nil
 			}
@@ -310,7 +321,7 @@ where %v like ?
 				rootDepth,
 				rootDepth+1,
 				limit+1, // +1 to accomodate the parent directory if it exists
-			).Bind(ctx, p.DB, &headers); err != nil {
+			).Bind(ctx, p.sqlite.DB, &headers); err != nil {
 				if err == sql.ErrNoRows {
 					return headers, nil
 				}
@@ -326,7 +337,7 @@ where %v like ?
 			prefix+"%",
 			rootDepth,
 			rootDepth+1,
-		).Bind(ctx, p.DB, &headers); err != nil {
+		).Bind(ctx, p.sqlite.DB, &headers); err != nil {
 			if err == sql.ErrNoRows {
 				return headers, nil
 			}
@@ -339,14 +350,7 @@ where %v like ?
 
 	headers, err := getHeaders(prefix)
 	if err != nil {
-		headers, err = getHeaders(p.withRelativeRoot(ctx, prefix))
-		if err == sql.ErrNoRows {
-			return headers, nil
-		}
-
-		if err != nil {
-			return nil, err
-		}
+		return nil, err
 	}
 
 	outhdrs := []*config.Header{}
@@ -365,27 +369,18 @@ where %v like ?
 }
 
 func (p *MetadataPersister) DeleteHeader(ctx context.Context, name string, lastknownrecord, lastknownblock int64) (*config.Header, error) {
-	hdr, err := models.FindHeader(ctx, p.DB, name)
-	if err != nil {
-		if err == sql.ErrNoRows {
-			hdr, err = models.FindHeader(ctx, p.DB, p.withRelativeRoot(ctx, name))
-			if err == sql.ErrNoRows {
-				return nil, err
-			}
+	name = p.getSanitizedPath(ctx, name)
 
-			if err != nil {
-				return nil, err
-			}
-		} else {
-			return nil, err
-		}
+	hdr, err := models.FindHeader(ctx, p.sqlite.DB, name)
+	if err != nil {
+		return nil, err
 	}
 
 	hdr.Deleted = 1
 	hdr.Lastknownrecord = lastknownrecord
 	hdr.Lastknownblock = lastknownblock
 
-	if _, err := hdr.Update(ctx, p.DB, boil.Infer()); err != nil {
+	if _, err := hdr.Update(ctx, p.sqlite.DB, boil.Infer()); err != nil {
 		return nil, err
 	}
 
@@ -404,7 +399,7 @@ func (p *MetadataPersister) GetLastIndexedRecordAndBlock(ctx context.Context, re
 			models.TableNames.Headers,
 		),
 		recordSize,
-	).Bind(ctx, p.DB, &header); err != nil {
+	).Bind(ctx, p.sqlite.DB, &header); err != nil {
 		if err == sql.ErrNoRows {
 			return 0, 0, nil
 		}
@@ -416,9 +411,12 @@ func (p *MetadataPersister) GetLastIndexedRecordAndBlock(ctx context.Context, re
 }
 
 func (p *MetadataPersister) PurgeAllHeaders(ctx context.Context) error {
-	if _, err := models.Headers().DeleteAll(ctx, p.DB); err != nil {
+	if _, err := models.Headers().DeleteAll(ctx, p.sqlite.DB); err != nil {
 		return err
 	}
+
+	p.root = ""
+	p.rootIsEmptyString = false
 
 	return nil
 }
@@ -427,7 +425,7 @@ func (p *MetadataPersister) headerExistsExact(ctx context.Context, name string) 
 	exists, err := models.Headers(
 		qm.Where(models.HeaderColumns.Name+" = ?", name),
 		qm.Where(models.HeaderColumns.Deleted+" != 1"),
-	).Exists(ctx, p.DB)
+	).Exists(ctx, p.sqlite.DB)
 	if err != nil {
 		return err
 	}
@@ -439,26 +437,39 @@ func (p *MetadataPersister) headerExistsExact(ctx context.Context, name string) 
 	return nil
 }
 
-func (p *MetadataPersister) withRelativeRoot(ctx context.Context, root string) string {
+func (p *MetadataPersister) getSanitizedPath(ctx context.Context, name string) string {
+	// If root is queried, return actual root
+	if pathext.IsRoot(name) {
+		return p.root
+	}
+
+	// If root has not been set, the incoming path is absolute and no header with the exact name "" (empty string) exists, assume it is root
+	if p.root == "" && strings.HasPrefix(name, "/") && !p.rootIsEmptyString {
+		if err := p.headerExistsExact(ctx, ""); err != nil {
+			p.root = name
+
+			return p.root
+		} else {
+			p.rootIsEmptyString = true
+		}
+	}
+
+	// Keep absolute paths untouched if root is also absolute
+	if strings.HasPrefix(p.root, "/") && strings.HasPrefix(name, "/") {
+		return name
+	}
+
+	// Get correct root prefix
 	prefix := ""
-	if err := p.headerExistsExact(ctx, ""); err == nil {
+	if p.root == "" {
 		prefix = ""
-	} else if err := p.headerExistsExact(ctx, "."); err == nil {
+	} else if p.root == "." {
 		prefix = "."
-	} else if err := p.headerExistsExact(ctx, "/"); err == nil {
+	} else if p.root == "/" {
 		prefix = "/"
 	} else {
-		prefix = "./" // Special case: There is no root directory, only files, and the files start with `./`
+		return "./" + filepath.Clean(strings.TrimPrefix(name, "/")) // Special case: There is no root directory, only files, and the files start with `./`
 	}
 
-	if pathext.IsRoot(root) {
-		return prefix
-	}
-
-	if prefix == "./" {
-		// Special case: There is no root directory, only files, and the files start with `./`; we can't do path.Join, as `./asdf.txt` would be shortened to `asdf.txt`
-		return prefix + filepath.Clean(strings.TrimPrefix(root, "/"))
-	}
-
-	return path.Join(prefix, filepath.Clean(strings.TrimPrefix(root, "/")))
+	return path.Join(prefix, strings.TrimPrefix(name, "/"))
 }

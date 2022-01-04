@@ -2,6 +2,7 @@ package fs
 
 import (
 	"archive/tar"
+	"context"
 	"database/sql"
 	"io"
 	"os"
@@ -69,6 +70,9 @@ func (f *STFS) Name() string {
 	f.log.Debug("FileSystem.Name", map[string]interface{}{
 		"name": config.FileSystemNameSTFS,
 	})
+
+	f.ioLock.Lock()
+	defer f.ioLock.Unlock()
 
 	return config.FileSystemNameSTFS
 }
@@ -170,7 +174,16 @@ func (f *STFS) MkdirRoot(name string, perm os.FileMode) error {
 	f.ioLock.Lock()
 	defer f.ioLock.Unlock()
 
-	return f.mknodeWithoutLocking(true, name, perm, true, "")
+	if err := f.mknodeWithoutLocking(true, name, perm, true, ""); err != nil {
+		return err
+	}
+
+	// Ensure that the new root path is being used
+	if _, err := f.metadata.Metadata.GetRootPath(context.Background()); err != nil {
+		return err
+	}
+
+	return nil
 }
 
 func (f *STFS) Mkdir(name string, perm os.FileMode) error {
