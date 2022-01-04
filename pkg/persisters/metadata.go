@@ -70,6 +70,35 @@ func (p *MetadataPersister) Open() error {
 	return nil
 }
 
+func (p *MetadataPersister) GetRootPath(ctx context.Context) (string, error) {
+	// Cache the root directory
+	if p.root != "" {
+		return p.root, nil
+	}
+
+	root := models.Header{}
+
+	if err := queries.Raw(
+		fmt.Sprintf(
+			`select min(length(%v) - length(replace(%v, "/", ""))) as depth, name from %v where %v != 1`,
+			models.HeaderColumns.Name,
+			models.HeaderColumns.Name,
+			models.TableNames.Headers,
+			models.HeaderColumns.Deleted,
+		),
+	).Bind(ctx, p.sqlite.DB, &root); err != nil {
+		if strings.Contains(err.Error(), "converting NULL to string is unsupported") {
+			return "", config.ErrNoRootDirectory
+		}
+
+		return "", err
+	}
+
+	p.root = root.Name
+
+	return root.Name, nil
+}
+
 func (p *MetadataPersister) UpsertHeader(ctx context.Context, dbhdr *config.Header) error {
 	idbhdr := converters.ConfigHeaderToDBHeader(dbhdr)
 
@@ -208,35 +237,6 @@ func (p *MetadataPersister) GetHeaderChildren(ctx context.Context, name string) 
 	return outhdrs, nil
 }
 
-func (p *MetadataPersister) GetRootPath(ctx context.Context) (string, error) {
-	// Cache the root directory
-	if p.root != "" {
-		return p.root, nil
-	}
-
-	root := models.Header{}
-
-	if err := queries.Raw(
-		fmt.Sprintf(
-			`select min(length(%v) - length(replace(%v, "/", ""))) as depth, name from %v where %v != 1`,
-			models.HeaderColumns.Name,
-			models.HeaderColumns.Name,
-			models.TableNames.Headers,
-			models.HeaderColumns.Deleted,
-		),
-	).Bind(ctx, p.sqlite.DB, &root); err != nil {
-		if strings.Contains(err.Error(), "converting NULL to string is unsupported") {
-			return "", config.ErrNoRootDirectory
-		}
-
-		return "", err
-	}
-
-	p.root = root.Name
-
-	return root.Name, nil
-}
-
 func (p *MetadataPersister) GetHeaderDirectChildren(ctx context.Context, name string, limit int) ([]*config.Header, error) {
 	name = p.getSanitizedPath(ctx, name)
 	prefix := strings.TrimSuffix(name, "/") + "/"
@@ -312,7 +312,7 @@ where %v like ?
 			models.HeaderColumns.Name,
 		)
 
-		if limit < 0 {
+		if limit > 0 {
 			if err := queries.Raw(
 				query+`limit ?`,
 				prefix,
@@ -328,21 +328,21 @@ where %v like ?
 
 				return nil, err
 			}
-		}
+		} else if limit < 0 {
+			if err := queries.Raw(
+				query,
+				prefix,
+				prefix,
+				prefix+"%",
+				rootDepth,
+				rootDepth+1,
+			).Bind(ctx, p.sqlite.DB, &headers); err != nil {
+				if err == sql.ErrNoRows {
+					return headers, nil
+				}
 
-		if err := queries.Raw(
-			query,
-			prefix,
-			prefix,
-			prefix+"%",
-			rootDepth,
-			rootDepth+1,
-		).Bind(ctx, p.sqlite.DB, &headers); err != nil {
-			if err == sql.ErrNoRows {
-				return headers, nil
+				return nil, err
 			}
-
-			return nil, err
 		}
 
 		return headers, nil
