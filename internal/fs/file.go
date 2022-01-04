@@ -349,6 +349,9 @@ func (f *File) Name() string {
 		"name": f.name,
 	})
 
+	f.ioLock.Lock()
+	defer f.ioLock.Unlock()
+
 	return f.name
 }
 
@@ -356,6 +359,9 @@ func (f *File) Stat() (os.FileInfo, error) {
 	f.log.Trace("File.Stat", map[string]interface{}{
 		"name": f.name,
 	})
+
+	f.ioLock.Lock()
+	defer f.ioLock.Unlock()
 
 	return f.info, nil
 }
@@ -365,6 +371,9 @@ func (f *File) Readdir(count int) ([]os.FileInfo, error) {
 		"name":  f.name,
 		"count": count,
 	})
+
+	f.ioLock.Lock()
+	defer f.ioLock.Unlock()
 
 	hdrs, err := inventory.List(
 		f.metadata,
