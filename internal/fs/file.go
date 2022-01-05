@@ -375,6 +375,9 @@ func (f *File) Readdir(count int) ([]os.FileInfo, error) {
 	f.ioLock.Lock()
 	defer f.ioLock.Unlock()
 
+	if !f.info.IsDir() {
+		return []os.FileInfo{}, config.ErrIsFile
+	}
 	hdrs, err := inventory.List(
 		f.metadata,
 
@@ -400,6 +403,10 @@ func (f *File) Readdirnames(n int) ([]string, error) {
 		"name": f.name,
 		"n":    n,
 	})
+
+	if !f.info.IsDir() {
+		return []string{}, config.ErrIsFile
+	}
 
 	dirs, err := f.Readdir(n)
 	if err != nil {
