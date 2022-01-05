@@ -131,6 +131,7 @@ var serveHTTPCmd = &cobra.Command{
 			"",    // We never write
 			nil,   // We never write
 			false, // We never write
+			true,  // We never write
 
 			func(hdr *config.Header) {
 				jsonLogger.Trace("Header transform", hdr)
