@@ -144,6 +144,7 @@ func main() {
 			)
 		},
 		false,
+		false,
 
 		func(hdr *config.Header) {
 			l.Trace("Header transform", hdr)

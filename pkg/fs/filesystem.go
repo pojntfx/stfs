@@ -30,6 +30,7 @@ type STFS struct {
 
 	compressionLevel           string
 	getFileBuffer              func() (cache.WriteCache, func() error, error)
+	readOnly                   bool
 	ignoreReadWritePermissions bool
 
 	ioLock sync.Mutex
@@ -47,6 +48,7 @@ func NewSTFS(
 	compressionLevel string,
 	getFileBuffer func() (cache.WriteCache, func() error, error),
 	ignorePermissionFlags bool,
+	readOnly bool,
 
 	onHeader func(hdr *config.Header),
 	log logging.StructuredLogger,
@@ -60,6 +62,7 @@ func NewSTFS(
 		compressionLevel:           compressionLevel,
 		getFileBuffer:              getFileBuffer,
 		ignoreReadWritePermissions: ignorePermissionFlags,
+		readOnly:                   readOnly,
 
 		onHeader: onHeader,
 		log:      log,
@@ -82,6 +85,10 @@ func (f *STFS) Create(name string) (afero.File, error) {
 		"name": name,
 	})
 
+	if f.readOnly {
+		return nil, os.ErrPermission
+	}
+
 	return f.OpenFile(name, os.O_CREATE|os.O_RDWR, 0666)
 }
 
@@ -90,6 +97,10 @@ func (f *STFS) mknodeWithoutLocking(dir bool, name string, perm os.FileMode, ove
 		"name": name,
 		"perm": perm,
 	})
+
+	if f.readOnly {
+		return os.ErrPermission
+	}
 
 	usr, err := user.Current()
 	if err != nil {
@@ -171,6 +182,10 @@ func (f *STFS) MkdirRoot(name string, perm os.FileMode) error {
 		"perm": perm,
 	})
 
+	if f.readOnly {
+		return os.ErrPermission
+	}
+
 	f.ioLock.Lock()
 	defer f.ioLock.Unlock()
 
@@ -192,6 +207,10 @@ func (f *STFS) Mkdir(name string, perm os.FileMode) error {
 		"perm": perm,
 	})
 
+	if f.readOnly {
+		return os.ErrPermission
+	}
+
 	f.ioLock.Lock()
 	defer f.ioLock.Unlock()
 
@@ -203,6 +222,10 @@ func (f *STFS) MkdirAll(path string, perm os.FileMode) error {
 		"path": path,
 		"perm": perm,
 	})
+
+	if f.readOnly {
+		return os.ErrPermission
+	}
 
 	f.ioLock.Lock()
 	defer f.ioLock.Unlock()
@@ -244,30 +267,36 @@ func (f *STFS) OpenFile(name string, flag int, perm os.FileMode) (afero.File, er
 	defer f.ioLock.Unlock()
 
 	flags := &ifs.FileFlags{}
-	if flag&os.O_RDONLY != 0 {
-		flags.Read = true
-	}
+	if f.readOnly {
+		if flag&os.O_RDONLY != 0 || flag&os.O_RDWR != 0 || f.ignoreReadWritePermissions {
+			flags.Read = true
+		}
+	} else {
+		if flag&os.O_RDONLY != 0 {
+			flags.Read = true
+		}
 
-	if flag&os.O_WRONLY != 0 {
-		flags.Write = true
-	}
+		if flag&os.O_WRONLY != 0 {
+			flags.Write = true
+		}
 
-	if flag&os.O_RDWR != 0 {
-		flags.Read = true
-		flags.Write = true
-	}
+		if flag&os.O_RDWR != 0 {
+			flags.Read = true
+			flags.Write = true
+		}
 
-	if f.ignoreReadWritePermissions {
-		flags.Read = true
-		flags.Write = true
-	}
+		if f.ignoreReadWritePermissions {
+			flags.Read = true
+			flags.Write = true
+		}
 
-	if flag&os.O_APPEND != 0 {
-		flags.Append = true
-	}
+		if flag&os.O_APPEND != 0 {
+			flags.Append = true
+		}
 
-	if flag&os.O_TRUNC != 0 {
-		flags.Truncate = true
+		if flag&os.O_TRUNC != 0 {
+			flags.Truncate = true
+		}
 	}
 
 	hdr, err := inventory.Stat(
@@ -280,7 +309,7 @@ func (f *STFS) OpenFile(name string, flag int, perm os.FileMode) (afero.File, er
 	)
 	if err != nil {
 		if err == sql.ErrNoRows {
-			if flag&os.O_CREATE != 0 && flag&os.O_EXCL == 0 {
+			if !f.readOnly && flag&os.O_CREATE != 0 && flag&os.O_EXCL == 0 {
 				if err := f.mknodeWithoutLocking(false, name, perm, false, ""); err != nil {
 					return nil, err
 				}
@@ -299,7 +328,6 @@ func (f *STFS) OpenFile(name string, flag int, perm os.FileMode) (afero.File, er
 			} else {
 				return nil, os.ErrNotExist
 			}
-
 		} else {
 			return nil, err
 		}
@@ -332,6 +360,10 @@ func (f *STFS) Remove(name string) error {
 		"name": name,
 	})
 
+	if f.readOnly {
+		return os.ErrPermission
+	}
+
 	f.ioLock.Lock()
 	defer f.ioLock.Unlock()
 
@@ -342,6 +374,10 @@ func (f *STFS) RemoveAll(path string) error {
 	f.log.Debug("FileSystem.RemoveAll", map[string]interface{}{
 		"path": path,
 	})
+
+	if f.readOnly {
+		return os.ErrPermission
+	}
 
 	f.ioLock.Lock()
 	defer f.ioLock.Unlock()
@@ -354,6 +390,10 @@ func (f *STFS) Rename(oldname, newname string) error {
 		"oldname": oldname,
 		"newname": newname,
 	})
+
+	if f.readOnly {
+		return os.ErrPermission
+	}
 
 	f.ioLock.Lock()
 	defer f.ioLock.Unlock()
@@ -389,6 +429,10 @@ func (f *STFS) Stat(name string) (os.FileInfo, error) {
 }
 
 func (f *STFS) updateMetadata(hdr *tar.Header) error {
+	if f.readOnly {
+		return os.ErrPermission
+	}
+
 	done := false
 	if _, err := f.writeOps.Update(
 		func() (config.FileConfig, error) {
@@ -419,6 +463,10 @@ func (f *STFS) Chmod(name string, mode os.FileMode) error {
 	f.log.Debug("FileSystem.Chmod", map[string]interface{}{
 		"name": mode,
 	})
+
+	if f.readOnly {
+		return os.ErrPermission
+	}
 
 	f.ioLock.Lock()
 	defer f.ioLock.Unlock()
@@ -451,6 +499,10 @@ func (f *STFS) Chown(name string, uid, gid int) error {
 		"gid":  gid,
 	})
 
+	if f.readOnly {
+		return os.ErrPermission
+	}
+
 	f.ioLock.Lock()
 	defer f.ioLock.Unlock()
 
@@ -482,6 +534,10 @@ func (f *STFS) Chtimes(name string, atime time.Time, mtime time.Time) error {
 		"atime": atime,
 		"mtime": mtime,
 	})
+
+	if f.readOnly {
+		return os.ErrPermission
+	}
 
 	f.ioLock.Lock()
 	defer f.ioLock.Unlock()
@@ -548,6 +604,10 @@ func (f *STFS) SymlinkIfPossible(oldname, newname string) error {
 		"oldname": oldname,
 		"newname": newname,
 	})
+
+	if f.readOnly {
+		return os.ErrPermission
+	}
 
 	f.ioLock.Lock()
 	defer f.ioLock.Unlock()

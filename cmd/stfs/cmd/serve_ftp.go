@@ -37,6 +37,7 @@ const (
 	signatureRecipientFlag = "signature-recipient"
 
 	cacheWriteFlag = "cache-write-type"
+	readOnlyFlag   = "read-only"
 )
 
 var (
@@ -197,6 +198,7 @@ var serveFTPCmd = &cobra.Command{
 				)
 			},
 			true, // FTP needs read permission for `STOR` command even if O_WRONLY is set
+			viper.GetBool(readOnlyFlag),
 
 			func(hdr *config.Header) {
 				jsonLogger.Trace("Header transform", hdr)
@@ -313,6 +315,7 @@ func init() {
 	serveFTPCmd.PersistentFlags().StringP(cacheWriteFlag, "q", config.WriteCacheTypeFile, fmt.Sprintf("Write cache to use (default %v, available are %v)", config.WriteCacheTypeFile, config.KnownWriteCacheTypes))
 	serveFTPCmd.PersistentFlags().DurationP(cacheDurationFlag, "u", time.Hour, "Duration until cache is invalidated")
 	serveFTPCmd.PersistentFlags().StringP(cacheDirFlag, "w", cacheDir, "Directory to use if dir cache is enabled")
+	serveFTPCmd.PersistentFlags().BoolP(readOnlyFlag, "j", false, "Block all write operations")
 
 	viper.AutomaticEnv()
 
