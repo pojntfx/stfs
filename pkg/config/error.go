@@ -35,6 +35,7 @@ var (
 
 	ErrNotImplemented = errors.New("not implemented")
 	ErrIsDirectory    = errors.New("is a directory")
+	ErrIsFile         = errors.New("is a file")
 
 	ErrFileSystemCacheTypeUnsupported = errors.New("file system cache type unsupported")
 	ErrFileSystemCacheTypeUnknown     = errors.New("file system cache type unknown")
