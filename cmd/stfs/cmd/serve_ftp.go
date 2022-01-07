@@ -1,8 +1,6 @@
 package cmd
 
 import (
-	"archive/tar"
-	"context"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -15,13 +13,10 @@ import (
 	"github.com/pojntfx/stfs/internal/logging"
 	"github.com/pojntfx/stfs/pkg/cache"
 	"github.com/pojntfx/stfs/pkg/config"
-	"github.com/pojntfx/stfs/pkg/encryption"
 	sfs "github.com/pojntfx/stfs/pkg/fs"
 	"github.com/pojntfx/stfs/pkg/keys"
 	"github.com/pojntfx/stfs/pkg/operations"
 	"github.com/pojntfx/stfs/pkg/persisters"
-	"github.com/pojntfx/stfs/pkg/recovery"
-	"github.com/pojntfx/stfs/pkg/signature"
 	"github.com/pojntfx/stfs/pkg/tape"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
@@ -206,66 +201,9 @@ var serveFTPCmd = &cobra.Command{
 			jsonLogger,
 		)
 
-		root, err := metadataPersister.GetRootPath(context.Background())
+		root, err := stfs.Initialize("/", os.ModePerm)
 		if err != nil {
-			if err == config.ErrNoRootDirectory {
-				root = "/"
-
-				drive, err := tm.GetDrive()
-				if err == nil {
-					err = recovery.Index(
-						config.DriveReaderConfig{
-							Drive:          drive.Drive,
-							DriveIsRegular: drive.DriveIsRegular,
-						},
-						config.DriveConfig{
-							Drive:          drive.Drive,
-							DriveIsRegular: drive.DriveIsRegular,
-						},
-						metadataConfig,
-						pipeConfig,
-						readCryptoConfig,
-
-						viper.GetInt(recordSizeFlag),
-						0,
-						0,
-						true,
-						0,
-
-						func(hdr *tar.Header, i int) error {
-							return encryption.DecryptHeader(hdr, viper.GetString(encryptionFlag), encryptionIdentity)
-						},
-						func(hdr *tar.Header, isRegular bool) error {
-							return signature.VerifyHeader(hdr, isRegular, viper.GetString(signatureFlag), signatureRecipient)
-						},
-
-						func(hdr *config.Header) {
-							jsonLogger.Debug("Header read", hdr)
-						},
-					)
-					if err != nil {
-						if err := tm.Close(); err != nil {
-							return err
-						}
-
-						if err := stfs.MkdirRoot(root, os.ModePerm); err != nil {
-							return err
-						}
-					}
-				} else if os.IsNotExist(err) {
-					if err := tm.Close(); err != nil {
-						return err
-					}
-
-					if err := stfs.MkdirRoot(root, os.ModePerm); err != nil {
-						return err
-					}
-				} else {
-					return err
-				}
-			} else {
-				return err
-			}
+			return err
 		}
 
 		fs, err := cache.NewCacheFilesystem(

@@ -16,9 +16,12 @@ import (
 	ifs "github.com/pojntfx/stfs/internal/fs"
 	"github.com/pojntfx/stfs/pkg/cache"
 	"github.com/pojntfx/stfs/pkg/config"
+	"github.com/pojntfx/stfs/pkg/encryption"
 	"github.com/pojntfx/stfs/pkg/inventory"
 	"github.com/pojntfx/stfs/pkg/logging"
 	"github.com/pojntfx/stfs/pkg/operations"
+	"github.com/pojntfx/stfs/pkg/recovery"
+	"github.com/pojntfx/stfs/pkg/signature"
 	"github.com/spf13/afero"
 )
 
@@ -30,8 +33,8 @@ type STFS struct {
 
 	compressionLevel           string
 	getFileBuffer              func() (cache.WriteCache, func() error, error)
-	readOnly                   bool
 	ignoreReadWritePermissions bool
+	readOnly                   bool
 
 	ioLock sync.Mutex
 
@@ -176,29 +179,75 @@ func (f *STFS) mknodeWithoutLocking(dir bool, name string, perm os.FileMode, ove
 	return nil
 }
 
-func (f *STFS) MkdirRoot(name string, perm os.FileMode) error {
-	f.log.Debug("FileSystem.MkdirRoot", map[string]interface{}{
-		"name": name,
-		"perm": perm,
+func (f *STFS) Initialize(rootProposal string, rootPerm os.FileMode) (root string, err error) {
+	f.log.Debug("FileSystem.InitializeIfEmpty", map[string]interface{}{
+		"rootProposal": rootProposal,
+		"rootPerm":     rootPerm,
 	})
-
-	if f.readOnly {
-		return os.ErrPermission
-	}
 
 	f.ioLock.Lock()
 	defer f.ioLock.Unlock()
 
-	if err := f.mknodeWithoutLocking(true, name, perm, true, ""); err != nil {
-		return err
+	existingRoot, err := f.metadata.Metadata.GetRootPath(context.Background())
+	if err == config.ErrNoRootDirectory {
+		drive, err := f.readOps.GetBackend().GetDrive()
+
+		mkdirRoot := func() (string, error) {
+			if err := f.readOps.GetBackend().CloseDrive(); err != nil {
+				return "", err
+			}
+
+			if f.readOnly {
+				return "", os.ErrPermission
+			}
+
+			if err := f.mknodeWithoutLocking(true, rootProposal, rootPerm, true, ""); err != nil {
+				return "", err
+			}
+
+			// Ensure that the new root path is being used
+			return f.metadata.Metadata.GetRootPath(context.Background())
+		}
+
+		if err != nil {
+			return mkdirRoot()
+		}
+
+		if err := recovery.Index(
+			config.DriveReaderConfig{
+				Drive:          drive.Drive,
+				DriveIsRegular: drive.DriveIsRegular,
+			},
+			drive,
+			f.readOps.GetMetadata(),
+			f.readOps.GetPipes(),
+			f.readOps.GetCrypto(),
+
+			f.readOps.GetPipes().RecordSize,
+			0,
+			0,
+			true,
+			0,
+
+			func(hdr *tar.Header, i int) error {
+				return encryption.DecryptHeader(hdr, f.readOps.GetPipes().Encryption, f.readOps.GetCrypto().Identity)
+			},
+			func(hdr *tar.Header, isRegular bool) error {
+				return signature.VerifyHeader(hdr, isRegular, f.readOps.GetPipes().Signature, f.readOps.GetCrypto().Recipient)
+			},
+
+			f.onHeader,
+		); err != nil {
+			return mkdirRoot()
+		}
+
+		// Ensure that the new root path is being used
+		return f.metadata.Metadata.GetRootPath(context.Background())
+	} else if err != nil {
+		return "", err
 	}
 
-	// Ensure that the new root path is being used
-	if _, err := f.metadata.Metadata.GetRootPath(context.Background()); err != nil {
-		return err
-	}
-
-	return nil
+	return existingRoot, nil
 }
 
 func (f *STFS) Mkdir(name string, perm os.FileMode) error {

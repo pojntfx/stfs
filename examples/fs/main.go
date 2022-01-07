@@ -1,8 +1,6 @@
 package main
 
 import (
-	"archive/tar"
-	"context"
 	"encoding/json"
 	"flag"
 	"log"
@@ -11,12 +9,9 @@ import (
 
 	"github.com/pojntfx/stfs/pkg/cache"
 	"github.com/pojntfx/stfs/pkg/config"
-	"github.com/pojntfx/stfs/pkg/encryption"
 	sfs "github.com/pojntfx/stfs/pkg/fs"
 	"github.com/pojntfx/stfs/pkg/operations"
 	"github.com/pojntfx/stfs/pkg/persisters"
-	"github.com/pojntfx/stfs/pkg/recovery"
-	"github.com/pojntfx/stfs/pkg/signature"
 	"github.com/pojntfx/stfs/pkg/tape"
 
 	golog "github.com/fclairamb/go-log"
@@ -152,66 +147,9 @@ func main() {
 		l,
 	)
 
-	root, err := metadataPersister.GetRootPath(context.Background())
+	root, err := stfs.Initialize("/", os.ModePerm)
 	if err != nil {
-		if err == config.ErrNoRootDirectory {
-			root = "/"
-
-			drive, err := tm.GetDrive()
-			if err == nil {
-				err = recovery.Index(
-					config.DriveReaderConfig{
-						Drive:          drive.Drive,
-						DriveIsRegular: drive.DriveIsRegular,
-					},
-					config.DriveConfig{
-						Drive:          drive.Drive,
-						DriveIsRegular: drive.DriveIsRegular,
-					},
-					metadataConfig,
-					pipeConfig,
-					readCryptoConfig,
-
-					*recordSizeFlag,
-					0,
-					0,
-					true,
-					0,
-
-					func(hdr *tar.Header, i int) error {
-						return encryption.DecryptHeader(hdr, config.NoneKey, nil)
-					},
-					func(hdr *tar.Header, isRegular bool) error {
-						return signature.VerifyHeader(hdr, isRegular, config.NoneKey, nil)
-					},
-
-					func(hdr *config.Header) {
-						l.Debug("Header read", hdr)
-					},
-				)
-				if err != nil {
-					if err := tm.Close(); err != nil {
-						panic(err)
-					}
-
-					if err := stfs.MkdirRoot(root, os.ModePerm); err != nil {
-						panic(err)
-					}
-				}
-			} else if os.IsNotExist(err) {
-				if err := tm.Close(); err != nil {
-					panic(err)
-				}
-
-				if err := stfs.MkdirRoot(root, os.ModePerm); err != nil {
-					panic(err)
-				}
-			} else {
-				panic(err)
-			}
-		} else {
-			panic(err)
-		}
+		panic(err)
 	}
 
 	fs, err := cache.NewCacheFilesystem(
