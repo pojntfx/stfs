@@ -3,8 +3,6 @@
 package mtio
 
 import (
-	"os"
-
 	"github.com/pojntfx/stfs/pkg/config"
 )
 
