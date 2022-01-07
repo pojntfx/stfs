@@ -4,7 +4,6 @@ import (
 	"context"
 	"io"
 	"io/fs"
-	"os"
 	"time"
 )
 
@@ -18,8 +17,13 @@ type DriveWriterConfig struct {
 	DriveIsRegular bool
 }
 
+type Drive interface {
+	io.ReadSeeker
+	Fd() uintptr
+}
+
 type DriveConfig struct {
-	Drive          *os.File
+	Drive          Drive
 	DriveIsRegular bool
 }
 

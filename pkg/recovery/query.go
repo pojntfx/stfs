@@ -132,7 +132,7 @@ func Query(
 		}
 	} else {
 		// Seek to record
-		if err := mtio.SeekToRecordOnTape(state.Drive, int32(record)); err != nil {
+		if err := mtio.SeekToRecordOnTape(state.Drive.Fd(), int32(record)); err != nil {
 			return []*tar.Header{}, err
 		}
 
@@ -153,13 +153,13 @@ func Query(
 			hdr, err := tr.Next()
 			if err != nil {
 				if err == io.EOF {
-					if err := mtio.GoToNextFileOnTape(state.Drive); err != nil {
+					if err := mtio.GoToNextFileOnTape(state.Drive.Fd()); err != nil {
 						// EOD
 
 						break
 					}
 
-					record, err = mtio.GetCurrentRecordFromTape(state.Drive)
+					record, err = mtio.GetCurrentRecordFromTape(state.Drive.Fd())
 					if err != nil {
 						return []*tar.Header{}, err
 					}

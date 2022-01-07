@@ -8,5 +8,5 @@ import (
 func Tell(
 	state config.DriveConfig,
 ) (int64, error) {
-	return mtio.GetCurrentRecordFromTape(state.Drive)
+	return mtio.GetCurrentRecordFromTape(state.Drive.Fd())
 }

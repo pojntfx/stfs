@@ -3,7 +3,6 @@
 package mtio
 
 import (
-	"os"
 	"syscall"
 	"unsafe"
 )
@@ -31,11 +30,11 @@ type operation struct {
 	count int32 // Operation count
 }
 
-func GetCurrentRecordFromTape(f *os.File) (int64, error) {
+func GetCurrentRecordFromTape(fd uintptr) (int64, error) {
 	pos := &position{}
 	if _, _, err := syscall.Syscall(
 		syscall.SYS_IOCTL,
-		f.Fd(),
+		fd,
 		mtioCpos,
 		uintptr(unsafe.Pointer(pos)),
 	); err != 0 {
@@ -45,10 +44,10 @@ func GetCurrentRecordFromTape(f *os.File) (int64, error) {
 	return pos.blkNo, nil
 }
 
-func GoToEndOfTape(f *os.File) error {
+func GoToEndOfTape(fd uintptr) error {
 	if _, _, err := syscall.Syscall(
 		syscall.SYS_IOCTL,
-		f.Fd(),
+		fd,
 		mtioCtop,
 		uintptr(unsafe.Pointer(
 			&operation{
@@ -62,10 +61,10 @@ func GoToEndOfTape(f *os.File) error {
 	return nil
 }
 
-func GoToNextFileOnTape(f *os.File) error {
+func GoToNextFileOnTape(fd uintptr) error {
 	if _, _, err := syscall.Syscall(
 		syscall.SYS_IOCTL,
-		f.Fd(),
+		fd,
 		mtioCtop,
 		uintptr(unsafe.Pointer(
 			&operation{
@@ -80,10 +79,10 @@ func GoToNextFileOnTape(f *os.File) error {
 	return nil
 }
 
-func EjectTape(f *os.File) error {
+func EjectTape(fd uintptr) error {
 	if _, _, err := syscall.Syscall(
 		syscall.SYS_IOCTL,
-		f.Fd(),
+		fd,
 		mtioCtop,
 		uintptr(unsafe.Pointer(
 			&operation{
@@ -97,10 +96,10 @@ func EjectTape(f *os.File) error {
 	return nil
 }
 
-func SeekToRecordOnTape(f *os.File, record int32) error {
+func SeekToRecordOnTape(fd uintptr, record int32) error {
 	if _, _, err := syscall.Syscall(
 		syscall.SYS_IOCTL,
-		f.Fd(),
+		fd,
 		mtioCtop,
 		uintptr(unsafe.Pointer(
 			&operation{

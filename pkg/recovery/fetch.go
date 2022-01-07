@@ -46,7 +46,7 @@ func Fetch(
 		tr = tar.NewReader(reader.Drive)
 	} else {
 		// Seek to record
-		if err := mtio.SeekToRecordOnTape(drive.Drive, int32(record)); err != nil {
+		if err := mtio.SeekToRecordOnTape(drive.Drive.Fd(), int32(record)); err != nil {
 			return err
 		}
 

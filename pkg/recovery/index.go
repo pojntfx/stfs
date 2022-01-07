@@ -150,7 +150,7 @@ func Index(
 		}
 	} else {
 		// Seek to record
-		if err := mtio.SeekToRecordOnTape(drive.Drive, int32(record)); err != nil {
+		if err := mtio.SeekToRecordOnTape(drive.Drive.Fd(), int32(record)); err != nil {
 			return err
 		}
 
@@ -172,13 +172,13 @@ func Index(
 			hdr, err := tr.Next()
 			if err != nil {
 				if err == io.EOF {
-					if err := mtio.GoToNextFileOnTape(drive.Drive); err != nil {
+					if err := mtio.GoToNextFileOnTape(drive.Drive.Fd()); err != nil {
 						// EOD
 
 						break
 					}
 
-					record, err = mtio.GetCurrentRecordFromTape(drive.Drive)
+					record, err = mtio.GetCurrentRecordFromTape(drive.Drive.Fd())
 					if err != nil {
 						return err
 					}

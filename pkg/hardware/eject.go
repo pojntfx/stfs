@@ -8,5 +8,5 @@ import (
 func Eject(
 	state config.DriveConfig,
 ) error {
-	return mtio.EjectTape(state.Drive)
+	return mtio.EjectTape(state.Drive.Fd())
 }
