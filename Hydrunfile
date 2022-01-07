@@ -4,7 +4,7 @@ set -e
 
 # Install native dependencies
 apt update
-apt install -y curl
+apt install -y curl make
 
 # Go
 if [ "$1" = "go" ]; then
