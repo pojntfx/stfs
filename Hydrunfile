@@ -29,9 +29,6 @@ if [ "$1" = "gccgo" ]; then
     curl -L -o /tmp/bagccgop "https://github.com/pojntfx/bagccgop/releases/latest/download/bagccgop.linux-$(uname -m)"
     install /tmp/bagccgop /usr/local/bin
 
-    # Generate dependencies
-    make depend
-
     # Build
     GOFLAGS='-gccgoflags=-static' bagccgop -x '(linux/alpha|linux/mipsle|linux/arm$|linux/arm64|linux/386|linux/amd64|linux/s390x)' -j1 -b stfs -n -r 'make depend' -s 'build-essential,automake' -m 'libsqlite3-dev' -p 'chmod +w /root/go/pkg/mod/google.golang.org/grpc@*/internal/channelz/types_linux.go && sed -i "s/SO_SNDTIMEO/SO_RCVTIMEO/" /root/go/pkg/mod/google.golang.org/grpc@*/internal/channelz/types_linux.go && make build/stfs DST=$DST' -d out
 
