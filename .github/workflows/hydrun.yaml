@@ -14,22 +14,10 @@ jobs:
         target:
           - id: stfs
             src: .
-            os: ghcr.io/pojntfx/bagccgop-base-sid
-            flags: -e '--privileged'
+            os: golang:bullseye
+            flags:
             cmd: ./Hydrunfile
             dst: out/*
-          - id: stfs-windows-x86_64
-            src: .
-            os: fedora:rawhide
-            flags: -e '--privileged'
-            cmd: ./Hydrunfile windows x86_64
-            dst: out/*
-          # - id: stfs-windows-i686
-          #   src: .
-          #   os: fedora:rawhide
-          #   flags: -e '--privileged'
-          #   cmd: ./Hydrunfile windows i686
-          #   dst: out/*
 
     steps:
       - name: Maximize build space

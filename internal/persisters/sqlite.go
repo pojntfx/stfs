@@ -5,8 +5,8 @@ import (
 	"os"
 	"path/filepath"
 
-	_ "github.com/mattn/go-sqlite3"
 	migrate "github.com/rubenv/sql-migrate"
+	_ "modernc.org/sqlite"
 )
 
 type SQLite struct {
@@ -24,7 +24,7 @@ func (s *SQLite) Open() error {
 	}
 
 	// Open the DB
-	db, err := sql.Open("sqlite3", s.DBPath)
+	db, err := sql.Open("sqlite", s.DBPath)
 	if err != nil {
 		return err
 	}
