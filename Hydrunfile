@@ -4,7 +4,7 @@ set -e
 
 # Install native dependencies
 apt update
-apt install -y curl git
+apt install -y curl
 
 # Install bagop
 curl -L -o /tmp/bagop "https://github.com/pojntfx/bagop/releases/latest/download/bagop.linux-$(uname -m)"
