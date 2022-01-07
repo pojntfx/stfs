@@ -40,7 +40,7 @@ func OpenTapeWriteOnly(drive string, recordSize int, overwrite bool) (f *os.File
 			}
 
 			// Seek to the start of the tape
-			if err := mtio.SeekToRecordOnTape(f, 0); err != nil {
+			if err := mtio.SeekToRecordOnTape(f.Fd(), 0); err != nil {
 				return nil, false, err
 			}
 
@@ -65,7 +65,7 @@ func OpenTapeWriteOnly(drive string, recordSize int, overwrite bool) (f *os.File
 
 		if !overwrite {
 			// Go to end of tape
-			if err := mtio.GoToEndOfTape(f); err != nil {
+			if err := mtio.GoToEndOfTape(f.Fd()); err != nil {
 				return nil, false, err
 			}
 		}
