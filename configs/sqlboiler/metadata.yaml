@@ -1,2 +1,3 @@
+no-tests: true
 sqlite3:
   dbname: /tmp/stfs-metadata.sqlite
