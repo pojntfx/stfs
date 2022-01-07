@@ -37,3 +37,19 @@ func NewOperations(
 		onHeader: onHeader,
 	}
 }
+
+func (o *Operations) GetBackend() config.BackendConfig {
+	return o.backend
+}
+
+func (o *Operations) GetMetadata() config.MetadataConfig {
+	return o.metadata
+}
+
+func (o *Operations) GetPipes() config.PipeConfig {
+	return o.pipes
+}
+
+func (o *Operations) GetCrypto() config.CryptoConfig {
+	return o.crypto
+}
