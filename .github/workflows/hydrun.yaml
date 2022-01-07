@@ -12,11 +12,17 @@ jobs:
     strategy:
       matrix:
         target:
-          - id: stfs
+          - id: go
             src: .
             os: golang:bullseye
-            flags:
-            cmd: ./Hydrunfile
+            flags: ""
+            cmd: ./Hydrunfile go
+            dst: out/*
+          - id: gccgo
+            src: .
+            os: ghcr.io/pojntfx/bagccgop-base-sid
+            flags: -e '--privileged'
+            cmd: ./Hydrunfile gccgo
             dst: out/*
 
     steps:
