@@ -1,4 +1,4 @@
-//go:build (darwin && amd64) || (darwin && arm64) || (freebsd && amd64) || (linux && arm) || (linux && arm64) || (linux && 386) || (linux && amd64) || (linux && s390x) || (windows && amd64)
+//go:build !((darwin && amd64) || (darwin && arm64) || (freebsd && amd64) || (linux && arm) || (linux && arm64) || (linux && 386) || (linux && amd64) || (linux && s390x) || (windows && amd64))
 
 package persisters
 
@@ -7,8 +7,8 @@ import (
 	"os"
 	"path/filepath"
 
+	_ "github.com/mattn/go-sqlite3"
 	migrate "github.com/rubenv/sql-migrate"
-	_ "modernc.org/sqlite"
 )
 
 type SQLite struct {
@@ -26,7 +26,7 @@ func (s *SQLite) Open() error {
 	}
 
 	// Open the DB
-	db, err := sql.Open("sqlite", s.DBPath)
+	db, err := sql.Open("sqlite3", s.DBPath)
 	if err != nil {
 		return err
 	}
