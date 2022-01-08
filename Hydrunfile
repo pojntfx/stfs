@@ -16,7 +16,7 @@ if [ "$1" = "go" ]; then
     make depend
 
     # Build
-    CGO_ENABLED=0 bagop -j "$(nproc)" -b stfs -x '(android/*|ios/*|aix/*|plan9/*|illumos/*|dragonfly/*|netbsd/*|openbsd/*|solaris/*|freebsd/(386|arm)|js/wasm|linux/(mips|ppc64|riscv64)|windows/arm)' -p 'make build/stfs DST=$DST' -d out
+    CGO_ENABLED=0 bagop -j "$(nproc)" -b stfs -x '(android/*|ios/*|aix/*|plan9/*|illumos/*|dragonfly/*|netbsd/*|openbsd/*|solaris/*|freebsd/(386|arm)|js/wasm|linux/(mips|ppc64|riscv64)|windows/(arm|386))' -p 'make build/stfs DST=$DST' -d out
 
     exit 0
 
@@ -31,6 +31,48 @@ if [ "$1" = "gccgo" ]; then
 
     # Build
     GOFLAGS='-gccgoflags=-static' bagccgop -x '(linux/alpha|linux/mipsle|linux/arm$|linux/arm64|linux/386|linux/amd64|linux/s390x)' -j1 -b stfs -n -r 'make depend' -s 'build-essential,automake' -m 'libsqlite3-dev' -p 'make build/stfs DST=$DST' -d out
+
+    exit 0
+fi
+
+# Windows
+if [ "$1" = "windows" ]; then
+    # Install native dependencies
+    dnf update -y
+    dnf install -y curl wine
+
+    # Install MSYS2
+    curl -L -o /tmp/msys2.exe 'https://github.com/msys2/msys2-installer/releases/download/2021-11-30/msys2-base-x86_64-20211130.sfx.exe'
+    wine64 /tmp/msys2.exe x -y -oC:/
+
+    # Fix MSYS2
+    sed -i ~/.wine/drive_c/msys64/etc/pacman.conf -e 's/SigLevel    = Required/SigLevel = Never/g'
+    cat /etc/pki/tls/certs/ca-bundle.crt >~/.wine/drive_c/msys64/usr/ssl/certs/ca-bundle.crt
+    cat /etc/pki/tls/certs/ca-bundle.trust.crt >~/.wine/drive_c/msys64/usr/ssl/certs/ca-bundle.trust.crt
+    export WINEPATH='c:\msys64\usr\bin'
+
+    # Copy source code to directory on C drive
+    mkdir -p ~/.wine/drive_c/users/root/Documents/stfs
+    cp -rf . ~/.wine/drive_c/users/root/Documents/stfs
+    mkdir -p ~/.wine/drive_c/users/root/go
+
+    if [ "$2" = "386" ]; then
+        # Install GCC and Go
+        wine64 bash.exe -c 'pacman --verbose --debug --noconfirm --ignore pacman --needed -S base-devel mingw-w64-i686-gcc mingw-w64-i686-go'
+
+        # Build
+        wine64 bash.exe -c 'export PATH="$PATH:/mingw32/bin" && cd /c/users/root/Documents/stfs && export GOPATH="/c/users/root/go" && export GOROOT="/mingw32/lib/go" && export GOARCH=386 && go build -o out/stfs.windows-i686.exe ./cmd/stfs'
+    else
+        # Install GCC and Go
+        wine64 bash.exe -c 'pacman --verbose --debug --noconfirm --ignore pacman --needed -S base-devel mingw-w64-x86_64-gcc mingw-w64-x86_64-go'
+
+        # Build
+        wine64 bash.exe -c 'export PATH="$PATH:/mingw64/bin" && cd /c/users/root/Documents/stfs && export GOPATH="/c/users/root/go" && export GOROOT="/mingw64/lib/go" export GOARCH=amd64 && go build -o out/stfs.windows-x86_64.exe ./cmd/stfs'
+    fi
+
+    # Copy binaries to staging directory
+    mkdir -p out
+    yes | cp -f ~/.wine/drive_c/users/root/Documents/stfs/out/* out
 
     exit 0
 fi
