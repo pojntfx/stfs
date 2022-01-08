@@ -17,9 +17,9 @@ const (
 	SignatureFormatMinisignKey = "minisign"
 	SignatureFormatPGPKey      = "pgp"
 
-	CompressionLevelFastest  = "fastest"
-	CompressionLevelBalanced = "balanced"
-	CompressionLevelSmallest = "smallest"
+	CompressionLevelFastestKey  = "fastest"
+	CompressionLevelBalancedKey = "balanced"
+	CompressionLevelSmallestKey = "smallest"
 
 	HeaderEventTypeArchive = "archive"
 	HeaderEventTypeDelete  = "delete"
@@ -37,7 +37,7 @@ const (
 )
 
 var (
-	KnownCompressionLevels = []string{CompressionLevelFastest, CompressionLevelBalanced, CompressionLevelSmallest}
+	KnownCompressionLevels = []string{CompressionLevelFastestKey, CompressionLevelBalancedKey, CompressionLevelSmallestKey}
 
 	KnownCompressionFormats = []string{NoneKey, CompressionFormatGZipKey, CompressionFormatParallelGZipKey, CompressionFormatLZ4Key, CompressionFormatZStandardKey, CompressionFormatBrotliKey, CompressionFormatBzip2Key, CompressionFormatBzip2ParallelKey}
 

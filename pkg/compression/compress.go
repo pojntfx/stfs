@@ -37,11 +37,11 @@ func Compress(
 
 			l := gzip.DefaultCompression
 			switch compressionLevel {
-			case config.CompressionLevelFastest:
+			case config.CompressionLevelFastestKey:
 				l = gzip.BestSpeed
-			case config.CompressionLevelBalanced:
+			case config.CompressionLevelBalancedKey:
 				l = gzip.DefaultCompression
-			case config.CompressionLevelSmallest:
+			case config.CompressionLevelSmallestKey:
 				l = gzip.BestCompression
 			default:
 				return nil, config.ErrCompressionLevelUnsupported
@@ -56,11 +56,11 @@ func Compress(
 
 		l := pgzip.DefaultCompression
 		switch compressionLevel {
-		case config.CompressionLevelFastest:
+		case config.CompressionLevelFastestKey:
 			l = pgzip.BestSpeed
-		case config.CompressionLevelBalanced:
+		case config.CompressionLevelBalancedKey:
 			l = pgzip.DefaultCompression
-		case config.CompressionLevelSmallest:
+		case config.CompressionLevelSmallestKey:
 			l = pgzip.BestCompression
 		default:
 			return nil, config.ErrCompressionLevelUnsupported
@@ -70,11 +70,11 @@ func Compress(
 	case config.CompressionFormatLZ4Key:
 		l := lz4.Level5
 		switch compressionLevel {
-		case config.CompressionLevelFastest:
+		case config.CompressionLevelFastestKey:
 			l = lz4.Level1
-		case config.CompressionLevelBalanced:
+		case config.CompressionLevelBalancedKey:
 			l = lz4.Level5
-		case config.CompressionLevelSmallest:
+		case config.CompressionLevelSmallestKey:
 			l = lz4.Level9
 		default:
 			return nil, config.ErrCompressionLevelUnsupported
@@ -108,11 +108,11 @@ func Compress(
 	case config.CompressionFormatZStandardKey:
 		l := zstd.SpeedDefault
 		switch compressionLevel {
-		case config.CompressionLevelFastest:
+		case config.CompressionLevelFastestKey:
 			l = zstd.SpeedFastest
-		case config.CompressionLevelBalanced:
+		case config.CompressionLevelBalancedKey:
 			l = zstd.SpeedDefault
-		case config.CompressionLevelSmallest:
+		case config.CompressionLevelSmallestKey:
 			l = zstd.SpeedBestCompression
 		default:
 			return nil, config.ErrCompressionLevelUnsupported
@@ -136,11 +136,11 @@ func Compress(
 
 		l := brotli.DefaultCompression
 		switch compressionLevel {
-		case config.CompressionLevelFastest:
+		case config.CompressionLevelFastestKey:
 			l = brotli.BestSpeed
-		case config.CompressionLevelBalanced:
+		case config.CompressionLevelBalancedKey:
 			l = brotli.DefaultCompression
-		case config.CompressionLevelSmallest:
+		case config.CompressionLevelSmallestKey:
 			l = brotli.BestCompression
 		default:
 			return nil, config.ErrCompressionLevelUnsupported
@@ -154,11 +154,11 @@ func Compress(
 	case config.CompressionFormatBzip2ParallelKey:
 		l := bzip2.DefaultCompression
 		switch compressionLevel {
-		case config.CompressionLevelFastest:
+		case config.CompressionLevelFastestKey:
 			l = bzip2.BestSpeed
-		case config.CompressionLevelBalanced:
+		case config.CompressionLevelBalancedKey:
 			l = bzip2.DefaultCompression
-		case config.CompressionLevelSmallest:
+		case config.CompressionLevelSmallestKey:
 			l = bzip2.BestCompression
 		default:
 			return nil, config.ErrCompressionLevelUnsupported
