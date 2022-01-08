@@ -160,7 +160,7 @@ func init() {
 	operationUpdateCmd.PersistentFlags().IntP(recordSizeFlag, "z", 20, "Amount of 512-bit blocks per record")
 	operationUpdateCmd.PersistentFlags().StringP(fromFlag, "f", "", "Path of the file or directory to update")
 	operationUpdateCmd.PersistentFlags().BoolP(overwriteFlag, "o", false, "Replace the content on the tape or tar file")
-	operationUpdateCmd.PersistentFlags().StringP(compressionLevelFlag, "l", config.CompressionLevelBalanced, fmt.Sprintf("Compression level to use (default %v, available are %v)", config.CompressionLevelBalanced, config.KnownCompressionLevels))
+	operationUpdateCmd.PersistentFlags().StringP(compressionLevelFlag, "l", config.CompressionLevelBalancedKey, fmt.Sprintf("Compression level to use (default %v, available are %v)", config.CompressionLevelBalancedKey, config.KnownCompressionLevels))
 	operationUpdateCmd.PersistentFlags().StringP(recipientFlag, "r", "", "Path to public key of recipient to encrypt for")
 	operationUpdateCmd.PersistentFlags().StringP(identityFlag, "i", "", "Path to private key to sign with")
 	operationUpdateCmd.PersistentFlags().StringP(passwordFlag, "p", "", "Password for the private key")

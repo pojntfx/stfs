@@ -169,7 +169,7 @@ func init() {
 	operationArchiveCmd.PersistentFlags().IntP(recordSizeFlag, "z", 20, "Amount of 512-bit blocks per record")
 	operationArchiveCmd.PersistentFlags().StringP(fromFlag, "f", ".", "File or directory to archive")
 	operationArchiveCmd.PersistentFlags().BoolP(overwriteFlag, "o", false, "Start writing from the start instead of from the end of the tape or tar file")
-	operationArchiveCmd.PersistentFlags().StringP(compressionLevelFlag, "l", config.CompressionLevelBalanced, fmt.Sprintf("Compression level to use (default %v, available are %v)", config.CompressionLevelBalanced, config.KnownCompressionLevels))
+	operationArchiveCmd.PersistentFlags().StringP(compressionLevelFlag, "l", config.CompressionLevelBalancedKey, fmt.Sprintf("Compression level to use (default %v, available are %v)", config.CompressionLevelBalancedKey, config.KnownCompressionLevels))
 	operationArchiveCmd.PersistentFlags().StringP(recipientFlag, "r", "", "Path to public key of recipient to encrypt for")
 	operationArchiveCmd.PersistentFlags().StringP(identityFlag, "i", "", "Path to private key to sign with")
 	operationArchiveCmd.PersistentFlags().StringP(passwordFlag, "p", "", "Password for the private key")

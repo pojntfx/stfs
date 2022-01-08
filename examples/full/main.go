@@ -214,10 +214,10 @@ func main() {
 	encryptionPassword := "testEncryptionPassword"
 
 	compression := config.CompressionFormatZStandardKey
-	compressionLevel := config.CompressionLevelFastest
+	compressionLevel := config.CompressionLevelFastestKey
 
-	writeCacheDir := filepath.Join(tmp, "write-cache")
 	writeCache := config.WriteCacheTypeFile
+	writeCacheDir := filepath.Join(tmp, "write-cache")
 
 	fileSystemCache := config.FileSystemCacheTypeDir
 	fileSystemCacheDir := filepath.Join(tmp, "filesystem-cache")

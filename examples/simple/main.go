@@ -91,7 +91,7 @@ func main() {
 			Metadata: metadataPersister,
 		},
 
-		config.CompressionLevelFastest,
+		config.CompressionLevelFastestKey,
 		func() (cache.WriteCache, func() error, error) {
 			return cache.NewCacheWrite(
 				*writeCacheFlag,
