@@ -31,6 +31,10 @@ $(addprefix uninstall/,$(obj)):
 $(addprefix run/,$(obj)):
 	$(subst run/,,$@) $(ARGS)
 
+# Test
+test:
+	go test ./...
+
 # Clean
 clean:
 	rm -rf out internal/db
