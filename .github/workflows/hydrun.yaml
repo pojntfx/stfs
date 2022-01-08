@@ -24,6 +24,12 @@ jobs:
             flags: -e '--privileged'
             cmd: ./Hydrunfile gccgo
             dst: out/*
+          - id: windows-386
+            src: .
+            os: fedora:rawhide
+            flags: -e '--privileged'
+            cmd: ./Hydrunfile windows 386
+            dst: out/*
 
     steps:
       - name: Maximize build space
