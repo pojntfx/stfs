@@ -1,7 +1,7 @@
 package config
 
 const (
-	NoneKey = "none"
+	NoneKey = ""
 
 	CompressionFormatGZipKey          = "gzip"
 	CompressionFormatParallelGZipKey  = "parallelgzip"
