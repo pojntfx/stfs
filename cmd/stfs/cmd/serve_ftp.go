@@ -13,7 +13,7 @@ import (
 	"github.com/pojntfx/stfs/internal/logging"
 	"github.com/pojntfx/stfs/pkg/cache"
 	"github.com/pojntfx/stfs/pkg/config"
-	sfs "github.com/pojntfx/stfs/pkg/fs"
+	"github.com/pojntfx/stfs/pkg/fs"
 	"github.com/pojntfx/stfs/pkg/keys"
 	"github.com/pojntfx/stfs/pkg/operations"
 	"github.com/pojntfx/stfs/pkg/persisters"
@@ -177,7 +177,7 @@ var serveFTPCmd = &cobra.Command{
 			},
 		)
 
-		stfs := sfs.NewSTFS(
+		stfs := fs.NewSTFS(
 			readOps,
 			writeOps,
 

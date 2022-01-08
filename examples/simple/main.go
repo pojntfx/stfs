@@ -1,59 +1,19 @@
 package main
 
 import (
-	"encoding/json"
 	"flag"
 	"log"
 	"os"
 	"path/filepath"
 
+	"github.com/pojntfx/stfs/examples"
 	"github.com/pojntfx/stfs/pkg/cache"
 	"github.com/pojntfx/stfs/pkg/config"
-	sfs "github.com/pojntfx/stfs/pkg/fs"
+	"github.com/pojntfx/stfs/pkg/fs"
 	"github.com/pojntfx/stfs/pkg/operations"
 	"github.com/pojntfx/stfs/pkg/persisters"
 	"github.com/pojntfx/stfs/pkg/tape"
-
-	golog "github.com/fclairamb/go-log"
 )
-
-type logger struct {
-	verbose bool
-}
-
-func (l logger) log(level, event string, keyvals ...interface{}) {
-	k, _ := json.Marshal(keyvals)
-
-	log.Println(level, event, string(k))
-}
-
-func (l logger) Trace(event string, keyvals ...interface{}) {
-	if l.verbose {
-		l.log("TRACE", event, keyvals)
-	}
-}
-
-func (l logger) Debug(event string, keyvals ...interface{}) {
-	if l.verbose {
-		l.log("DEBUG", event, keyvals)
-	}
-}
-
-func (l logger) Info(event string, keyvals ...interface{}) {
-	l.log("INFO", event, keyvals)
-}
-
-func (l logger) Warn(event string, keyvals ...interface{}) {
-	l.log("WARN", event, keyvals)
-}
-
-func (l logger) Error(event string, keyvals ...interface{}) {
-	l.log("ERROR", event, keyvals)
-}
-
-func (l logger) With(keyvals ...interface{}) golog.Logger {
-	return l
-}
 
 func main() {
 	driveFlag := flag.String("drive", "/dev/nst0", "Tape or tar file to use")
@@ -75,8 +35,8 @@ func main() {
 		panic(err)
 	}
 
-	l := &logger{
-		verbose: *verboseFlag,
+	l := &examples.Logger{
+		Verbose: *verboseFlag,
 	}
 
 	metadataConfig := config.MetadataConfig{
@@ -123,7 +83,7 @@ func main() {
 		},
 	)
 
-	stfs := sfs.NewSTFS(
+	stfs := fs.NewSTFS(
 		readOps,
 		writeOps,
 
