@@ -12,6 +12,12 @@ jobs:
     strategy:
       matrix:
         target:
+          - id: test
+            src: .
+            os: golang:bullseye
+            flags: ""
+            cmd: ./Hydrunfile test
+            dst: out/*
           - id: go
             src: .
             os: golang:bullseye
