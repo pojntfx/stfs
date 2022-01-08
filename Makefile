@@ -33,7 +33,7 @@ $(addprefix run/,$(obj)):
 
 # Test
 test:
-	go test ./...
+	go test ./... -parallel $(shell nproc)
 
 # Clean
 clean:
