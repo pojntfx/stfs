@@ -20,8 +20,7 @@ type SQLite struct {
 
 func (s *SQLite) Open() error {
 	// Create leading directories for database
-	leadingDir, _ := filepath.Split(s.DBPath)
-	if err := os.MkdirAll(leadingDir, os.ModePerm); err != nil {
+	if err := os.MkdirAll(filepath.Dir(s.DBPath), os.ModePerm); err != nil {
 		return err
 	}
 
