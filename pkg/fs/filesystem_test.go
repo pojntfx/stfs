@@ -1,31 +1,151 @@
 package fs
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
 	"reflect"
 	"testing"
+	"time"
 
-	"github.com/pojntfx/stfs/internal/logging"
+	"github.com/pojntfx/stfs/examples"
 	"github.com/pojntfx/stfs/pkg/cache"
 	"github.com/pojntfx/stfs/pkg/config"
+	"github.com/pojntfx/stfs/pkg/keys"
 	"github.com/pojntfx/stfs/pkg/operations"
 	"github.com/pojntfx/stfs/pkg/persisters"
 	"github.com/pojntfx/stfs/pkg/tape"
+	"github.com/pojntfx/stfs/pkg/utility"
 	"github.com/spf13/afero"
 )
 
-func createTestFss() (filesystems []afero.Fs, cleanup func() error, err error) {
-	tmp, err := os.MkdirTemp(os.TempDir(), "stfs-test-*")
-	if err != nil {
-		return nil, nil, err
+const (
+	verbose            = true
+	signaturePassword  = "testSignaturePassword"
+	encryptionPassword = "testEncryptionPassword"
+)
+
+var (
+	recordSizes              = []int{20, 60, 120}
+	fileSystemCacheDurations = []time.Duration{time.Minute, time.Hour}
+	stfsConfigs              = []stfsConfig{}
+)
+
+func init() {
+	// TODO: Generate encryption and signature keys here and re-use them
+	// for _, signature := range config.KnownSignatureFormats {
+	// 	for _, encryption := range config.KnownEncryptionFormats {
+	for _, compression := range config.KnownCompressionFormats {
+		for _, compressionLevel := range config.KnownCompressionLevels {
+			for _, writeCacheType := range config.KnownWriteCacheTypes {
+				for _, fileSystemCacheType := range config.KnownFileSystemCacheTypes {
+					for _, fileSystemCacheDuration := range fileSystemCacheDurations {
+						for _, recordSize := range recordSizes {
+							stfsConfigs = append(stfsConfigs, stfsConfig{
+								recordSize,
+								false,
+
+								config.NoneKey, // encryption,
+								config.NoneKey, // signature,
+								compression,
+
+								compressionLevel,
+
+								writeCacheType,
+								fileSystemCacheType,
+
+								fileSystemCacheDuration,
+							})
+						}
+					}
+				}
+			}
+		}
+	}
+	// 	}
+	// }
+}
+
+func createSTFS(
+	drive string,
+	metadata string,
+
+	recordSize int,
+	readOnly bool,
+	verbose bool,
+
+	signature string,
+	signaturePassword string,
+
+	encryption string,
+	encryptionPassword string,
+
+	compression string,
+	compressionLevel string,
+
+	writeCache string,
+	writeCacheDir string,
+
+	fileSystemCache string,
+	fileSystemCacheDir string,
+	fileSystemCacheDuration time.Duration,
+) (afero.Fs, error) {
+	signaturePrivkey := []byte{}
+	signaturePubkey := []byte{}
+
+	if signature != config.NoneKey {
+		var err error
+		signaturePrivkey, signaturePubkey, err = utility.Keygen(
+			config.PipeConfig{
+				Signature:  signature,
+				Encryption: config.NoneKey,
+			},
+			config.PasswordConfig{
+				Password: signaturePassword,
+			},
+		)
+		if err != nil {
+			return nil, err
+		}
 	}
 
-	drive := filepath.Join(tmp, "drive.tar")
-	recordSize := 20
-	metadata := filepath.Join(tmp, "metadata.sqlite")
-	writeCache := filepath.Join(tmp, "write-cache")
-	osfsDir := filepath.Join(tmp, "osfs")
+	signatureRecipient, err := keys.ParseSignerRecipient(signature, signaturePubkey)
+	if err != nil {
+		return nil, err
+	}
+
+	signatureIdentity, err := keys.ParseSignerIdentity(signature, signaturePrivkey, signaturePassword)
+	if err != nil {
+		return nil, err
+	}
+
+	encryptionPrivkey := []byte{}
+	encryptionPubkey := []byte{}
+
+	if encryption != config.NoneKey {
+		encryptionPrivkey, encryptionPubkey, err = utility.Keygen(
+			config.PipeConfig{
+				Signature:  config.NoneKey,
+				Encryption: encryption,
+			},
+			config.PasswordConfig{
+				Password: encryptionPassword,
+			},
+		)
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	encryptionRecipient, err := keys.ParseRecipient(encryption, encryptionPubkey)
+	if err != nil {
+		return nil, err
+	}
+
+	encryptionIdentity, err := keys.ParseIdentity(encryption, encryptionPrivkey, encryptionPassword)
+	if err != nil {
+		return nil, err
+	}
 
 	tm := tape.NewTapeManager(
 		drive,
@@ -35,18 +155,20 @@ func createTestFss() (filesystems []afero.Fs, cleanup func() error, err error) {
 
 	metadataPersister := persisters.NewMetadataPersister(metadata)
 	if err := metadataPersister.Open(); err != nil {
-		return nil, nil, err
+		return nil, err
 	}
 
-	l := logging.NewJSONLogger(4)
+	jsonLogger := &examples.Logger{
+		Verbose: verbose,
+	}
 
 	metadataConfig := config.MetadataConfig{
 		Metadata: metadataPersister,
 	}
 	pipeConfig := config.PipeConfig{
-		Compression: config.NoneKey,
-		Encryption:  config.NoneKey,
-		Signature:   config.NoneKey,
+		Compression: compression,
+		Encryption:  encryption,
+		Signature:   signature,
 		RecordSize:  recordSize,
 	}
 	backendConfig := config.BackendConfig{
@@ -59,7 +181,11 @@ func createTestFss() (filesystems []afero.Fs, cleanup func() error, err error) {
 		GetDrive:   tm.GetDrive,
 		CloseDrive: tm.Close,
 	}
-	readCryptoConfig := config.CryptoConfig{}
+	readCryptoConfig := config.CryptoConfig{
+		Recipient: signatureRecipient,
+		Identity:  encryptionIdentity,
+		Password:  encryptionPassword,
+	}
 
 	readOps := operations.NewOperations(
 		backendConfig,
@@ -69,18 +195,23 @@ func createTestFss() (filesystems []afero.Fs, cleanup func() error, err error) {
 		readCryptoConfig,
 
 		func(event *config.HeaderEvent) {
-			l.Debug("Header read", event)
+			jsonLogger.Debug("Header read", event)
 		},
 	)
+
 	writeOps := operations.NewOperations(
 		backendConfig,
 		metadataConfig,
 
 		pipeConfig,
-		config.CryptoConfig{},
+		config.CryptoConfig{
+			Recipient: encryptionRecipient,
+			Identity:  signatureIdentity,
+			Password:  signaturePassword,
+		},
 
 		func(event *config.HeaderEvent) {
-			l.Debug("Header write", event)
+			jsonLogger.Debug("Header write", event)
 		},
 	)
 
@@ -92,88 +223,136 @@ func createTestFss() (filesystems []afero.Fs, cleanup func() error, err error) {
 			Metadata: metadataPersister,
 		},
 
-		config.CompressionLevelFastest,
+		compressionLevel,
 		func() (cache.WriteCache, func() error, error) {
 			return cache.NewCacheWrite(
+				writeCacheDir,
 				writeCache,
-				config.WriteCacheTypeFile,
 			)
 		},
 		false,
-		false,
+		readOnly,
 
 		func(hdr *config.Header) {
-			l.Trace("Header transform", hdr)
+			jsonLogger.Trace("Header transform", hdr)
 		},
-		l,
+		jsonLogger,
 	)
 
 	root, err := stfs.Initialize("/", os.ModePerm)
 	if err != nil {
-		return nil, nil, err
+		return nil, err
 	}
 
-	fs, err := cache.NewCacheFilesystem(
+	return cache.NewCacheFilesystem(
 		stfs,
 		root,
-		config.NoneKey,
-		0,
-		"",
+		fileSystemCache,
+		fileSystemCacheDuration,
+		fileSystemCacheDir,
 	)
+}
+
+type stfsConfig struct {
+	recordSize int
+	readOnly   bool
+
+	signature   string
+	encryption  string
+	compression string
+
+	compressionLevel string
+
+	writeCache      string
+	fileSystemCache string
+
+	fileSystemCacheDuration time.Duration
+}
+
+type fsConfig struct {
+	stfsConfig stfsConfig
+	fs         afero.Fs
+}
+
+func createFss() ([]fsConfig, func() error, error) {
+	fss := []fsConfig{}
+
+	tmp, err := os.MkdirTemp(os.TempDir(), "stfs-test-*")
 	if err != nil {
 		return nil, nil, err
 	}
+
+	osfsDir := filepath.Join(tmp, "osfs")
 
 	if err := os.MkdirAll(osfsDir, os.ModePerm); err != nil {
 		return nil, nil, err
 	}
 
-	return []afero.Fs{
-			fs,
-			afero.NewBasePathFs(afero.NewOsFs(), osfsDir),
-		},
+	fss = append(fss, fsConfig{stfsConfig{}, afero.NewBasePathFs(afero.NewOsFs(), osfsDir)})
+
+	for _, config := range stfsConfigs {
+		tmp, err := os.MkdirTemp(os.TempDir(), "stfs-test-*")
+		if err != nil {
+			return nil, nil, err
+		}
+
+		drive := filepath.Join(tmp, "drive.tar")
+		metadata := filepath.Join(tmp, "metadata.sqlite")
+
+		writeCacheDir := filepath.Join(tmp, "write-cache")
+		fileSystemCacheDir := filepath.Join(tmp, "filesystem-cache")
+
+		stfs, err := createSTFS(
+			drive,
+			metadata,
+
+			config.recordSize,
+			config.readOnly,
+			verbose,
+
+			config.signature,
+			signaturePassword,
+
+			config.encryption,
+			encryptionPassword,
+
+			config.compression,
+			config.compressionLevel,
+
+			config.writeCache,
+			writeCacheDir,
+
+			config.fileSystemCache,
+			fileSystemCacheDir,
+			config.fileSystemCacheDuration,
+		)
+		if err != nil {
+			return nil, nil, err
+		}
+
+		fss = append(fss, fsConfig{config, stfs})
+	}
+
+	return fss,
 		func() error {
 			return os.RemoveAll(tmp)
 		},
 		nil
 }
 
-func getTestNameForFs(testName string, fsName string) string {
-	return testName + " (" + fsName + ")"
-}
-
-func TestSTFS_Name(t *testing.T) {
-	filesystems, cleanup, err := createTestFss()
+func runForAllFss(t *testing.T, name string, action func(t *testing.T, fs fsConfig)) {
+	fss, cleanup, err := createFss()
 	if err != nil {
 		panic(err)
 	}
 	defer cleanup()
 
-	tests := []struct {
-		name string
-		f    []afero.Fs
-		want string
-	}{
-		{
-			"Returns correct file system name",
-			[]afero.Fs{filesystems[1]},
-			"BasePathFs",
-		},
-		{
-			"Returns correct file system name",
-			[]afero.Fs{filesystems[0]},
-			"STFS",
-		},
-	}
+	for _, fs := range fss {
+		t.Run(fmt.Sprintf(`%v for filesystem with config %v and name %v`, name, fs.stfsConfig, fs.fs.Name()), func(t *testing.T) {
+			t.Parallel()
 
-	for _, tt := range tests {
-		for _, f := range tt.f {
-			t.Run(getTestNameForFs(tt.name, f.Name()), func(t *testing.T) {
-				if got := f.Name(); got != tt.want {
-					t.Errorf("%v.Name() = %v, want %v", f.Name(), got, tt.want)
-				}
-			})
-		}
+			action(t, fs)
+		})
 	}
 }
 
@@ -206,41 +385,33 @@ func TestSTFS_Create(t *testing.T) {
 	}
 
 	for _, tt := range tests {
-		filesystems, cleanup, err := createTestFss()
-		if err != nil {
-			panic(err)
-		}
-		defer cleanup()
+		runForAllFss(t, tt.name, func(t *testing.T, fs fsConfig) {
+			file, err := fs.fs.Create(tt.args.name)
+			if (err != nil) != tt.wantErr {
+				t.Errorf("%v.Create() error = %v, wantErr %v", fs.fs.Name(), err, tt.wantErr)
 
-		for _, f := range filesystems {
-			t.Run(getTestNameForFs(tt.name, f.Name()), func(t *testing.T) {
-				file, err := f.Create(tt.args.name)
-				if (err != nil) != tt.wantErr {
-					t.Errorf("%v.Create() error = %v, wantErr %v", f.Name(), err, tt.wantErr)
+				return
+			}
 
-					return
-				}
+			want, err := fs.fs.Stat(tt.args.name)
+			if err != nil {
+				t.Errorf("%v.Stat() error = %v, wantErr %v", fs.fs.Name(), err, tt.wantErr)
 
-				want, err := f.Stat(tt.args.name)
-				if err != nil {
-					t.Errorf("%v.Stat() error = %v, wantErr %v", f.Name(), err, tt.wantErr)
+				return
+			}
 
-					return
-				}
+			got, err := fs.fs.Stat(file.Name())
+			if err != nil {
+				t.Errorf("%v.Stat() error = %v, wantErr %v", fs.fs.Name(), err, tt.wantErr)
 
-				got, err := f.Stat(file.Name())
-				if err != nil {
-					t.Errorf("%v.Stat() error = %v, wantErr %v", f.Name(), err, tt.wantErr)
+				return
+			}
 
-					return
-				}
+			if !reflect.DeepEqual(got, want) {
+				t.Errorf("%v.Create().Name() = %v, want %v", fs.fs.Name(), got, want)
 
-				if !reflect.DeepEqual(got, want) {
-					t.Errorf("%v.Create().Name() = %v, want %v", f.Name(), got, want)
-
-					return
-				}
-			})
-		}
+				return
+			}
+		})
 	}
 }
