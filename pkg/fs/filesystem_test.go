@@ -565,3 +565,40 @@ func TestSTFS_Create(t *testing.T) {
 		})
 	}
 }
+
+func TestSTFS_Name(t *testing.T) {
+	fss, err := createFss()
+	if err != nil {
+		t.Fatal(err)
+
+		return
+	}
+	defer func() {
+		for _, fs := range fss {
+			if err := fs.cleanup(); err != nil {
+				t.Fatal(err)
+
+				return
+			}
+		}
+	}()
+
+	tests := []struct {
+		name string
+		f    afero.Fs
+		want string
+	}{
+		{
+			"Returns correct filesystem name",
+			fss[1].fs, // This is the first STFS config, [0] is the BasePathFs
+			config.FileSystemNameSTFS,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := tt.f.Name(); got != tt.want {
+				t.Errorf("STFS.Name() = %v, want %v", got, tt.want)
+			}
+		})
+	}
+}
