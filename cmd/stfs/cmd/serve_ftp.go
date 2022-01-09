@@ -192,7 +192,6 @@ var serveFTPCmd = &cobra.Command{
 					viper.GetString(cacheWriteFlag),
 				)
 			},
-			true, // FTP needs read permission for `STOR` command even if O_WRONLY is set
 			viper.GetBool(readOnlyFlag),
 
 			func(hdr *config.Header) {

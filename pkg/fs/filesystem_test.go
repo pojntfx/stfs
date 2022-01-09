@@ -403,7 +403,6 @@ func createSTFS(
 				writeCache,
 			)
 		},
-		false,
 		readOnly,
 
 		func(hdr *config.Header) {
