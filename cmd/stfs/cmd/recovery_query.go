@@ -64,6 +64,7 @@ var recoveryQueryCmd = &cobra.Command{
 				Compression: viper.GetString(compressionFlag),
 				Encryption:  viper.GetString(encryptionFlag),
 				Signature:   viper.GetString(signatureFlag),
+				RecordSize:  viper.GetInt(recordSizeFlag),
 			},
 			config.CryptoConfig{
 				Recipient: recipient,
@@ -71,7 +72,6 @@ var recoveryQueryCmd = &cobra.Command{
 				Password:  viper.GetString(passwordFlag),
 			},
 
-			viper.GetInt(recordSizeFlag),
 			viper.GetInt(recordFlag),
 			viper.GetInt(blockFlag),
 

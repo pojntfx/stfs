@@ -274,7 +274,6 @@ func (o *Operations) Archive(
 		o.pipes,
 		o.crypto,
 
-		o.pipes.RecordSize,
 		int(lastIndexedRecord),
 		int(lastIndexedBlock),
 		overwrite,

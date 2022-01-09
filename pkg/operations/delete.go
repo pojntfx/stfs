@@ -122,7 +122,6 @@ func (o *Operations) Delete(name string) error {
 		o.pipes,
 		o.crypto,
 
-		o.pipes.RecordSize,
 		int(lastIndexedRecord),
 		int(lastIndexedBlock),
 		false,

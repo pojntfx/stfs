@@ -89,7 +89,6 @@ var recoveryIndexCmd = &cobra.Command{
 				Password:  viper.GetString(passwordFlag),
 			},
 
-			viper.GetInt(recordSizeFlag),
 			viper.GetInt(recordFlag),
 			viper.GetInt(blockFlag),
 			viper.GetBool(overwriteFlag),

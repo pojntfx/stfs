@@ -141,7 +141,6 @@ func (o *Operations) Move(from string, to string) error {
 		o.pipes,
 		o.crypto,
 
-		o.pipes.RecordSize,
 		int(lastIndexedRecord),
 		int(lastIndexedBlock),
 		false,
