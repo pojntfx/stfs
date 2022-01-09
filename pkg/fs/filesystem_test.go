@@ -2,6 +2,7 @@ package fs
 
 import (
 	"fmt"
+	"io/ioutil"
 	"log"
 	"os"
 	"path/filepath"
@@ -29,8 +30,8 @@ const (
 )
 
 var (
-	recordSizes              = []int{20, 60, 120}
-	fileSystemCacheDurations = []time.Duration{time.Minute, time.Hour}
+	recordSizes              = []int{20}                  // This leads to more permutations, but tests multiple: []int{20, 60, 120}
+	fileSystemCacheDurations = []time.Duration{time.Hour} // This leads to more permutations, but tests multiple: []time.Duration{time.Minute, time.Hour}
 	stfsConfigs              = []stfsConfig{}
 )
 
@@ -87,18 +88,35 @@ func TestMain(m *testing.M) {
 	signatures := []cryptoConfig{}
 	encryptions := []cryptoConfig{}
 
+	cacheRoot := filepath.Join(os.TempDir(), "stfs-filesystem-test-key-cache")
+	if err := os.MkdirAll(cacheRoot, os.ModePerm); err != nil {
+		panic(err)
+	}
+
 	var wg sync.WaitGroup
 
 	for _, signature := range config.KnownSignatureFormats {
 		wg.Add(1)
 
 		go func(signature string) {
-			log.Println("Generating signature keys for format", signature)
+			generateKeys := false
+			signaturePrivkeyPath := filepath.Join(cacheRoot, "signature-key-"+signature+".priv")
+			signaturePubkeyPath := filepath.Join(cacheRoot, "signature-key-"+signature+".pub")
 
-			signaturePrivkey := []byte{}
 			signaturePubkey := []byte{}
+			signaturePrivkey, err := ioutil.ReadFile(signaturePrivkeyPath)
+			if err == nil {
+				signaturePubkey, err = ioutil.ReadFile(signaturePubkeyPath)
+				if err != nil {
+					generateKeys = true
+				}
+			} else {
+				generateKeys = true
+			}
 
-			if signature != config.NoneKey {
+			if signature != config.NoneKey && generateKeys {
+				log.Println("Generating signature keys for format", signature)
+
 				var err error
 				signaturePrivkey, signaturePubkey, err = utility.Keygen(
 					config.PipeConfig{
@@ -110,6 +128,13 @@ func TestMain(m *testing.M) {
 					},
 				)
 				if err != nil {
+					panic(err)
+				}
+
+				if err := ioutil.WriteFile(signaturePrivkeyPath, signaturePrivkey, os.ModePerm); err != nil {
+					panic(err)
+				}
+				if err := ioutil.WriteFile(signaturePubkeyPath, signaturePubkey, os.ModePerm); err != nil {
 					panic(err)
 				}
 			}
@@ -134,12 +159,24 @@ func TestMain(m *testing.M) {
 		wg.Add(1)
 
 		go func(encryption string) {
-			log.Println("Generating encryption keys for format", encryption)
+			generateKeys := false
+			encryptionPrivkeyPath := filepath.Join(cacheRoot, "encryption-key-"+encryption+".priv")
+			encryptionPubkeyPath := filepath.Join(cacheRoot, "encryption-key-"+encryption+".pub")
 
-			encryptionPrivkey := []byte{}
 			encryptionPubkey := []byte{}
+			encryptionPrivkey, err := ioutil.ReadFile(encryptionPrivkeyPath)
+			if err == nil {
+				encryptionPubkey, err = ioutil.ReadFile(encryptionPubkeyPath)
+				if err != nil {
+					generateKeys = true
+				}
+			} else {
+				generateKeys = true
+			}
 
-			if encryption != config.NoneKey {
+			if encryption != config.NoneKey && generateKeys {
+				log.Println("Generating encryption keys for format", encryption)
+
 				var err error
 				encryptionPrivkey, encryptionPubkey, err = utility.Keygen(
 					config.PipeConfig{
@@ -151,6 +188,13 @@ func TestMain(m *testing.M) {
 					},
 				)
 				if err != nil {
+					panic(err)
+				}
+
+				if err := ioutil.WriteFile(encryptionPrivkeyPath, encryptionPrivkey, os.ModePerm); err != nil {
+					panic(err)
+				}
+				if err := ioutil.WriteFile(encryptionPubkeyPath, encryptionPubkey, os.ModePerm); err != nil {
 					panic(err)
 				}
 			}
