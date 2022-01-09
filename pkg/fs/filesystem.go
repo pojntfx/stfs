@@ -31,10 +31,9 @@ type STFS struct {
 
 	metadata config.MetadataConfig
 
-	compressionLevel           string
-	getFileBuffer              func() (cache.WriteCache, func() error, error)
-	ignoreReadWritePermissions bool
-	readOnly                   bool
+	compressionLevel string
+	getFileBuffer    func() (cache.WriteCache, func() error, error)
+	readOnly         bool
 
 	ioLock sync.Mutex
 
@@ -50,7 +49,6 @@ func NewSTFS(
 
 	compressionLevel string,
 	getFileBuffer func() (cache.WriteCache, func() error, error),
-	ignorePermissionFlags bool,
 	readOnly bool,
 
 	onHeader func(hdr *config.Header),
@@ -62,10 +60,9 @@ func NewSTFS(
 
 		metadata: metadata,
 
-		compressionLevel:           compressionLevel,
-		getFileBuffer:              getFileBuffer,
-		ignoreReadWritePermissions: ignorePermissionFlags,
-		readOnly:                   readOnly,
+		compressionLevel: compressionLevel,
+		getFileBuffer:    getFileBuffer,
+		readOnly:         readOnly,
 
 		onHeader: onHeader,
 		log:      log,
@@ -302,7 +299,7 @@ func (f *STFS) Open(name string) (afero.File, error) {
 		"name": name,
 	})
 
-	return f.OpenFile(name, os.O_RDWR, os.ModePerm)
+	return f.OpenFile(name, os.O_RDONLY, 0)
 }
 
 func (f *STFS) OpenFile(name string, flag int, perm os.FileMode) (afero.File, error) {
@@ -317,24 +314,15 @@ func (f *STFS) OpenFile(name string, flag int, perm os.FileMode) (afero.File, er
 
 	flags := &ifs.FileFlags{}
 	if f.readOnly {
-		if flag&os.O_RDONLY != 0 || flag&os.O_RDWR != 0 || f.ignoreReadWritePermissions {
+		if (flag&O_ACCMODE) == os.O_RDONLY || (flag&O_ACCMODE) == os.O_RDWR {
 			flags.Read = true
 		}
 	} else {
-		if flag&os.O_RDONLY != 0 {
+		if (flag & O_ACCMODE) == os.O_RDONLY {
 			flags.Read = true
-		}
-
-		if flag&os.O_WRONLY != 0 {
+		} else if (flag & O_ACCMODE) == os.O_WRONLY {
 			flags.Write = true
-		}
-
-		if flag&os.O_RDWR != 0 {
-			flags.Read = true
-			flags.Write = true
-		}
-
-		if f.ignoreReadWritePermissions {
+		} else if (flag & O_ACCMODE) == os.O_RDWR {
 			flags.Read = true
 			flags.Write = true
 		}
