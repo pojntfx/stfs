@@ -2,9 +2,11 @@ package fs
 
 import (
 	"fmt"
+	"log"
 	"os"
 	"path/filepath"
 	"reflect"
+	"sync"
 	"testing"
 	"time"
 
@@ -20,7 +22,8 @@ import (
 )
 
 const (
-	verbose            = true
+	readOnly           = false
+	verbose            = false
 	signaturePassword  = "testSignaturePassword"
 	encryptionPassword = "testEncryptionPassword"
 )
@@ -31,39 +34,186 @@ var (
 	stfsConfigs              = []stfsConfig{}
 )
 
-func init() {
-	// TODO: Generate encryption and signature keys here and re-use them
-	// for _, signature := range config.KnownSignatureFormats {
-	// 	for _, encryption := range config.KnownEncryptionFormats {
-	for _, compression := range config.KnownCompressionFormats {
-		for _, compressionLevel := range config.KnownCompressionLevels {
-			for _, writeCacheType := range config.KnownWriteCacheTypes {
-				for _, fileSystemCacheType := range config.KnownFileSystemCacheTypes {
-					for _, fileSystemCacheDuration := range fileSystemCacheDurations {
-						for _, recordSize := range recordSizes {
-							stfsConfigs = append(stfsConfigs, stfsConfig{
-								recordSize,
-								false,
+type stfsConfig struct {
+	recordSize int
+	readOnly   bool
 
-								config.NoneKey, // encryption,
-								config.NoneKey, // signature,
-								compression,
+	signature          string
+	signatureRecipient interface{}
+	signatureIdentity  interface{}
 
-								compressionLevel,
+	encryption          string
+	encryptionRecipient interface{}
+	encryptionIdentity  interface{}
 
-								writeCacheType,
-								fileSystemCacheType,
+	compression string
 
-								fileSystemCacheDuration,
-							})
+	compressionLevel string
+
+	writeCache      string
+	fileSystemCache string
+
+	fileSystemCacheDuration time.Duration
+}
+
+type stfsPermutation struct {
+	recordSize int
+	readOnly   bool
+
+	signature        string
+	encryption       string
+	compression      string
+	compressionLevel string
+
+	writeCache      string
+	fileSystemCache string
+
+	fileSystemCacheDuration time.Duration
+}
+
+type fsConfig struct {
+	stfsConfig stfsConfig
+	fs         afero.Fs
+	cleanup    func() error
+}
+
+type cryptoConfig struct {
+	name      string
+	recipient interface{}
+	identity  interface{}
+}
+
+func TestMain(m *testing.M) {
+	signatures := []cryptoConfig{}
+	encryptions := []cryptoConfig{}
+
+	var wg sync.WaitGroup
+
+	for _, signature := range config.KnownSignatureFormats {
+		wg.Add(1)
+
+		go func(signature string) {
+			log.Println("Generating signature keys for format", signature)
+
+			signaturePrivkey := []byte{}
+			signaturePubkey := []byte{}
+
+			if signature != config.NoneKey {
+				var err error
+				signaturePrivkey, signaturePubkey, err = utility.Keygen(
+					config.PipeConfig{
+						Signature:  signature,
+						Encryption: config.NoneKey,
+					},
+					config.PasswordConfig{
+						Password: signaturePassword,
+					},
+				)
+				if err != nil {
+					panic(err)
+				}
+			}
+
+			signatureRecipient, err := keys.ParseSignerRecipient(signature, signaturePubkey)
+			if err != nil {
+				panic(err)
+			}
+
+			signatureIdentity, err := keys.ParseSignerIdentity(signature, signaturePrivkey, signaturePassword)
+			if err != nil {
+				panic(err)
+			}
+
+			signatures = append(signatures, cryptoConfig{signature, signatureRecipient, signatureIdentity})
+
+			wg.Done()
+		}(signature)
+	}
+
+	for _, encryption := range config.KnownEncryptionFormats {
+		wg.Add(1)
+
+		go func(encryption string) {
+			log.Println("Generating encryption keys for format", encryption)
+
+			encryptionPrivkey := []byte{}
+			encryptionPubkey := []byte{}
+
+			if encryption != config.NoneKey {
+				var err error
+				encryptionPrivkey, encryptionPubkey, err = utility.Keygen(
+					config.PipeConfig{
+						Signature:  config.NoneKey,
+						Encryption: encryption,
+					},
+					config.PasswordConfig{
+						Password: encryptionPassword,
+					},
+				)
+				if err != nil {
+					panic(err)
+				}
+			}
+
+			encryptionRecipient, err := keys.ParseRecipient(encryption, encryptionPubkey)
+			if err != nil {
+				panic(err)
+			}
+
+			encryptionIdentity, err := keys.ParseIdentity(encryption, encryptionPrivkey, encryptionPassword)
+			if err != nil {
+				panic(err)
+			}
+
+			encryptions = append(encryptions, cryptoConfig{encryption, encryptionRecipient, encryptionIdentity})
+
+			wg.Done()
+		}(encryption)
+	}
+
+	wg.Wait()
+
+	for _, signature := range signatures {
+		for _, encryption := range encryptions {
+			for _, compression := range config.KnownCompressionFormats {
+				for _, compressionLevel := range config.KnownCompressionLevels {
+					for _, writeCacheType := range config.KnownWriteCacheTypes {
+						for _, fileSystemCacheType := range config.KnownFileSystemCacheTypes {
+							for _, fileSystemCacheDuration := range fileSystemCacheDurations {
+								for _, recordSize := range recordSizes {
+									stfsConfigs = append(stfsConfigs, stfsConfig{
+										recordSize,
+										readOnly,
+
+										signature.name,
+										signature.recipient,
+										signature.identity,
+
+										encryption.name,
+										encryption.recipient,
+										encryption.identity,
+
+										compression,
+
+										compressionLevel,
+
+										writeCacheType,
+										fileSystemCacheType,
+
+										fileSystemCacheDuration,
+									})
+								}
+							}
 						}
 					}
 				}
 			}
 		}
 	}
-	// 	}
-	// }
+
+	log.Println("Starting filesystem tests for", len(stfsConfigs), "filesystem permutations")
+
+	os.Exit(m.Run())
 }
 
 func createSTFS(
@@ -75,10 +225,12 @@ func createSTFS(
 	verbose bool,
 
 	signature string,
-	signaturePassword string,
+	signatureRecipient interface{},
+	signatureIdentity interface{},
 
 	encryption string,
-	encryptionPassword string,
+	encryptionRecipient interface{},
+	encryptionIdentity interface{},
 
 	compression string,
 	compressionLevel string,
@@ -90,63 +242,6 @@ func createSTFS(
 	fileSystemCacheDir string,
 	fileSystemCacheDuration time.Duration,
 ) (afero.Fs, error) {
-	signaturePrivkey := []byte{}
-	signaturePubkey := []byte{}
-
-	if signature != config.NoneKey {
-		var err error
-		signaturePrivkey, signaturePubkey, err = utility.Keygen(
-			config.PipeConfig{
-				Signature:  signature,
-				Encryption: config.NoneKey,
-			},
-			config.PasswordConfig{
-				Password: signaturePassword,
-			},
-		)
-		if err != nil {
-			return nil, err
-		}
-	}
-
-	signatureRecipient, err := keys.ParseSignerRecipient(signature, signaturePubkey)
-	if err != nil {
-		return nil, err
-	}
-
-	signatureIdentity, err := keys.ParseSignerIdentity(signature, signaturePrivkey, signaturePassword)
-	if err != nil {
-		return nil, err
-	}
-
-	encryptionPrivkey := []byte{}
-	encryptionPubkey := []byte{}
-
-	if encryption != config.NoneKey {
-		encryptionPrivkey, encryptionPubkey, err = utility.Keygen(
-			config.PipeConfig{
-				Signature:  config.NoneKey,
-				Encryption: encryption,
-			},
-			config.PasswordConfig{
-				Password: encryptionPassword,
-			},
-		)
-		if err != nil {
-			return nil, err
-		}
-	}
-
-	encryptionRecipient, err := keys.ParseRecipient(encryption, encryptionPubkey)
-	if err != nil {
-		return nil, err
-	}
-
-	encryptionIdentity, err := keys.ParseIdentity(encryption, encryptionPrivkey, encryptionPassword)
-	if err != nil {
-		return nil, err
-	}
-
 	tm := tape.NewTapeManager(
 		drive,
 		recordSize,
@@ -253,47 +348,32 @@ func createSTFS(
 	)
 }
 
-type stfsConfig struct {
-	recordSize int
-	readOnly   bool
-
-	signature   string
-	encryption  string
-	compression string
-
-	compressionLevel string
-
-	writeCache      string
-	fileSystemCache string
-
-	fileSystemCacheDuration time.Duration
-}
-
-type fsConfig struct {
-	stfsConfig stfsConfig
-	fs         afero.Fs
-}
-
-func createFss() ([]fsConfig, func() error, error) {
+func createFss() ([]fsConfig, error) {
 	fss := []fsConfig{}
 
 	tmp, err := os.MkdirTemp(os.TempDir(), "stfs-test-*")
 	if err != nil {
-		return nil, nil, err
+		return nil, err
 	}
 
 	osfsDir := filepath.Join(tmp, "osfs")
 
 	if err := os.MkdirAll(osfsDir, os.ModePerm); err != nil {
-		return nil, nil, err
+		return nil, err
 	}
 
-	fss = append(fss, fsConfig{stfsConfig{}, afero.NewBasePathFs(afero.NewOsFs(), osfsDir)})
+	fss = append(fss, fsConfig{
+		stfsConfig{},
+		afero.NewBasePathFs(afero.NewOsFs(), osfsDir),
+		func() error {
+			return os.RemoveAll(tmp)
+		},
+	})
 
 	for _, config := range stfsConfigs {
 		tmp, err := os.MkdirTemp(os.TempDir(), "stfs-test-*")
 		if err != nil {
-			return nil, nil, err
+			return nil, err
 		}
 
 		drive := filepath.Join(tmp, "drive.tar")
@@ -311,10 +391,12 @@ func createFss() ([]fsConfig, func() error, error) {
 			verbose,
 
 			config.signature,
-			signaturePassword,
+			config.signatureRecipient,
+			config.signatureIdentity,
 
 			config.encryption,
-			encryptionPassword,
+			config.encryptionRecipient,
+			config.encryptionIdentity,
 
 			config.compression,
 			config.compressionLevel,
@@ -327,31 +409,55 @@ func createFss() ([]fsConfig, func() error, error) {
 			config.fileSystemCacheDuration,
 		)
 		if err != nil {
-			return nil, nil, err
+			return nil, err
 		}
 
-		fss = append(fss, fsConfig{config, stfs})
+		fss = append(fss, fsConfig{
+			config,
+			stfs,
+			func() error {
+				return os.RemoveAll(tmp)
+			},
+		})
 	}
 
-	return fss,
-		func() error {
-			return os.RemoveAll(tmp)
-		},
-		nil
+	return fss, nil
 }
 
 func runForAllFss(t *testing.T, name string, action func(t *testing.T, fs fsConfig)) {
-	fss, cleanup, err := createFss()
+	fss, err := createFss()
 	if err != nil {
-		panic(err)
+		t.Fatal(err)
+
+		return
 	}
-	defer cleanup()
 
 	for _, fs := range fss {
-		t.Run(fmt.Sprintf(`%v for filesystem with config %v and name %v`, name, fs.stfsConfig, fs.fs.Name()), func(t *testing.T) {
+		t.Run(fmt.Sprintf(`%v filesystem=%v config=%v`, name, fs.fs.Name(), stfsPermutation{
+			fs.stfsConfig.recordSize,
+			fs.stfsConfig.readOnly,
+
+			fs.stfsConfig.signature,
+			fs.stfsConfig.encryption,
+			fs.stfsConfig.compression,
+			fs.stfsConfig.compressionLevel,
+
+			fs.stfsConfig.writeCache,
+			fs.stfsConfig.fileSystemCache,
+
+			fs.stfsConfig.fileSystemCacheDuration,
+		}), func(t *testing.T) {
+			fs := fs
+
 			t.Parallel()
 
 			action(t, fs)
+
+			if err := fs.cleanup(); err != nil {
+				t.Fatal(err)
+
+				return
+			}
 		})
 	}
 }
