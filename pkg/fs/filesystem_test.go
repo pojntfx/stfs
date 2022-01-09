@@ -428,27 +428,27 @@ func createSTFS(
 func createFss() ([]fsConfig, error) {
 	fss := []fsConfig{}
 
-	tmp, err := os.MkdirTemp(os.TempDir(), "stfs-test-*")
+	baseTmp, err := os.MkdirTemp(os.TempDir(), "stfs-test-*")
 	if err != nil {
 		return nil, err
 	}
 
-	osfsDir := filepath.Join(tmp, "osfs")
+	tmp := filepath.Join(baseTmp, "osfs")
 
-	if err := os.MkdirAll(osfsDir, os.ModePerm); err != nil {
+	if err := os.MkdirAll(tmp, os.ModePerm); err != nil {
 		return nil, err
 	}
 
 	fss = append(fss, fsConfig{
 		stfsConfig{},
-		afero.NewBasePathFs(afero.NewOsFs(), osfsDir),
+		afero.NewBasePathFs(afero.NewOsFs(), tmp),
 		func() error {
 			return os.RemoveAll(tmp)
 		},
 	})
 
 	for _, config := range stfsConfigs {
-		tmp, err := os.MkdirTemp(os.TempDir(), "stfs-test-*")
+		tmp, err := os.MkdirTemp(baseTmp, "fs-*")
 		if err != nil {
 			return nil, err
 		}
@@ -501,7 +501,7 @@ func createFss() ([]fsConfig, error) {
 	return fss, nil
 }
 
-func runForAllFss(t *testing.T, name string, action func(t *testing.T, fs fsConfig)) {
+func runTestForAllFss(t *testing.T, name string, action func(t *testing.T, fs fsConfig)) {
 	fss, err := createFss()
 	if err != nil {
 		t.Fatal(err)
@@ -539,36 +539,73 @@ func runForAllFss(t *testing.T, name string, action func(t *testing.T, fs fsConf
 	}
 }
 
-func TestSTFS_Create(t *testing.T) {
-	type args struct {
-		name string
-	}
-	tests := []struct {
-		name    string
-		args    args
-		wantErr bool
-	}{
-		{
-			"Can create /test.txt",
-			args{"/test.txt"},
-			false,
-		},
-		// FIXME: STFS can create file in non-existent directory, which should not be possible
-		// {
-		// 	"Can not create /nonexistent/test.txt",
-		// 	args{"/nonexistent/test.txt"},
-		// 	true,
-		// },
-		// FIXME: STFS can create `/` file even if / exists
-		// {
-		// 	"Can create /",
-		// 	args{"/"},
-		// 	true,
-		// },
+func runBenchmarkForAllFss(b *testing.B, name string, action func(b *testing.B, fs fsConfig)) {
+	fss, err := createFss()
+	if err != nil {
+		b.Fatal(err)
+
+		return
 	}
 
-	for _, tt := range tests {
-		runForAllFss(t, tt.name, func(t *testing.T, fs fsConfig) {
+	for _, fs := range fss {
+		b.Run(fmt.Sprintf(`%v filesystem=%v config=%v`, name, fs.fs.Name(), stfsPermutation{
+			fs.stfsConfig.recordSize,
+			fs.stfsConfig.readOnly,
+
+			fs.stfsConfig.signature,
+			fs.stfsConfig.encryption,
+			fs.stfsConfig.compression,
+			fs.stfsConfig.compressionLevel,
+
+			fs.stfsConfig.writeCache,
+			fs.stfsConfig.fileSystemCache,
+
+			fs.stfsConfig.fileSystemCacheDuration,
+		}), func(b *testing.B) {
+			fs := fs
+
+			action(b, fs)
+		})
+
+		if err := fs.cleanup(); err != nil {
+			b.Fatal(err)
+
+			return
+		}
+	}
+}
+
+type createArgs struct {
+	name string
+}
+
+var createTests = []struct {
+	name    string
+	args    createArgs
+	wantErr bool
+}{
+	{
+		"Can create /test.txt",
+		createArgs{"/test.txt"},
+		false,
+	},
+	// FIXME: STFS can create file in non-existent directory, which should not be possible
+	// {
+	// 	"Can not create /nonexistent/test.txt",
+	// 	args{"/nonexistent/test.txt"},
+	// 	true,
+	// },
+	// FIXME: STFS can create `/` file even if / exists
+	// {
+	// 	"Can create /",
+	// 	args{"/"},
+	// 	true,
+	// },
+}
+
+func TestSTFS_Create(t *testing.T) {
+	for _, tt := range createTests {
+		runTestForAllFss(t, tt.name, func(t *testing.T, fs fsConfig) {
 			file, err := fs.fs.Create(tt.args.name)
 			if (err != nil) != tt.wantErr {
 				t.Errorf("%v.Create() error = %v, wantErr %v", fs.fs.Name(), err, tt.wantErr)
@@ -592,6 +629,18 @@ func TestSTFS_Create(t *testing.T) {
 
 			if !reflect.DeepEqual(got, want) {
 				t.Errorf("%v.Create().Name() = %v, want %v", fs.fs.Name(), got, want)
+
+				return
+			}
+		})
+	}
+}
+
+func BenchmarkSTFS_Create(b *testing.B) {
+	for _, tt := range createTests {
+		runBenchmarkForAllFss(b, tt.name, func(b *testing.B, fs fsConfig) {
+			if _, err := fs.fs.Create(tt.args.name); (err != nil) != tt.wantErr {
+				b.Errorf("%v.Create() error = %v, wantErr %v", fs.fs.Name(), err, tt.wantErr)
 
 				return
 			}

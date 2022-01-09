@@ -35,6 +35,10 @@ $(addprefix run/,$(obj)):
 test:
 	go test ./... -parallel $(shell nproc)
 
+# Benchmark
+benchmark:
+	go test -bench=./... ./...
+
 # Clean
 clean:
 	rm -rf out internal/db
