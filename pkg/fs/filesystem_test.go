@@ -1,6 +1,7 @@
 package fs
 
 import (
+	"flag"
 	"fmt"
 	"io/ioutil"
 	"log"
@@ -217,35 +218,60 @@ func TestMain(m *testing.M) {
 
 	wg.Wait()
 
-	for _, signature := range signatures {
-		for _, encryption := range encryptions {
-			for _, compression := range config.KnownCompressionFormats {
-				for _, compressionLevel := range config.KnownCompressionLevels {
-					for _, writeCacheType := range config.KnownWriteCacheTypes {
-						for _, fileSystemCacheType := range config.KnownFileSystemCacheTypes {
-							for _, fileSystemCacheDuration := range fileSystemCacheDurations {
-								for _, recordSize := range recordSizes {
-									stfsConfigs = append(stfsConfigs, stfsConfig{
-										recordSize,
-										readOnly,
+	flag.Parse() // So that `testing.Short` can be called, see https://go-review.googlesource.com/c/go/+/7604/
+	if testing.Short() {
+		stfsConfigs = append(stfsConfigs, stfsConfig{
+			20,
+			readOnly,
 
-										signature.name,
-										signature.recipient,
-										signature.identity,
+			config.NoneKey,
+			nil,
+			nil,
 
-										encryption.name,
-										encryption.recipient,
-										encryption.identity,
+			config.NoneKey,
+			nil,
+			nil,
 
-										compression,
+			config.NoneKey,
 
-										compressionLevel,
+			config.CompressionLevelFastestKey,
 
-										writeCacheType,
-										fileSystemCacheType,
+			config.WriteCacheTypeMemory,
+			config.FileSystemCacheTypeMemory,
 
-										fileSystemCacheDuration,
-									})
+			time.Hour,
+		})
+	} else {
+		for _, signature := range signatures {
+			for _, encryption := range encryptions {
+				for _, compression := range config.KnownCompressionFormats {
+					for _, compressionLevel := range config.KnownCompressionLevels {
+						for _, writeCacheType := range config.KnownWriteCacheTypes {
+							for _, fileSystemCacheType := range config.KnownFileSystemCacheTypes {
+								for _, fileSystemCacheDuration := range fileSystemCacheDurations {
+									for _, recordSize := range recordSizes {
+										stfsConfigs = append(stfsConfigs, stfsConfig{
+											recordSize,
+											readOnly,
+
+											signature.name,
+											signature.recipient,
+											signature.identity,
+
+											encryption.name,
+											encryption.recipient,
+											encryption.identity,
+
+											compression,
+
+											compressionLevel,
+
+											writeCacheType,
+											fileSystemCacheType,
+
+											fileSystemCacheDuration,
+										})
+									}
 								}
 							}
 						}
@@ -594,6 +620,20 @@ func TestSTFS_Name(t *testing.T) {
 			config.FileSystemNameSTFS,
 		},
 	}
+	if testing.Short() {
+		tests = []struct {
+			name string
+			f    afero.Fs
+			want string
+		}{
+			{
+				"Returns correct filesystem name",
+				fss[1].fs, // This is the first STFS config, [0] is the BasePathFs
+				"CacheOnReadFs",
+			},
+		}
+	}
+
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			if got := tt.f.Name(); got != tt.want {
