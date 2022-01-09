@@ -26,7 +26,6 @@ func Fetch(
 	getDst func(path string, mode fs.FileMode) (io.WriteCloser, error),
 	mkdirAll func(path string, mode fs.FileMode) error,
 
-	recordSize int,
 	record int,
 	block int,
 	to string,
@@ -39,7 +38,7 @@ func Fetch(
 	var tr *tar.Reader
 	if reader.DriveIsRegular {
 		// Seek to record and block
-		if _, err := reader.Drive.Seek(int64((recordSize*mtio.BlockSize*record)+block*mtio.BlockSize), io.SeekStart); err != nil {
+		if _, err := reader.Drive.Seek(int64((pipes.RecordSize*mtio.BlockSize*record)+block*mtio.BlockSize), io.SeekStart); err != nil {
 			return err
 		}
 
@@ -51,7 +50,7 @@ func Fetch(
 		}
 
 		// Seek to block
-		br := bufio.NewReaderSize(drive.Drive, mtio.BlockSize*recordSize)
+		br := bufio.NewReaderSize(drive.Drive, mtio.BlockSize*pipes.RecordSize)
 		if _, err := br.Read(make([]byte, block*mtio.BlockSize)); err != nil {
 			return err
 		}

@@ -302,7 +302,6 @@ func (o *Operations) Update(
 		o.pipes,
 		o.crypto,
 
-		o.pipes.RecordSize,
 		int(lastIndexedRecord),
 		int(lastIndexedBlock),
 		false,

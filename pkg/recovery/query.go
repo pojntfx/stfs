@@ -20,7 +20,6 @@ func Query(
 	pipes config.PipeConfig,
 	crypto config.CryptoConfig,
 
-	recordSize int,
 	record int,
 	block int,
 
@@ -30,7 +29,7 @@ func Query(
 
 	if state.DriveIsRegular {
 		// Seek to record and block
-		if _, err := state.Drive.Seek(int64((recordSize*mtio.BlockSize*record)+block*mtio.BlockSize), 0); err != nil {
+		if _, err := state.Drive.Seek(int64((pipes.RecordSize*mtio.BlockSize*record)+block*mtio.BlockSize), 0); err != nil {
 			return []*tar.Header{}, err
 		}
 
@@ -49,19 +48,19 @@ func Query(
 					}
 
 					nextTotalBlocks := math.Ceil(float64((curr)) / float64(mtio.BlockSize))
-					record = int64(nextTotalBlocks) / int64(recordSize)
-					block = int64(nextTotalBlocks) - (record * int64(recordSize))
+					record = int64(nextTotalBlocks) / int64(pipes.RecordSize)
+					block = int64(nextTotalBlocks) - (record * int64(pipes.RecordSize))
 
 					if block < 0 {
 						record--
-						block = int64(recordSize) - 1
-					} else if block >= int64(recordSize) {
+						block = int64(pipes.RecordSize) - 1
+					} else if block >= int64(pipes.RecordSize) {
 						record++
 						block = 0
 					}
 
 					// Seek to record and block
-					if _, err := state.Drive.Seek(int64((recordSize*mtio.BlockSize*int(record))+int(block)*mtio.BlockSize), io.SeekStart); err != nil {
+					if _, err := state.Drive.Seek(int64((pipes.RecordSize*mtio.BlockSize*int(record))+int(block)*mtio.BlockSize), io.SeekStart); err != nil {
 						return []*tar.Header{}, err
 					}
 
@@ -122,10 +121,10 @@ func Query(
 			}
 
 			nextTotalBlocks := math.Ceil(float64(curr+(currAndSize-curr)) / float64(mtio.BlockSize))
-			record = int64(nextTotalBlocks) / int64(recordSize)
-			block = int64(nextTotalBlocks) - (record * int64(recordSize))
+			record = int64(nextTotalBlocks) / int64(pipes.RecordSize)
+			block = int64(nextTotalBlocks) - (record * int64(pipes.RecordSize))
 
-			if block > int64(recordSize) {
+			if block > int64(pipes.RecordSize) {
 				record++
 				block = 0
 			}
@@ -137,7 +136,7 @@ func Query(
 		}
 
 		// Seek to block
-		br := bufio.NewReaderSize(state.Drive, mtio.BlockSize*recordSize)
+		br := bufio.NewReaderSize(state.Drive, mtio.BlockSize*pipes.RecordSize)
 		if _, err := br.Read(make([]byte, block*mtio.BlockSize)); err != nil {
 			return []*tar.Header{}, err
 		}
@@ -145,7 +144,7 @@ func Query(
 		record := int64(record)
 		block := int64(block)
 
-		curr := int64((recordSize * mtio.BlockSize * int(record)) + (int(block) * mtio.BlockSize))
+		curr := int64((pipes.RecordSize * mtio.BlockSize * int(record)) + (int(block) * mtio.BlockSize))
 		counter := &ioext.CounterReader{Reader: br, BytesRead: int(curr)}
 
 		tr := tar.NewReader(counter)
@@ -165,8 +164,8 @@ func Query(
 					}
 					block = 0
 
-					br = bufio.NewReaderSize(state.Drive, mtio.BlockSize*recordSize)
-					curr := int64(int64(recordSize) * mtio.BlockSize * record)
+					br = bufio.NewReaderSize(state.Drive, mtio.BlockSize*pipes.RecordSize)
+					curr := int64(int64(pipes.RecordSize) * mtio.BlockSize * record)
 					counter := &ioext.CounterReader{Reader: br, BytesRead: int(curr)}
 					tr = tar.NewReader(counter)
 
@@ -202,10 +201,10 @@ func Query(
 			currAndSize := int64(counter.BytesRead)
 
 			nextTotalBlocks := math.Ceil(float64(curr+(currAndSize-curr)) / float64(mtio.BlockSize))
-			record = int64(nextTotalBlocks) / int64(recordSize)
-			block = int64(nextTotalBlocks) - (record * int64(recordSize))
+			record = int64(nextTotalBlocks) / int64(pipes.RecordSize)
+			block = int64(nextTotalBlocks) - (record * int64(pipes.RecordSize))
 
-			if block > int64(recordSize) {
+			if block > int64(pipes.RecordSize) {
 				record++
 				block = 0
 			}

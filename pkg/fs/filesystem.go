@@ -220,7 +220,6 @@ func (f *STFS) Initialize(rootProposal string, rootPerm os.FileMode) (root strin
 			f.readOps.GetPipes(),
 			f.readOps.GetCrypto(),
 
-			f.readOps.GetPipes().RecordSize,
 			0,
 			0,
 			true,

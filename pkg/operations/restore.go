@@ -97,7 +97,6 @@ func (o *Operations) Restore(
 			getDst,
 			mkdirAll,
 
-			o.pipes.RecordSize,
 			int(dbhdr.Record),
 			int(dbhdr.Block),
 			dst,
