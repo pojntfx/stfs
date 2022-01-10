@@ -5,7 +5,6 @@ import (
 	"database/sql"
 	"io"
 	"io/fs"
-	"log"
 	"os"
 	"sync"
 
@@ -550,8 +549,6 @@ func (f *File) Write(p []byte) (n int, err error) {
 
 	n, err = f.writeBuf.Write(p)
 	if err != nil {
-		log.Fatal(err)
-
 		return -1, err
 	}
 

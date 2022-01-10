@@ -89,7 +89,7 @@ func (f *STFS) Create(name string) (afero.File, error) {
 		return nil, os.ErrPermission
 	}
 
-	return f.OpenFile(name, os.O_CREATE|os.O_RDWR, 0666)
+	return f.OpenFile(name, os.O_RDWR|os.O_CREATE|os.O_TRUNC, 0666)
 }
 
 func (f *STFS) mknodeWithoutLocking(dir bool, name string, perm os.FileMode, overwrite bool, linkname string, initializing bool) error {
@@ -369,6 +369,11 @@ func (f *STFS) OpenFile(name string, flag int, perm os.FileMode) (afero.File, er
 		} else {
 			return nil, err
 		}
+	}
+
+	// Prevent opening a directory as writable
+	if hdr.Typeflag == tar.TypeDir && (flags.Write || flags.Append || flags.Truncate) {
+		return nil, config.ErrIsDirectory
 	}
 
 	return ifs.NewFile(
