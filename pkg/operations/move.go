@@ -144,6 +144,7 @@ func (o *Operations) Move(from string, to string) error {
 		int(lastIndexedRecord),
 		int(lastIndexedBlock),
 		false,
+		false,
 		1, // Ignore the first header, which is the last header which we already indexed
 
 		func(hdr *tar.Header, i int) error {

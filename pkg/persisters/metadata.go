@@ -99,11 +99,13 @@ func (p *MetadataPersister) GetRootPath(ctx context.Context) (string, error) {
 	return root.Name, nil
 }
 
-func (p *MetadataPersister) UpsertHeader(ctx context.Context, dbhdr *config.Header) error {
+func (p *MetadataPersister) UpsertHeader(ctx context.Context, dbhdr *config.Header, initializing bool) error {
 	idbhdr := converters.ConfigHeaderToDBHeader(dbhdr)
 
 	hdr := *idbhdr
-	hdr.Name = p.getSanitizedPath(ctx, idbhdr.Name)
+	if !initializing {
+		hdr.Name = p.getSanitizedPath(ctx, idbhdr.Name)
+	}
 
 	if _, err := models.FindHeader(ctx, p.sqlite.DB, hdr.Name, models.HeaderColumns.Name); err != nil {
 		if err == sql.ErrNoRows {

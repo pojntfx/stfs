@@ -157,6 +157,7 @@ var operationArchiveCmd = &cobra.Command{
 			},
 			viper.GetString(compressionLevelFlag),
 			viper.GetBool(overwriteFlag),
+			false,
 		); err != nil {
 			return err
 		}

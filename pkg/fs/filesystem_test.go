@@ -319,6 +319,8 @@ func createSTFS(
 	fileSystemCache string,
 	fileSystemCacheDir string,
 	fileSystemCacheDuration time.Duration,
+
+	initialize bool,
 ) (afero.Fs, error) {
 	tm := tape.NewTapeManager(
 		drive,
@@ -411,9 +413,13 @@ func createSTFS(
 		jsonLogger,
 	)
 
-	root, err := stfs.Initialize("/", os.ModePerm)
-	if err != nil {
-		return nil, err
+	root := ""
+	if initialize {
+		var err error
+		root, err = stfs.Initialize("/", os.ModePerm)
+		if err != nil {
+			return nil, err
+		}
 	}
 
 	return cache.NewCacheFilesystem(
@@ -425,7 +431,7 @@ func createSTFS(
 	)
 }
 
-func createFss() ([]fsConfig, error) {
+func createFss(initialize bool) ([]fsConfig, error) {
 	fss := []fsConfig{}
 
 	baseTmp, err := os.MkdirTemp(os.TempDir(), "stfs-test-*")
@@ -484,6 +490,8 @@ func createFss() ([]fsConfig, error) {
 			config.fileSystemCache,
 			fileSystemCacheDir,
 			config.fileSystemCacheDuration,
+
+			initialize,
 		)
 		if err != nil {
 			return nil, err
@@ -501,8 +509,8 @@ func createFss() ([]fsConfig, error) {
 	return fss, nil
 }
 
-func runTestForAllFss(t *testing.T, name string, action func(t *testing.T, fs fsConfig)) {
-	fss, err := createFss()
+func runTestForAllFss(t *testing.T, name string, initialize bool, action func(t *testing.T, fs fsConfig)) {
+	fss, err := createFss(initialize)
 	if err != nil {
 		t.Fatal(err)
 
@@ -539,8 +547,8 @@ func runTestForAllFss(t *testing.T, name string, action func(t *testing.T, fs fs
 	}
 }
 
-func runBenchmarkForAllFss(b *testing.B, name string, action func(b *testing.B, fs fsConfig)) {
-	fss, err := createFss()
+func runBenchmarkForAllFss(b *testing.B, name string, initialize bool, action func(b *testing.B, fs fsConfig)) {
+	fss, err := createFss(initialize)
 	if err != nil {
 		b.Fatal(err)
 
@@ -575,81 +583,8 @@ func runBenchmarkForAllFss(b *testing.B, name string, action func(b *testing.B, 
 	}
 }
 
-type createArgs struct {
-	name string
-}
-
-var createTests = []struct {
-	name    string
-	args    createArgs
-	wantErr bool
-}{
-	{
-		"Can create /test.txt",
-		createArgs{"/test.txt"},
-		false,
-	},
-	// FIXME: STFS can create file in non-existent directory, which should not be possible
-	// {
-	// 	"Can not create /nonexistent/test.txt",
-	// 	args{"/nonexistent/test.txt"},
-	// 	true,
-	// },
-	// FIXME: STFS can create `/` file even if / exists
-	// {
-	// 	"Can create /",
-	// 	args{"/"},
-	// 	true,
-	// },
-}
-
-func TestSTFS_Create(t *testing.T) {
-	for _, tt := range createTests {
-		runTestForAllFss(t, tt.name, func(t *testing.T, fs fsConfig) {
-			file, err := fs.fs.Create(tt.args.name)
-			if (err != nil) != tt.wantErr {
-				t.Errorf("%v.Create() error = %v, wantErr %v", fs.fs.Name(), err, tt.wantErr)
-
-				return
-			}
-
-			want, err := fs.fs.Stat(tt.args.name)
-			if err != nil {
-				t.Errorf("%v.Stat() error = %v, wantErr %v", fs.fs.Name(), err, tt.wantErr)
-
-				return
-			}
-
-			got, err := fs.fs.Stat(file.Name())
-			if err != nil {
-				t.Errorf("%v.Stat() error = %v, wantErr %v", fs.fs.Name(), err, tt.wantErr)
-
-				return
-			}
-
-			if !reflect.DeepEqual(got, want) {
-				t.Errorf("%v.Create().Name() = %v, want %v", fs.fs.Name(), got, want)
-
-				return
-			}
-		})
-	}
-}
-
-func BenchmarkSTFS_Create(b *testing.B) {
-	for _, tt := range createTests {
-		runBenchmarkForAllFss(b, tt.name, func(b *testing.B, fs fsConfig) {
-			if _, err := fs.fs.Create(tt.args.name); (err != nil) != tt.wantErr {
-				b.Errorf("%v.Create() error = %v, wantErr %v", fs.fs.Name(), err, tt.wantErr)
-
-				return
-			}
-		})
-	}
-}
-
 func TestSTFS_Name(t *testing.T) {
-	fss, err := createFss()
+	fss, err := createFss(true)
 	if err != nil {
 		t.Fatal(err)
 
@@ -681,6 +616,195 @@ func TestSTFS_Name(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			if got := tt.f.Name(); got != tt.want {
 				t.Errorf("STFS.Name() = %v, want %v", got, tt.want)
+			}
+		})
+	}
+}
+
+type createArgs struct {
+	name string
+}
+
+var createTests = []struct {
+	name    string
+	args    createArgs
+	wantErr bool
+}{
+	{
+		"Can create /test.txt",
+		createArgs{"/test.txt"},
+		false,
+	},
+	// FIXME: STFS can create file in non-existent directory, which should not be possible
+	// {
+	// 	"Can not create /nonexistent/test.txt",
+	// 	createArgs{"/nonexistent/test.txt"},
+	// 	true,
+	// },
+	// FIXME: STFS can create `/` file even if / exists
+	// {
+	// 	"Can create /",
+	// 	createArgs{"/"},
+	// 	true,
+	// },
+}
+
+func TestSTFS_Create(t *testing.T) {
+	for _, tt := range createTests {
+		runTestForAllFss(t, tt.name, true, func(t *testing.T, fs fsConfig) {
+			file, err := fs.fs.Create(tt.args.name)
+			if (err != nil) != tt.wantErr {
+				t.Errorf("%v.Create() error = %v, wantErr %v", fs.fs.Name(), err, tt.wantErr)
+
+				return
+			}
+
+			want, err := fs.fs.Stat(tt.args.name)
+			if err != nil {
+				t.Errorf("%v.Stat() error = %v, wantErr %v", fs.fs.Name(), err, tt.wantErr)
+
+				return
+			}
+
+			if file == nil {
+				if (err != nil) != tt.wantErr {
+					t.Errorf("%v.Create() error = %v, wantErr %v", fs.fs.Name(), err, tt.wantErr)
+
+					return
+				}
+
+				return
+			}
+
+			got, err := fs.fs.Stat(file.Name())
+			if err != nil {
+				t.Errorf("%v.Stat() error = %v, wantErr %v", fs.fs.Name(), err, tt.wantErr)
+
+				return
+			}
+
+			if !reflect.DeepEqual(got, want) {
+				t.Errorf("%v.Create().Name() = %v, want %v", fs.fs.Name(), got, want)
+
+				return
+			}
+		})
+	}
+}
+
+func BenchmarkSTFS_Create(b *testing.B) {
+	for _, tt := range createTests {
+		runBenchmarkForAllFss(b, tt.name, true, func(b *testing.B, fs fsConfig) {
+			if _, err := fs.fs.Create(tt.args.name); (err != nil) != tt.wantErr {
+				b.Errorf("%v.Create() error = %v, wantErr %v", fs.fs.Name(), err, tt.wantErr)
+
+				return
+			}
+		})
+	}
+}
+
+type initializeArgs struct {
+	rootProposal string
+	rootPerm     os.FileMode
+}
+
+var initializeTests = []struct {
+	name     string
+	args     initializeArgs
+	wantRoot string
+	wantErr  bool
+}{
+	{
+		"Can create absolute root directory /",
+		initializeArgs{"/", os.ModePerm},
+		"/",
+		false,
+	},
+	{
+		"Can create absolute root directory /test",
+		initializeArgs{"/test", os.ModePerm},
+		"/test",
+		false,
+	},
+	{
+		"Can create absolute root directory /test/yes",
+		initializeArgs{"/test/yes", os.ModePerm},
+		"/test/yes",
+		false,
+	},
+	{
+		"Can create relative root directory ' '",
+		initializeArgs{" ", os.ModePerm},
+		" ",
+		false,
+	},
+	{
+		"Can create relative root directory ''",
+		initializeArgs{"", os.ModePerm},
+		"",
+		false,
+	},
+	{
+		"Can create relative root directory .",
+		initializeArgs{".", os.ModePerm},
+		".",
+		false,
+	},
+	{
+		"Can create relative root directory test",
+		initializeArgs{"test", os.ModePerm},
+		"test",
+		false,
+	},
+	{
+		"Can create absolute root directory test/yes",
+		initializeArgs{"test/yes", os.ModePerm},
+		"test/yes",
+		false,
+	},
+}
+
+func TestSTFS_Initialize(t *testing.T) {
+	for _, tt := range initializeTests {
+		runTestForAllFss(t, tt.name, false, func(t *testing.T, fs fsConfig) {
+			f, ok := fs.fs.(*STFS)
+			if !ok {
+				if fs.fs.Name() == config.FileSystemNameSTFS {
+					t.Fatal("Initialize function missing from filesystem")
+
+					return
+				}
+
+				// Skip non-STFS filesystems
+				return
+			}
+
+			gotRoot, err := f.Initialize(tt.args.rootProposal, tt.args.rootPerm)
+			if (err != nil) != tt.wantErr {
+				t.Errorf("STFS.Initialize() error = %v, wantErr %v", err, tt.wantErr)
+				return
+			}
+			if gotRoot != tt.wantRoot {
+				t.Errorf("STFS.Initialize() = %v, want %v", gotRoot, tt.wantRoot)
+			}
+		})
+	}
+}
+
+func BenchmarkSTFS_Initialize(b *testing.B) {
+	for _, tt := range initializeTests {
+		runBenchmarkForAllFss(b, tt.name, true, func(b *testing.B, fs fsConfig) {
+			_, ok := fs.fs.(*STFS)
+			if !ok {
+				if fs.fs.Name() == config.FileSystemNameSTFS {
+					b.Fatal("Initialize function missing from filesystem")
+
+					return
+				}
+
+				// Skip non-STFS filesystems
+				return
 			}
 		})
 	}

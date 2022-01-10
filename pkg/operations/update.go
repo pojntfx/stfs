@@ -305,6 +305,7 @@ func (o *Operations) Update(
 		int(lastIndexedRecord),
 		int(lastIndexedBlock),
 		false,
+		false,
 		1, // Ignore the first header, which is the last header which we already indexed
 
 		func(hdr *tar.Header, i int) error {
