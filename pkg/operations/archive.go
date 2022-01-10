@@ -29,6 +29,7 @@ func (o *Operations) Archive(
 	getSrc func() (config.FileConfig, error),
 	compressionLevel string,
 	overwrite bool,
+	initializing bool,
 ) ([]*tar.Header, error) {
 	o.diskOperationLock.Lock()
 	defer o.diskOperationLock.Unlock()
@@ -277,6 +278,7 @@ func (o *Operations) Archive(
 		int(lastIndexedRecord),
 		int(lastIndexedBlock),
 		overwrite,
+		initializing,
 		index,
 
 		func(hdr *tar.Header, i int) error {

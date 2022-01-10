@@ -92,6 +92,7 @@ var recoveryIndexCmd = &cobra.Command{
 			viper.GetInt(recordFlag),
 			viper.GetInt(blockFlag),
 			viper.GetBool(overwriteFlag),
+			false,
 			0,
 
 			func(hdr *tar.Header, i int) error {

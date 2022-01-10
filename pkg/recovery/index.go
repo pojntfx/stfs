@@ -29,6 +29,7 @@ func Index(
 	record int,
 	block int,
 	overwrite bool,
+	initializing bool,
 	offset int,
 
 	decryptHeader func(
@@ -117,7 +118,7 @@ func Index(
 					return err
 				}
 
-				if err := indexHeader(record, block, hdr, metadata.Metadata, pipes.Compression, pipes.Encryption, onHeader); err != nil {
+				if err := indexHeader(record, block, hdr, metadata.Metadata, pipes.Compression, pipes.Encryption, initializing, onHeader); err != nil {
 					return err
 				}
 			}
@@ -203,7 +204,7 @@ func Index(
 					return err
 				}
 
-				if err := indexHeader(record, block, hdr, metadata.Metadata, pipes.Compression, pipes.Encryption, onHeader); err != nil {
+				if err := indexHeader(record, block, hdr, metadata.Metadata, pipes.Compression, pipes.Encryption, initializing, onHeader); err != nil {
 					return err
 				}
 			}
@@ -238,6 +239,7 @@ func indexHeader(
 	metadataPersister config.MetadataPersister,
 	compressionFormat string,
 	encryptionFormat string,
+	initializing bool,
 	onHeader func(hdr *config.Header),
 ) error {
 	uncompressedSize, ok := hdr.PAXRecords[records.STFSRecordUncompressedSize]
@@ -286,7 +288,7 @@ func indexHeader(
 				return err
 			}
 
-			if err := metadataPersister.UpsertHeader(context.Background(), converters.DBHeaderToConfigHeader(dbhdr)); err != nil {
+			if err := metadataPersister.UpsertHeader(context.Background(), converters.DBHeaderToConfigHeader(dbhdr), initializing); err != nil {
 				return err
 			}
 		case records.STFSRecordActionDelete:

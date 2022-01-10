@@ -92,7 +92,7 @@ func (f *STFS) Create(name string) (afero.File, error) {
 	return f.OpenFile(name, os.O_CREATE|os.O_RDWR, 0666)
 }
 
-func (f *STFS) mknodeWithoutLocking(dir bool, name string, perm os.FileMode, overwrite bool, linkname string) error {
+func (f *STFS) mknodeWithoutLocking(dir bool, name string, perm os.FileMode, overwrite bool, linkname string, initializing bool) error {
 	f.log.Trace("FileSystem.mknodeWithoutLocking", map[string]interface{}{
 		"name": name,
 		"perm": perm,
@@ -169,6 +169,7 @@ func (f *STFS) mknodeWithoutLocking(dir bool, name string, perm os.FileMode, ove
 		},
 		f.compressionLevel,
 		overwrite,
+		initializing,
 	); err != nil {
 		return err
 	}
@@ -198,7 +199,7 @@ func (f *STFS) Initialize(rootProposal string, rootPerm os.FileMode) (root strin
 				return "", os.ErrPermission
 			}
 
-			if err := f.mknodeWithoutLocking(true, rootProposal, rootPerm, true, ""); err != nil {
+			if err := f.mknodeWithoutLocking(true, rootProposal, rootPerm, true, "", true); err != nil {
 				return "", err
 			}
 
@@ -222,6 +223,7 @@ func (f *STFS) Initialize(rootProposal string, rootPerm os.FileMode) (root strin
 
 			0,
 			0,
+			true,
 			true,
 			0,
 
@@ -259,7 +261,7 @@ func (f *STFS) Mkdir(name string, perm os.FileMode) error {
 	f.ioLock.Lock()
 	defer f.ioLock.Unlock()
 
-	return f.mknodeWithoutLocking(true, name, perm, false, "")
+	return f.mknodeWithoutLocking(true, name, perm, false, "", false)
 }
 
 func (f *STFS) MkdirAll(path string, perm os.FileMode) error {
@@ -285,7 +287,7 @@ func (f *STFS) MkdirAll(path string, perm os.FileMode) error {
 			currentPath = filepath.Join(currentPath, part)
 		}
 
-		if err := f.mknodeWithoutLocking(true, currentPath, perm, false, ""); err != nil {
+		if err := f.mknodeWithoutLocking(true, currentPath, perm, false, "", false); err != nil {
 			return err
 		}
 	}
@@ -346,7 +348,7 @@ func (f *STFS) OpenFile(name string, flag int, perm os.FileMode) (afero.File, er
 	if err != nil {
 		if err == sql.ErrNoRows {
 			if !f.readOnly && flag&os.O_CREATE != 0 && flag&os.O_EXCL == 0 {
-				if err := f.mknodeWithoutLocking(false, name, perm, false, ""); err != nil {
+				if err := f.mknodeWithoutLocking(false, name, perm, false, "", false); err != nil {
 					return nil, err
 				}
 
@@ -648,7 +650,7 @@ func (f *STFS) SymlinkIfPossible(oldname, newname string) error {
 	f.ioLock.Lock()
 	defer f.ioLock.Unlock()
 
-	return f.mknodeWithoutLocking(false, oldname, os.ModePerm, false, newname)
+	return f.mknodeWithoutLocking(false, oldname, os.ModePerm, false, newname, false)
 }
 
 func (f *STFS) ReadlinkIfPossible(name string) (string, error) {

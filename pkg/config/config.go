@@ -63,7 +63,7 @@ type Header struct {
 }
 
 type MetadataPersister interface {
-	UpsertHeader(ctx context.Context, dbhdr *Header) error
+	UpsertHeader(ctx context.Context, dbhdr *Header, initializing bool) error
 	UpdateHeaderMetadata(ctx context.Context, dbhdr *Header) error
 	MoveHeader(ctx context.Context, oldName string, newName string, lastknownrecord, lastknownblock int64) error
 	GetHeaders(ctx context.Context) ([]*Header, error)
