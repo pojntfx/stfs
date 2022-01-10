@@ -635,16 +635,26 @@ var createTests = []struct {
 		createArgs{"/test.txt"},
 		false,
 	},
+	{
+		"Can not create existing directory /",
+		createArgs{"/"},
+		true,
+	},
+	// FIXME: Prevent creating empty directory names
+	// {
+	// 	"Can not create directory ''",
+	// 	createArgs{""},
+	// 	true,
+	// },
+	// {
+	// 	"Can not create directory ' '",
+	// 	createArgs{" "},
+	// 	true,
+	// },
 	// FIXME: STFS can create file in non-existent directory, which should not be possible
 	// {
 	// 	"Can not create /nonexistent/test.txt",
 	// 	createArgs{"/nonexistent/test.txt"},
-	// 	true,
-	// },
-	// FIXME: STFS can create `/` file even if / exists
-	// {
-	// 	"Can create /",
-	// 	createArgs{"/"},
 	// 	true,
 	// },
 }
@@ -659,34 +669,32 @@ func TestSTFS_Create(t *testing.T) {
 				return
 			}
 
-			want, err := fs.fs.Stat(tt.args.name)
-			if err != nil {
-				t.Errorf("%v.Stat() error = %v, wantErr %v", fs.fs.Name(), err, tt.wantErr)
+			if !tt.wantErr {
+				want, err := fs.fs.Stat(tt.args.name)
+				if err != nil {
+					t.Errorf("%v.Stat() error = %v, wantErr %v", fs.fs.Name(), err, tt.wantErr)
 
-				return
-			}
+					return
+				}
 
-			if file == nil {
-				if (err != nil) != tt.wantErr {
+				if file == nil {
 					t.Errorf("%v.Create() error = %v, wantErr %v", fs.fs.Name(), err, tt.wantErr)
 
 					return
 				}
 
-				return
-			}
+				got, err := fs.fs.Stat(file.Name())
+				if err != nil {
+					t.Errorf("%v.Stat() error = %v, wantErr %v", fs.fs.Name(), err, tt.wantErr)
 
-			got, err := fs.fs.Stat(file.Name())
-			if err != nil {
-				t.Errorf("%v.Stat() error = %v, wantErr %v", fs.fs.Name(), err, tt.wantErr)
+					return
+				}
 
-				return
-			}
+				if !reflect.DeepEqual(got, want) {
+					t.Errorf("%v.Create().Name() = %v, want %v", fs.fs.Name(), got, want)
 
-			if !reflect.DeepEqual(got, want) {
-				t.Errorf("%v.Create().Name() = %v, want %v", fs.fs.Name(), got, want)
-
-				return
+					return
+				}
 			}
 		})
 	}
