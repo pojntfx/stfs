@@ -547,41 +547,41 @@ func runTestForAllFss(t *testing.T, name string, initialize bool, action func(t 
 	}
 }
 
-func runBenchmarkForAllFss(b *testing.B, name string, initialize bool, action func(b *testing.B, fs fsConfig)) {
-	fss, err := createFss(initialize)
-	if err != nil {
-		b.Fatal(err)
+// func runBenchmarkForAllFss(b *testing.B, name string, initialize bool, action func(b *testing.B, fs fsConfig)) {
+// 	fss, err := createFss(initialize)
+// 	if err != nil {
+// 		b.Fatal(err)
 
-		return
-	}
+// 		return
+// 	}
 
-	for _, fs := range fss {
-		b.Run(fmt.Sprintf(`%v filesystem=%v config=%v`, name, fs.fs.Name(), stfsPermutation{
-			fs.stfsConfig.recordSize,
-			fs.stfsConfig.readOnly,
+// 	for _, fs := range fss {
+// 		b.Run(fmt.Sprintf(`%v filesystem=%v config=%v`, name, fs.fs.Name(), stfsPermutation{
+// 			fs.stfsConfig.recordSize,
+// 			fs.stfsConfig.readOnly,
 
-			fs.stfsConfig.signature,
-			fs.stfsConfig.encryption,
-			fs.stfsConfig.compression,
-			fs.stfsConfig.compressionLevel,
+// 			fs.stfsConfig.signature,
+// 			fs.stfsConfig.encryption,
+// 			fs.stfsConfig.compression,
+// 			fs.stfsConfig.compressionLevel,
 
-			fs.stfsConfig.writeCache,
-			fs.stfsConfig.fileSystemCache,
+// 			fs.stfsConfig.writeCache,
+// 			fs.stfsConfig.fileSystemCache,
 
-			fs.stfsConfig.fileSystemCacheDuration,
-		}), func(b *testing.B) {
-			fs := fs
+// 			fs.stfsConfig.fileSystemCacheDuration,
+// 		}), func(b *testing.B) {
+// 			fs := fs
 
-			action(b, fs)
-		})
+// 			action(b, fs)
+// 		})
 
-		if err := fs.cleanup(); err != nil {
-			b.Fatal(err)
+// 		if err := fs.cleanup(); err != nil {
+// 			b.Fatal(err)
 
-			return
-		}
-	}
-}
+// 			return
+// 		}
+// 	}
+// }
 
 func TestSTFS_Name(t *testing.T) {
 	fss, err := createFss(true)
@@ -631,26 +631,25 @@ var createTests = []struct {
 	wantErr bool
 }{
 	{
-		"Can create /test.txt",
+		"Can create file /test.txt",
 		createArgs{"/test.txt"},
 		false,
 	},
 	{
-		"Can not create existing directory /",
+		"Can not create existing file/directory /",
 		createArgs{"/"},
 		true,
 	},
-	// FIXME: Prevent creating empty directory names
-	// {
-	// 	"Can not create directory ''",
-	// 	createArgs{""},
-	// 	true,
-	// },
-	// {
-	// 	"Can not create directory ' '",
-	// 	createArgs{" "},
-	// 	true,
-	// },
+	{
+		"Can not create file ' '",
+		createArgs{" "},
+		true,
+	},
+	{
+		"Can not create file ''",
+		createArgs{""},
+		true,
+	},
 	// FIXME: STFS can create file in non-existent directory, which should not be possible
 	// {
 	// 	"Can not create /nonexistent/test.txt",
@@ -695,18 +694,6 @@ func TestSTFS_Create(t *testing.T) {
 
 					return
 				}
-			}
-		})
-	}
-}
-
-func BenchmarkSTFS_Create(b *testing.B) {
-	for _, tt := range createTests {
-		runBenchmarkForAllFss(b, tt.name, true, func(b *testing.B, fs fsConfig) {
-			if _, err := fs.fs.Create(tt.args.name); (err != nil) != tt.wantErr {
-				b.Errorf("%v.Create() error = %v, wantErr %v", fs.fs.Name(), err, tt.wantErr)
-
-				return
 			}
 		})
 	}
@@ -800,19 +787,67 @@ func TestSTFS_Initialize(t *testing.T) {
 	}
 }
 
-func BenchmarkSTFS_Initialize(b *testing.B) {
-	for _, tt := range initializeTests {
-		runBenchmarkForAllFss(b, tt.name, true, func(b *testing.B, fs fsConfig) {
-			_, ok := fs.fs.(*STFS)
-			if !ok {
-				if fs.fs.Name() == config.FileSystemNameSTFS {
-					b.Fatal("Initialize function missing from filesystem")
+type mkdirArgs struct {
+	name string
+	perm os.FileMode
+}
+
+var mkdirTests = []struct {
+	name    string
+	args    mkdirArgs
+	wantErr bool
+}{
+	{
+		"Can create directory /test.txt",
+		mkdirArgs{"/test.txt", os.ModePerm},
+		false,
+	},
+	{
+		"Can create directory /test.txt with different permissions",
+		mkdirArgs{"/test.txt", 0666},
+		false,
+	},
+	{
+		"Can not create existing directory /",
+		mkdirArgs{"/", os.ModePerm},
+		true,
+	},
+	{
+		"Can not create directory ' '",
+		mkdirArgs{" ", os.ModePerm},
+		true,
+	},
+	{
+		"Can not create directory ''",
+		mkdirArgs{"", os.ModePerm},
+		true,
+	},
+	// FIXME: STFS can create directory in non-existent directory, which should not be possible
+	// {
+	// 	"Can not create /nonexistent/test.txt",
+	// 	mkdirArgs{"/nonexistent/test.txt", os.ModePerm},
+	// 	true,
+	// },
+}
+
+func TestSTFS_Mkdir(t *testing.T) {
+	for _, tt := range mkdirTests {
+		runTestForAllFss(t, tt.name, true, func(t *testing.T, fs fsConfig) {
+			if err := fs.fs.Mkdir(tt.args.name, tt.args.perm); (err != nil) != tt.wantErr {
+				t.Errorf("STFS.Mkdir() error = %v, wantErr %v", err, tt.wantErr)
+			}
+
+			if !tt.wantErr {
+				want, err := fs.fs.Stat(tt.args.name)
+				if err != nil {
+					t.Errorf("%v.Stat() error = %v, wantErr %v", fs.fs.Name(), err, tt.wantErr)
 
 					return
 				}
 
-				// Skip non-STFS filesystems
-				return
+				if want == nil {
+					t.Errorf("%v.Stat() returned %v, want !nil", fs.fs.Name(), want)
+				}
 			}
 		})
 	}
