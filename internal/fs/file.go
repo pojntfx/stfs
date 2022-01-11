@@ -351,7 +351,7 @@ func (f *File) Name() string {
 	f.ioLock.Lock()
 	defer f.ioLock.Unlock()
 
-	return f.name
+	return f.path
 }
 
 func (f *File) Stat() (os.FileInfo, error) {
