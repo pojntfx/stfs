@@ -1,6 +1,7 @@
 package fs
 
 import (
+	"errors"
 	"flag"
 	"fmt"
 	"io/ioutil"
@@ -944,51 +945,72 @@ func TestSTFS_MkdirAll(t *testing.T) {
 	}
 }
 
+type openArgs struct {
+	name string
+}
+
+var openTests = []struct {
+	name    string
+	args    openArgs
+	wantErr bool
+	prepare func(afero.Fs) error
+	check   func(afero.File) error
+}{
+	{
+		"Can open /",
+		openArgs{"/"},
+		false,
+		func(f afero.Fs) error { return nil },
+		func(f afero.File) error { return nil },
+	},
+	{
+		"Can not open /test.txt without creating it",
+		openArgs{"/test.txt"},
+		true,
+		func(f afero.Fs) error { return nil },
+		func(f afero.File) error { return nil },
+	},
+	{
+		"Can open /test.txt after creating it",
+		openArgs{"/test.txt"},
+		false,
+		func(f afero.Fs) error {
+			if _, err := f.Create("/test.txt"); err != nil {
+				return err
+			}
+
+			return nil
+		},
+		func(f afero.File) error {
+			if f.Name() != "/test.txt" {
+				return errors.New("invalid name")
+			}
+
+			return nil
+		},
+	},
+}
+
 func TestSTFS_Open(t *testing.T) {
-	type args struct {
-		name string
-	}
-	tests := []struct {
-		name    string
-		args    args
-		wantErr bool
-		prepare func(afero.Fs) error
-		check   func(afero.File) error
-	}{
-		{
-			"Can open /",
-			args{"/"},
-			false,
-			func(f afero.Fs) error { return nil },
-			func(f afero.File) error { return nil },
-		},
-		{
-			"Can not open /test.txt without creating it",
-			args{"/test.txt"},
-			true,
-			func(f afero.Fs) error { return nil },
-			func(f afero.File) error { return nil },
-		},
-	}
-	for _, tt := range tests {
+	for _, tt := range openTests {
 		tt := tt
 
 		runTestForAllFss(t, tt.name, true, func(t *testing.T, fs fsConfig) {
 			if err := tt.prepare(fs.fs); err != nil {
-				t.Error(err)
+				t.Errorf("%v prepare() error = %v", fs.fs.Name(), err)
 
 				return
 			}
 
 			got, err := fs.fs.Open(tt.args.name)
 			if err == nil && tt.wantErr {
-				t.Fatalf("%v.Open() error = %v, wantErr %v", fs.fs.Name(), err, tt.wantErr)
+				t.Errorf("%v.Open() error = %v, wantErr %v", fs.fs.Name(), err, tt.wantErr)
 
 				return
 			}
 
 			if err := tt.check(got); err != nil {
-				t.Error(err)
+				t.Errorf("%v check() error = %v", fs.fs.Name(), err)
 
 				return
 			}
