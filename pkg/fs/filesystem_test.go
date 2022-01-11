@@ -1047,3 +1047,205 @@ func TestSTFS_Open(t *testing.T) {
 		})
 	}
 }
+
+type openFileArgs struct {
+	name string
+	flag int
+	perm os.FileMode
+}
+
+var openFileTests = []struct {
+	name            string
+	args            openFileArgs
+	wantErr         bool
+	prepare         func(afero.Fs) error
+	check           func(afero.File) error
+	checkAfterError bool
+}{
+	// FIXME: Can't open this with in-memory or file cache (will need a upstream fix in CacheOnReadFs)
+	// {
+	// 	"Can open /",
+	// 	openFileArgs{"/", os.O_RDONLY, 0},
+	// 	false,
+	// 	func(f afero.Fs) error { return nil },
+	// 	func(f afero.File) error { return nil },
+	// },
+	{
+		"Can not open /test.txt without creating it",
+		openFileArgs{"/test.txt", os.O_RDONLY, 0},
+		true,
+		func(f afero.Fs) error { return nil },
+		func(f afero.File) error { return nil },
+		false,
+	},
+	{
+		"Can open /test.txt if O_CREATE is set",
+		openFileArgs{"/test.txt", os.O_CREATE, os.ModePerm},
+		false,
+		func(f afero.Fs) error { return nil },
+		func(f afero.File) error { return nil },
+		false,
+	},
+	{
+		"Can open /test.txt after creating it",
+		openFileArgs{"/test.txt", os.O_RDONLY, 0},
+		false,
+		func(f afero.Fs) error {
+			if _, err := f.Create("/test.txt"); err != nil {
+				return err
+			}
+
+			return nil
+		},
+		func(f afero.File) error {
+			if f.Name() != "/test.txt" {
+				return errors.New("invalid name")
+			}
+
+			return nil
+		},
+		false,
+	},
+	{
+		"Can not open /mydir/test.txt without creating it",
+		openFileArgs{"/mydir/test.txt", os.O_RDONLY, 0},
+		true,
+		func(f afero.Fs) error { return nil },
+		func(f afero.File) error { return nil },
+		false,
+	},
+	// FIXME: STFS can create file in non-existent directory, which should not be possible
+	// {
+	// 	"Can not open /mydir/test.txt if O_CREATE is set",
+	// 	openFileArgs{"/mydir/test.txt", os.O_CREATE, os.ModePerm},
+	// 	true,
+	// 	func(f afero.Fs) error { return nil },
+	// 	func(f afero.File) error { return nil },
+	//  false,
+	// },
+	{
+		"Can open /mydir/test.txt after creating it",
+		openFileArgs{"/mydir/test.txt", os.O_RDONLY, 0},
+		false,
+		func(f afero.Fs) error {
+			if err := f.Mkdir("/mydir", os.ModePerm); err != nil {
+				return err
+			}
+
+			if _, err := f.Create("/mydir/test.txt"); err != nil {
+				return err
+			}
+
+			return nil
+		},
+		func(f afero.File) error {
+			if f.Name() != "/mydir/test.txt" {
+				return errors.New("invalid name")
+			}
+
+			return nil
+		},
+		false,
+	},
+	{
+		"Can not write to /test.txt if O_RDONLY is set",
+		openFileArgs{"/test.txt", os.O_RDONLY, 0},
+		true,
+		func(f afero.Fs) error {
+			if _, err := f.Create("/test.txt"); err != nil {
+				return err
+			}
+
+			return nil
+		},
+		func(f afero.File) error {
+			if f.Name() != "/test.txt" {
+				return errors.New("invalid name")
+			}
+
+			if _, err := f.Write([]byte("test content")); err == nil {
+				return errors.New("could write to read-only file")
+			}
+
+			return nil
+		},
+		true,
+	},
+	{
+		"Can write to /test.txt if O_WRONLY is set",
+		openFileArgs{"/test.txt", os.O_WRONLY, 0},
+		true,
+		func(f afero.Fs) error {
+			if _, err := f.Create("/test.txt"); err != nil {
+				return err
+			}
+
+			return nil
+		},
+		func(f afero.File) error {
+			if f.Name() != "/test.txt" {
+				return errors.New("invalid name")
+			}
+
+			if _, err := f.Write([]byte("test content")); err != nil {
+				return errors.New("could not write to write-only file")
+			}
+
+			return nil
+		},
+		true,
+	},
+	{
+		"Can write to /test.txt if O_RDWR is set",
+		openFileArgs{"/test.txt", os.O_RDWR, 0},
+		true,
+		func(f afero.Fs) error {
+			if _, err := f.Create("/test.txt"); err != nil {
+				return err
+			}
+
+			return nil
+		},
+		func(f afero.File) error {
+			if f.Name() != "/test.txt" {
+				return errors.New("invalid name")
+			}
+
+			if _, err := f.Write([]byte("test content")); err != nil {
+				return errors.New("could not write to read-write file")
+			}
+
+			return nil
+		},
+		true,
+	},
+}
+
+func TestSTFS_OpenFile(t *testing.T) {
+	for _, tt := range openFileTests {
+		tt := tt
+
+		runTestForAllFss(t, tt.name, true, func(t *testing.T, fs fsConfig) {
+			if err := tt.prepare(fs.fs); err != nil {
+				t.Errorf("%v prepare() error = %v", fs.fs.Name(), err)
+
+				return
+			}
+
+			got, err := fs.fs.OpenFile(tt.args.name, tt.args.flag, tt.args.perm)
+			if (err != nil) != tt.wantErr {
+				if !tt.checkAfterError {
+					t.Errorf("%v.OpenFile() error = %v, wantErr %v", fs.fs.Name(), err, tt.wantErr)
+
+					return
+				}
+			}
+
+			if err := tt.check(got); err != nil {
+				t.Errorf("%v check() error = %v", fs.fs.Name(), err)
+
+				return
+			}
+		})
+	}
+}
