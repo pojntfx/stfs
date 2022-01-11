@@ -298,8 +298,21 @@ func (f *STFS) MkdirAll(path string, perm os.FileMode) error {
 			currentPath = filepath.Join(currentPath, part)
 		}
 
-		if err := f.mknodeWithoutLocking(true, currentPath, perm, false, "", false); err != nil {
-			return err
+		if _, err := inventory.Stat(
+			f.metadata,
+
+			currentPath,
+			false,
+
+			f.onHeader,
+		); err != nil {
+			if err == sql.ErrNoRows {
+				if err := f.mknodeWithoutLocking(true, currentPath, perm, false, "", false); err != nil {
+					return err
+				}
+			} else {
+				return err
+			}
 		}
 	}
 

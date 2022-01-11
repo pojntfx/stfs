@@ -615,7 +615,7 @@ func TestSTFS_Name(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			if got := tt.f.Name(); got != tt.want {
-				t.Errorf("STFS.Name() = %v, want %v", got, tt.want)
+				t.Errorf("%v.Name() = %v, want %v", t.Name(), got, tt.want)
 			}
 		})
 	}
@@ -777,11 +777,11 @@ func TestSTFS_Initialize(t *testing.T) {
 
 			gotRoot, err := f.Initialize(tt.args.rootProposal, tt.args.rootPerm)
 			if (err != nil) != tt.wantErr {
-				t.Errorf("STFS.Initialize() error = %v, wantErr %v", err, tt.wantErr)
+				t.Errorf("%v.Initialize() error = %v, wantErr %v", f.Name(), err, tt.wantErr)
 				return
 			}
 			if gotRoot != tt.wantRoot {
-				t.Errorf("STFS.Initialize() = %v, want %v", gotRoot, tt.wantRoot)
+				t.Errorf("%v.Initialize() = %v, want %v", f.Name(), gotRoot, tt.wantRoot)
 			}
 		})
 	}
@@ -834,7 +834,87 @@ func TestSTFS_Mkdir(t *testing.T) {
 	for _, tt := range mkdirTests {
 		runTestForAllFss(t, tt.name, true, func(t *testing.T, fs fsConfig) {
 			if err := fs.fs.Mkdir(tt.args.name, tt.args.perm); (err != nil) != tt.wantErr {
-				t.Errorf("STFS.Mkdir() error = %v, wantErr %v", err, tt.wantErr)
+				t.Errorf("%v.Mkdir() error = %v, wantErr %v", fs.fs.Name(), err, tt.wantErr)
+			}
+
+			if !tt.wantErr {
+				want, err := fs.fs.Stat(tt.args.name)
+				if err != nil {
+					t.Errorf("%v.Stat() error = %v, wantErr %v", fs.fs.Name(), err, tt.wantErr)
+
+					return
+				}
+
+				if want == nil {
+					t.Errorf("%v.Stat() returned %v, want !nil", fs.fs.Name(), want)
+				}
+			}
+		})
+	}
+}
+
+type mkdirAllArgs struct {
+	name string
+	perm os.FileMode
+}
+
+var mkdirAllTests = []struct {
+	name    string
+	args    mkdirAllArgs
+	wantErr bool
+}{
+	{
+		"Can create directory /test.txt",
+		mkdirAllArgs{"/test.txt", os.ModePerm},
+		false,
+	},
+	{
+		"Can create directory /test.txt with different permissions",
+		mkdirAllArgs{"/test.txt", 0666},
+		false,
+	},
+	{
+		"Can not create existing directory /",
+		mkdirAllArgs{"/", os.ModePerm},
+		true,
+	},
+	{
+		"Can not create directory ' '",
+		mkdirAllArgs{" ", os.ModePerm},
+		true,
+	},
+	{
+		"Can not create directory ''",
+		mkdirAllArgs{"", os.ModePerm},
+		true,
+	},
+	{
+		"Can create /nonexistent/test.txt",
+		mkdirAllArgs{"/nonexistent/test.txt", os.ModePerm},
+		false,
+	},
+	{
+		"Can create /nested/second/test.txt",
+		mkdirAllArgs{"/nested/second/test.txt", os.ModePerm},
+		false,
+	},
+	{
+		"Can create /nested//test.txt",
+		mkdirAllArgs{"/nested//test.txt", os.ModePerm},
+		false,
+	},
+	{
+		"Can create ///test.txt",
+		mkdirAllArgs{"///test.txt", os.ModePerm},
+		false,
+	},
+}
+
+func TestSTFS_MkdirAll(t *testing.T) {
+	for _, tt := range mkdirAllTests {
+		runTestForAllFss(t, tt.name, true, func(t *testing.T, fs fsConfig) {
+			if err := fs.fs.MkdirAll(tt.args.name, tt.args.perm); (err != nil) != tt.wantErr {
+				t.Errorf("%v.MkdirAll() error = %v, wantErr %v", fs.fs.Name(), err, tt.wantErr)
 			}
 
 			if !tt.wantErr {
