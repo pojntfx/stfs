@@ -613,6 +613,8 @@ func TestSTFS_Name(t *testing.T) {
 	}
 
 	for _, tt := range tests {
+		tt := tt
+
 		t.Run(tt.name, func(t *testing.T) {
 			if got := tt.f.Name(); got != tt.want {
 				t.Errorf("%v.Name() = %v, want %v", t.Name(), got, tt.want)
@@ -643,10 +645,10 @@ var createTests = []struct {
 	{
 		"Can not create file ' '",
 		createArgs{" "},
-		true,
+		false,
 	},
 	{
-		"Can not create file ''",
+		"Can create file ''",
 		createArgs{""},
 		true,
 	},
@@ -660,6 +662,8 @@ var createTests = []struct {
 
 func TestSTFS_Create(t *testing.T) {
 	for _, tt := range createTests {
+		tt := tt
+
 		runTestForAllFss(t, tt.name, true, func(t *testing.T, fs fsConfig) {
 			file, err := fs.fs.Create(tt.args.name)
 			if (err != nil) != tt.wantErr {
@@ -762,6 +766,8 @@ var initializeTests = []struct {
 
 func TestSTFS_Initialize(t *testing.T) {
 	for _, tt := range initializeTests {
+		tt := tt
+
 		runTestForAllFss(t, tt.name, false, func(t *testing.T, fs fsConfig) {
 			f, ok := fs.fs.(*STFS)
 			if !ok {
@@ -778,6 +784,7 @@ func TestSTFS_Initialize(t *testing.T) {
 			gotRoot, err := f.Initialize(tt.args.rootProposal, tt.args.rootPerm)
 			if (err != nil) != tt.wantErr {
 				t.Errorf("%v.Initialize() error = %v, wantErr %v", f.Name(), err, tt.wantErr)
+
 				return
 			}
 			if gotRoot != tt.wantRoot {
@@ -813,12 +820,12 @@ var mkdirTests = []struct {
 		true,
 	},
 	{
-		"Can not create directory ' '",
+		"Can create directory ' '",
 		mkdirArgs{" ", os.ModePerm},
-		true,
+		false,
 	},
 	{
-		"Can not create directory ''",
+		"Can create directory ''",
 		mkdirArgs{"", os.ModePerm},
 		true,
 	},
@@ -832,6 +839,8 @@ var mkdirTests = []struct {
 
 func TestSTFS_Mkdir(t *testing.T) {
 	for _, tt := range mkdirTests {
+		tt := tt
+
 		runTestForAllFss(t, tt.name, true, func(t *testing.T, fs fsConfig) {
 			if err := fs.fs.Mkdir(tt.args.name, tt.args.perm); (err != nil) != tt.wantErr {
 				t.Errorf("%v.Mkdir() error = %v, wantErr %v", fs.fs.Name(), err, tt.wantErr)
@@ -874,19 +883,19 @@ var mkdirAllTests = []struct {
 		false,
 	},
 	{
-		"Can not create existing directory /",
+		"Can create existing directory /",
 		mkdirAllArgs{"/", os.ModePerm},
-		true,
+		false,
 	},
 	{
-		"Can not create directory ' '",
+		"Can create directory ' '",
 		mkdirAllArgs{" ", os.ModePerm},
-		true,
+		false,
 	},
 	{
-		"Can not create directory ''",
+		"Can create directory ''",
 		mkdirAllArgs{"", os.ModePerm},
-		true,
+		false,
 	},
 	{
 		"Can create /nonexistent/test.txt",
@@ -912,6 +921,8 @@ var mkdirAllTests = []struct {
 
 func TestSTFS_MkdirAll(t *testing.T) {
 	for _, tt := range mkdirAllTests {
+		tt := tt
+
 		runTestForAllFss(t, tt.name, true, func(t *testing.T, fs fsConfig) {
 			if err := fs.fs.MkdirAll(tt.args.name, tt.args.perm); (err != nil) != tt.wantErr {
 				t.Errorf("%v.MkdirAll() error = %v, wantErr %v", fs.fs.Name(), err, tt.wantErr)
@@ -928,6 +939,58 @@ func TestSTFS_MkdirAll(t *testing.T) {
 				if want == nil {
 					t.Errorf("%v.Stat() returned %v, want !nil", fs.fs.Name(), want)
 				}
+			}
+		})
+	}
+}
+
+func TestSTFS_Open(t *testing.T) {
+	type args struct {
+		name string
+	}
+	tests := []struct {
+		name    string
+		args    args
+		wantErr bool
+		prepare func(afero.Fs) error
+		check   func(afero.File) error
+	}{
+		{
+			"Can open /",
+			args{"/"},
+			false,
+			func(f afero.Fs) error { return nil },
+			func(f afero.File) error { return nil },
+		},
+		{
+			"Can not open /test.txt without creating it",
+			args{"/test.txt"},
+			true,
+			func(f afero.Fs) error { return nil },
+			func(f afero.File) error { return nil },
+		},
+	}
+	for _, tt := range tests {
+		tt := tt
+
+		runTestForAllFss(t, tt.name, true, func(t *testing.T, fs fsConfig) {
+			if err := tt.prepare(fs.fs); err != nil {
+				t.Error(err)
+
+				return
+			}
+
+			got, err := fs.fs.Open(tt.args.name)
+			if err == nil && tt.wantErr {
+				t.Fatalf("%v.Open() error = %v, wantErr %v", fs.fs.Name(), err, tt.wantErr)
+
+				return
+			}
+
+			if err := tt.check(got); err != nil {
+				t.Error(err)
+
+				return
 			}
 		})
 	}

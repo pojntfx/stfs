@@ -89,6 +89,10 @@ func (f *STFS) Create(name string) (afero.File, error) {
 		return nil, os.ErrPermission
 	}
 
+	if checkName(name) {
+		return nil, os.ErrInvalid
+	}
+
 	return f.OpenFile(name, os.O_RDWR|os.O_CREATE|os.O_TRUNC, 0666)
 }
 
@@ -324,6 +328,10 @@ func (f *STFS) Open(name string) (afero.File, error) {
 		"name": name,
 	})
 
+	if checkName(name) {
+		return nil, os.ErrInvalid
+	}
+
 	return f.OpenFile(name, os.O_RDONLY, 0)
 }
 
@@ -333,6 +341,10 @@ func (f *STFS) OpenFile(name string, flag int, perm os.FileMode) (afero.File, er
 		"flag": flag,
 		"perm": perm,
 	})
+
+	if checkName(name) {
+		return nil, os.ErrInvalid
+	}
 
 	f.ioLock.Lock()
 	defer f.ioLock.Unlock()
@@ -431,6 +443,10 @@ func (f *STFS) Remove(name string) error {
 		return os.ErrPermission
 	}
 
+	if checkName(name) {
+		return os.ErrInvalid
+	}
+
 	f.ioLock.Lock()
 	defer f.ioLock.Unlock()
 
@@ -444,6 +460,10 @@ func (f *STFS) RemoveAll(path string) error {
 
 	if f.readOnly {
 		return os.ErrPermission
+	}
+
+	if checkName(path) {
+		return os.ErrInvalid
 	}
 
 	f.ioLock.Lock()
@@ -460,6 +480,14 @@ func (f *STFS) Rename(oldname, newname string) error {
 
 	if f.readOnly {
 		return os.ErrPermission
+	}
+
+	if checkName(oldname) {
+		return os.ErrInvalid
+	}
+
+	if checkName(newname) {
+		return os.ErrInvalid
 	}
 
 	f.ioLock.Lock()
@@ -535,6 +563,10 @@ func (f *STFS) Chmod(name string, mode os.FileMode) error {
 		return os.ErrPermission
 	}
 
+	if checkName(name) {
+		return os.ErrInvalid
+	}
+
 	f.ioLock.Lock()
 	defer f.ioLock.Unlock()
 
@@ -568,6 +600,10 @@ func (f *STFS) Chown(name string, uid, gid int) error {
 
 	if f.readOnly {
 		return os.ErrPermission
+	}
+
+	if checkName(name) {
+		return os.ErrInvalid
 	}
 
 	f.ioLock.Lock()
@@ -606,6 +642,10 @@ func (f *STFS) Chtimes(name string, atime time.Time, mtime time.Time) error {
 		return os.ErrPermission
 	}
 
+	if checkName(name) {
+		return os.ErrInvalid
+	}
+
 	f.ioLock.Lock()
 	defer f.ioLock.Unlock()
 
@@ -636,6 +676,10 @@ func (f *STFS) lstatIfPossibleWithoutLocking(name string) (os.FileInfo, bool, er
 		"name": name,
 	})
 
+	if checkName(name) {
+		return nil, true, os.ErrInvalid
+	}
+
 	hdr, err := inventory.Stat(
 		f.metadata,
 
@@ -660,6 +704,10 @@ func (f *STFS) LstatIfPossible(name string) (os.FileInfo, bool, error) {
 		"name": name,
 	})
 
+	if checkName(name) {
+		return nil, true, os.ErrInvalid
+	}
+
 	f.ioLock.Lock()
 	defer f.ioLock.Unlock()
 
@@ -676,6 +724,14 @@ func (f *STFS) SymlinkIfPossible(oldname, newname string) error {
 		return os.ErrPermission
 	}
 
+	if checkName(oldname) {
+		return os.ErrInvalid
+	}
+
+	if checkName(newname) {
+		return os.ErrInvalid
+	}
+
 	f.ioLock.Lock()
 	defer f.ioLock.Unlock()
 
@@ -687,6 +743,10 @@ func (f *STFS) ReadlinkIfPossible(name string) (string, error) {
 		"name": name,
 	})
 
+	if checkName(name) {
+		return "", os.ErrInvalid
+	}
+
 	f.ioLock.Lock()
 	defer f.ioLock.Unlock()
 
@@ -696,4 +756,8 @@ func (f *STFS) ReadlinkIfPossible(name string) (string, error) {
 	}
 
 	return info.Name(), nil
+}
+
+func checkName(name string) bool {
+	return len(name) == 0
 }
