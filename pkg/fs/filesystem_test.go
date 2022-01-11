@@ -989,6 +989,36 @@ var openTests = []struct {
 			return nil
 		},
 	},
+	{
+		"Can not open /mydir/test.txt without creating it",
+		openArgs{"/mydir/test.txt"},
+		true,
+		func(f afero.Fs) error { return nil },
+		func(f afero.File) error { return nil },
+	},
+	{
+		"Can open /mydir/test.txt after creating it",
+		openArgs{"/mydir/test.txt"},
+		false,
+		func(f afero.Fs) error {
+			if err := f.Mkdir("/mydir", os.ModePerm); err != nil {
+				return err
+			}
+
+			if _, err := f.Create("/mydir/test.txt"); err != nil {
+				return err
+			}
+
+			return nil
+		},
+		func(f afero.File) error {
+			if f.Name() != "/mydir/test.txt" {
+				return errors.New("invalid name")
+			}
+
+			return nil
+		},
+	},
 }
 
 func TestSTFS_Open(t *testing.T) {
@@ -1003,7 +1033,7 @@ func TestSTFS_Open(t *testing.T) {
 			}
 
 			got, err := fs.fs.Open(tt.args.name)
-			if err == nil && tt.wantErr {
+			if (err != nil) != tt.wantErr {
 				t.Errorf("%v.Open() error = %v, wantErr %v", fs.fs.Name(), err, tt.wantErr)
 
 				return
