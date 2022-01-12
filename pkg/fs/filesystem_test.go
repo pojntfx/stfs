@@ -806,13 +806,13 @@ var mkdirTests = []struct {
 	wantErr bool
 }{
 	{
-		"Can create directory /test.txt",
-		mkdirArgs{"/test.txt", os.ModePerm},
+		"Can create directory /test",
+		mkdirArgs{"/test", os.ModePerm},
 		false,
 	},
 	{
-		"Can create directory /test.txt with different permissions",
-		mkdirArgs{"/test.txt", 0666},
+		"Can create directory /test with different permissions",
+		mkdirArgs{"/test", 0666},
 		false,
 	},
 	{
@@ -830,12 +830,11 @@ var mkdirTests = []struct {
 		mkdirArgs{"", os.ModePerm},
 		true,
 	},
-	// FIXME: STFS can create directory in non-existent directory, which should not be possible
-	// {
-	// 	"Can not create /nonexistent/test.txt",
-	// 	mkdirArgs{"/nonexistent/test.txt", os.ModePerm},
-	// 	true,
-	// },
+	{
+		"Can not create /nonexistent/test",
+		mkdirArgs{"/nonexistent/test", os.ModePerm},
+		true,
+	},
 }
 
 func TestSTFS_Mkdir(t *testing.T) {
