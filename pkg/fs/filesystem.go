@@ -93,6 +93,21 @@ func (f *STFS) Create(name string) (afero.File, error) {
 		return nil, os.ErrInvalid
 	}
 
+	if _, err := inventory.Stat(
+		f.metadata,
+
+		filepath.Dir(name),
+		false,
+
+		f.onHeader,
+	); err != nil {
+		if err == sql.ErrNoRows {
+			return nil, os.ErrNotExist
+		}
+
+		return nil, err
+	}
+
 	return f.OpenFile(name, os.O_RDWR|os.O_CREATE|os.O_TRUNC, 0666)
 }
 

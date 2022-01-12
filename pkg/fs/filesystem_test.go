@@ -653,12 +653,11 @@ var createTests = []struct {
 		createArgs{""},
 		true,
 	},
-	// FIXME: STFS can create file in non-existent directory, which should not be possible
-	// {
-	// 	"Can not create /nonexistent/test.txt",
-	// 	createArgs{"/nonexistent/test.txt"},
-	// 	true,
-	// },
+	{
+		"Can not create /nonexistent/test.txt",
+		createArgs{"/nonexistent/test.txt"},
+		true,
+	},
 }
 
 func TestSTFS_Create(t *testing.T) {
