@@ -446,6 +446,40 @@ func (f *STFS) Remove(name string) error {
 	f.ioLock.Lock()
 	defer f.ioLock.Unlock()
 
+	hdr, err := inventory.Stat(
+		f.metadata,
+
+		name,
+		false,
+
+		f.onHeader,
+	)
+	if err != nil {
+		if err == sql.ErrNoRows {
+			return os.ErrNotExist
+		}
+
+		return err
+	}
+
+	if hdr.Typeflag == tar.TypeDir {
+		hdrs, err := inventory.List(
+			f.metadata,
+
+			name,
+			-1,
+
+			f.onHeader,
+		)
+		if err != nil {
+			return err
+		}
+
+		if len(hdrs) > 0 {
+			return config.ErrDirectoryNotEmpty
+		}
+	}
+
 	return f.writeOps.Delete(name)
 }
 

@@ -1372,27 +1372,82 @@ var removeTests = []struct {
 		},
 		false,
 	},
-	// FIXME: STFS can delete directories using `Remove` even if it isn't empty
-	// {
-	// 	"Can not remove /mydir if it is a directory and not empty",
-	// 	removeArgs{"/mydir"},
-	// 	true,
-	// 	func(f afero.Fs) error {
-	// 		if err := f.Mkdir("/mydir", os.ModePerm); err != nil {
-	// 			return err
-	// 		}
+	{
+		"Can not remove /mydir if it is a directory and not empty",
+		removeArgs{"/mydir"},
+		true,
+		func(f afero.Fs) error {
+			if err := f.Mkdir("/mydir", os.ModePerm); err != nil {
+				return err
+			}
 
-	// 		if _, err := f.Create("/mydir/test.txt"); err != nil {
-	// 			return err
-	// 		}
+			if _, err := f.Create("/mydir/test.txt"); err != nil {
+				return err
+			}
 
-	// 		return nil
-	// 	},
-	// 	func(f afero.Fs) error {
-	// 		return nil
-	// 	},
-	// 	false,
-	// },
+			return nil
+		},
+		func(f afero.Fs) error {
+			return nil
+		},
+		false,
+	},
+	{
+		"Can not remove /mydir/subdir if it is a directory and not empty",
+		removeArgs{"/mydir/subdir"},
+		true,
+		func(f afero.Fs) error {
+			if err := f.Mkdir("/mydir", os.ModePerm); err != nil {
+				return err
+			}
+
+			if err := f.Mkdir("/mydir/subdir", os.ModePerm); err != nil {
+				return err
+			}
+
+			if _, err := f.Create("/mydir/subdir/test.txt"); err != nil {
+				return err
+			}
+
+			return nil
+		},
+		func(f afero.Fs) error {
+			if _, err := f.Stat("/mydir/subdir/test.txt"); !errors.Is(err, os.ErrNotExist) {
+				return err
+			}
+
+			if _, err := f.Stat("/mydir/subdir"); !errors.Is(err, os.ErrNotExist) {
+				return err
+			}
+
+			return nil
+		},
+		false,
+	},
+	{
+		"Can remove /mydir/subdir if it is a directory and empty",
+		removeArgs{"/mydir/subdir"},
+		false,
+		func(f afero.Fs) error {
+			if err := f.Mkdir("/mydir", os.ModePerm); err != nil {
+				return err
+			}
+
+			if err := f.Mkdir("/mydir/subdir", os.ModePerm); err != nil {
+				return err
+			}
+
+			return nil
+		},
+		func(f afero.Fs) error {
+			if _, err := f.Stat("/mydir/subdir"); !errors.Is(err, os.ErrNotExist) {
+				return err
+			}
+
+			return nil
+		},
+		false,
+	},
 }
 
 func TestSTFS_Remove(t *testing.T) {
