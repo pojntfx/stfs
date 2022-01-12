@@ -1475,3 +1475,231 @@ func TestSTFS_Remove(t *testing.T) {
 		})
 	}
 }
+
+type removeAllArgs struct {
+	name string
+}
+
+var removeAllTests = []struct {
+	name            string
+	args            removeAllArgs
+	wantErr         bool
+	prepare         func(afero.Fs) error
+	check           func(afero.Fs) error
+	checkAfterError bool
+}{
+	{
+		"Can remove /",
+		removeAllArgs{"/"},
+		false,
+		func(f afero.Fs) error { return nil },
+		func(f afero.Fs) error { return nil },
+		false,
+	},
+	{
+		"Can remove ''",
+		removeAllArgs{""},
+		false,
+		func(f afero.Fs) error { return nil },
+		func(f afero.Fs) error { return nil },
+		false,
+	},
+	{
+		"Can not remove ' '",
+		removeAllArgs{" "},
+		false,
+		func(f afero.Fs) error { return nil },
+		func(f afero.Fs) error { return nil },
+		false,
+	},
+	{
+		"Can not remove /test.txt if does not exist",
+		removeAllArgs{"/test.txt"},
+		false,
+		func(f afero.Fs) error { return nil },
+		func(f afero.Fs) error { return nil },
+		false,
+	},
+	{
+		"Can remove /test.txt if does exist",
+		removeAllArgs{"/test.txt"},
+		false,
+		func(f afero.Fs) error {
+			if _, err := f.Create("/test.txt"); err != nil {
+				return err
+			}
+
+			return nil
+		},
+		func(f afero.Fs) error {
+			if _, err := f.Stat("/test.txt"); !errors.Is(err, os.ErrNotExist) {
+				return err
+			}
+
+			return nil
+		},
+		false,
+	},
+	{
+		"Can not remove /mydir/test.txt if does not exist",
+		removeAllArgs{"/mydir/test.txt"},
+		false,
+		func(f afero.Fs) error { return nil },
+		func(f afero.Fs) error { return nil },
+		false,
+	},
+	{
+		"Can not remove /mydir/test.txt if does not exist, but the parent exists",
+		removeAllArgs{"/mydir/test.txt"},
+		false,
+		func(f afero.Fs) error {
+			return f.Mkdir("/mydir", os.ModePerm)
+		},
+		func(f afero.Fs) error { return nil },
+		false,
+	},
+	{
+		"Can remove /mydir/test.txt if does exist",
+		removeAllArgs{"/mydir/test.txt"},
+		false,
+		func(f afero.Fs) error {
+			if err := f.Mkdir("/mydir", os.ModePerm); err != nil {
+				return err
+			}
+
+			if _, err := f.Create("/mydir/test.txt"); err != nil {
+				return err
+			}
+
+			return nil
+		},
+		func(f afero.Fs) error {
+			if _, err := f.Stat("/mydir/test.txt"); !errors.Is(err, os.ErrNotExist) {
+				return err
+			}
+
+			return nil
+		},
+		false,
+	},
+	{
+		"Can remove /mydir if it is a directory and empty",
+		removeAllArgs{"/mydir"},
+		false,
+		func(f afero.Fs) error {
+			if err := f.Mkdir("/mydir", os.ModePerm); err != nil {
+				return err
+			}
+
+			return nil
+		},
+		func(f afero.Fs) error {
+			return nil
+		},
+		false,
+	},
+	{
+		"Can not remove /mydir if it is a directory and not empty",
+		removeAllArgs{"/mydir"},
+		false,
+		func(f afero.Fs) error {
+			if err := f.Mkdir("/mydir", os.ModePerm); err != nil {
+				return err
+			}
+
+			if _, err := f.Create("/mydir/test.txt"); err != nil {
+				return err
+			}
+
+			return nil
+		},
+		func(f afero.Fs) error {
+			return nil
+		},
+		false,
+	},
+	{
+		"Can not remove /mydir/subdir if it is a directory and not empty",
+		removeAllArgs{"/mydir/subdir"},
+		false,
+		func(f afero.Fs) error {
+			if err := f.Mkdir("/mydir", os.ModePerm); err != nil {
+				return err
+			}
+
+			if err := f.Mkdir("/mydir/subdir", os.ModePerm); err != nil {
+				return err
+			}
+
+			if _, err := f.Create("/mydir/subdir/test.txt"); err != nil {
+				return err
+			}
+
+			return nil
+		},
+		func(f afero.Fs) error {
+			if _, err := f.Stat("/mydir/subdir/test.txt"); !errors.Is(err, os.ErrNotExist) {
+				return err
+			}
+
+			if _, err := f.Stat("/mydir/subdir"); !errors.Is(err, os.ErrNotExist) {
+				return err
+			}
+
+			return nil
+		},
+		false,
+	},
+	{
+		"Can remove /mydir/subdir if it is a directory and empty",
+		removeAllArgs{"/mydir/subdir"},
+		false,
+		func(f afero.Fs) error {
+			if err := f.Mkdir("/mydir", os.ModePerm); err != nil {
+				return err
+			}
+
+			if err := f.Mkdir("/mydir/subdir", os.ModePerm); err != nil {
+				return err
+			}
+
+			return nil
+		},
+		func(f afero.Fs) error {
+			if _, err := f.Stat("/mydir/subdir"); !errors.Is(err, os.ErrNotExist) {
+				return err
+			}
+
+			return nil
+		},
+		false,
+	},
+}
+
+func TestSTFS_RemoveAll(t *testing.T) {
+	for _, tt := range removeAllTests {
+		tt := tt
+
+		runTestForAllFss(t, tt.name, true, func(t *testing.T, fs fsConfig) {
+			if err := tt.prepare(fs.fs); err != nil {
+				t.Errorf("%v prepare() error = %v", fs.fs.Name(), err)
+
+				return
+			}
+
+			if err := fs.fs.RemoveAll(tt.args.name); (err != nil) != tt.wantErr {
+				if !tt.checkAfterError {
+					t.Errorf("%v.RemoveAll() error = %v, wantErr %v", fs.fs.Name(), err, tt.wantErr)
+
+					return
+				}
+			}
+
+			if err := tt.check(fs.fs); err != nil {
+				t.Errorf("%v check() error = %v", fs.fs.Name(), err)
+
+				return
+			}
+		})
+	}
+}
