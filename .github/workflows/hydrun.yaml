@@ -16,7 +16,7 @@ jobs:
             src: .
             os: golang:1.18beta1-bullseye # 1.18 is required due to `GroupIds` requiring CGo on older versions
             flags: "-e '--ulimit nofile=262144:262144'" # Parallel tests require a lot of open files
-            cmd: ./Hydrunfile test
+            cmd: GOFLAGS="-short" ./Hydrunfile test
             dst: out/*
           - id: go
             src: .
