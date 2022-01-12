@@ -4,6 +4,7 @@ import (
 	"archive/tar"
 	"context"
 	"database/sql"
+	"errors"
 	"io"
 	"os"
 	"os/user"
@@ -544,14 +545,15 @@ func (f *STFS) RemoveAll(path string) error {
 		return os.ErrPermission
 	}
 
-	if checkName(path) {
-		return os.ErrInvalid
-	}
-
 	f.ioLock.Lock()
 	defer f.ioLock.Unlock()
 
-	return f.writeOps.Delete(path)
+	err := f.writeOps.Delete(path)
+	if errors.Is(err, sql.ErrNoRows) {
+		return nil
+	}
+
+	return err
 }
 
 func (f *STFS) Rename(oldname, newname string) error {
