@@ -33,11 +33,11 @@ $(addprefix run/,$(obj)):
 
 # Test
 test:
-	go test ./... -parallel $(shell nproc)
+	go test -timeout 3600s -parallel $(shell nproc) ./...
 
 # Benchmark
 benchmark:
-	go test -bench=./... ./...
+	go test -timeout 3600s -bench=./... ./...
 
 # Clean
 clean:
