@@ -193,6 +193,7 @@ var serveFTPCmd = &cobra.Command{
 				)
 			},
 			viper.GetBool(readOnlyFlag),
+			true, // FTP requires read permission even if `O_WRONLY` is set if cache is enabled
 
 			func(hdr *config.Header) {
 				jsonLogger.Trace("Header transform", hdr)

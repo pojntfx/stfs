@@ -34,6 +34,7 @@ type STFS struct {
 	compressionLevel string
 	getFileBuffer    func() (cache.WriteCache, func() error, error)
 	readOnly         bool
+	writeImpliesRead bool
 
 	ioLock sync.Mutex
 
@@ -50,6 +51,7 @@ func NewSTFS(
 	compressionLevel string,
 	getFileBuffer func() (cache.WriteCache, func() error, error),
 	readOnly bool,
+	writeImpliesRead bool,
 
 	onHeader func(hdr *config.Header),
 	log logging.StructuredLogger,
@@ -63,6 +65,7 @@ func NewSTFS(
 		compressionLevel: compressionLevel,
 		getFileBuffer:    getFileBuffer,
 		readOnly:         readOnly,
+		writeImpliesRead: writeImpliesRead,
 
 		onHeader: onHeader,
 		log:      log,
@@ -373,6 +376,10 @@ func (f *STFS) OpenFile(name string, flag int, perm os.FileMode) (afero.File, er
 		if (flag & O_ACCMODE) == os.O_RDONLY {
 			flags.Read = true
 		} else if (flag & O_ACCMODE) == os.O_WRONLY {
+			if f.writeImpliesRead {
+				flags.Read = true
+			}
+
 			flags.Write = true
 		} else if (flag & O_ACCMODE) == os.O_RDWR {
 			flags.Read = true
