@@ -1114,15 +1114,14 @@ var openFileTests = []struct {
 		func(f afero.File) error { return nil },
 		false,
 	},
-	// FIXME: STFS can create file in non-existent directory, which should not be possible
-	// {
-	// 	"Can not open /mydir/test.txt if O_CREATE is set",
-	// 	openFileArgs{"/mydir/test.txt", os.O_CREATE, os.ModePerm},
-	// 	true,
-	// 	func(f afero.Fs) error { return nil },
-	// 	func(f afero.File) error { return nil },
-	//  false,
-	// },
+	{
+		"Can not open /mydir/test.txt if O_CREATE is set",
+		openFileArgs{"/mydir/test.txt", os.O_CREATE, os.ModePerm},
+		true,
+		func(f afero.Fs) error { return nil },
+		func(f afero.File) error { return nil },
+		false,
+	},
 	{
 		"Can open /mydir/test.txt after creating it",
 		openFileArgs{"/mydir/test.txt", os.O_RDONLY, 0},
