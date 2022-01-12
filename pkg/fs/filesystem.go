@@ -443,10 +443,6 @@ func (f *STFS) Remove(name string) error {
 		return os.ErrPermission
 	}
 
-	if checkName(name) {
-		return os.ErrInvalid
-	}
-
 	f.ioLock.Lock()
 	defer f.ioLock.Unlock()
 
