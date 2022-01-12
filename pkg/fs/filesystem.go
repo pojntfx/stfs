@@ -31,10 +31,10 @@ type STFS struct {
 
 	metadata config.MetadataConfig
 
-	compressionLevel string
-	getFileBuffer    func() (cache.WriteCache, func() error, error)
-	readOnly         bool
-	writeImpliesRead bool
+	compressionLevel         string
+	getFileBuffer            func() (cache.WriteCache, func() error, error)
+	readOnly                 bool
+	writePermImpliesReadPerm bool
 
 	ioLock sync.Mutex
 
@@ -51,7 +51,7 @@ func NewSTFS(
 	compressionLevel string,
 	getFileBuffer func() (cache.WriteCache, func() error, error),
 	readOnly bool,
-	writeImpliesRead bool,
+	writePermImpliesReadPerm bool,
 
 	onHeader func(hdr *config.Header),
 	log logging.StructuredLogger,
@@ -62,10 +62,10 @@ func NewSTFS(
 
 		metadata: metadata,
 
-		compressionLevel: compressionLevel,
-		getFileBuffer:    getFileBuffer,
-		readOnly:         readOnly,
-		writeImpliesRead: writeImpliesRead,
+		compressionLevel:         compressionLevel,
+		getFileBuffer:            getFileBuffer,
+		readOnly:                 readOnly,
+		writePermImpliesReadPerm: writePermImpliesReadPerm,
 
 		onHeader: onHeader,
 		log:      log,
@@ -376,7 +376,7 @@ func (f *STFS) OpenFile(name string, flag int, perm os.FileMode) (afero.File, er
 		if (flag & O_ACCMODE) == os.O_RDONLY {
 			flags.Read = true
 		} else if (flag & O_ACCMODE) == os.O_WRONLY {
-			if f.writeImpliesRead {
+			if f.writePermImpliesReadPerm {
 				flags.Read = true
 			}
 
@@ -406,6 +406,21 @@ func (f *STFS) OpenFile(name string, flag int, perm os.FileMode) (afero.File, er
 	if err != nil {
 		if err == sql.ErrNoRows {
 			if !f.readOnly && flag&os.O_CREATE != 0 && flag&os.O_EXCL == 0 {
+				if _, err := inventory.Stat(
+					f.metadata,
+
+					filepath.Dir(name),
+					false,
+
+					f.onHeader,
+				); err != nil {
+					if err == sql.ErrNoRows {
+						return nil, os.ErrNotExist
+					}
+
+					return nil, err
+				}
+
 				if err := f.mknodeWithoutLocking(false, name, perm, false, "", false); err != nil {
 					return nil, err
 				}
