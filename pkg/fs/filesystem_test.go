@@ -1249,3 +1249,176 @@ func TestSTFS_OpenFile(t *testing.T) {
 		})
 	}
 }
+
+type removeArgs struct {
+	name string
+}
+
+var removeTests = []struct {
+	name            string
+	args            removeArgs
+	wantErr         bool
+	prepare         func(afero.Fs) error
+	check           func(afero.Fs) error
+	checkAfterError bool
+}{
+	{
+		"Can remove /",
+		removeArgs{"/"},
+		false,
+		func(f afero.Fs) error { return nil },
+		func(f afero.Fs) error { return nil },
+		false,
+	},
+	{
+		"Can remove ''",
+		removeArgs{""},
+		false,
+		func(f afero.Fs) error { return nil },
+		func(f afero.Fs) error { return nil },
+		false,
+	},
+	{
+		"Can not remove ' '",
+		removeArgs{" "},
+		true,
+		func(f afero.Fs) error { return nil },
+		func(f afero.Fs) error { return nil },
+		false,
+	},
+	{
+		"Can not remove /test.txt if does not exist",
+		removeArgs{"/test.txt"},
+		true,
+		func(f afero.Fs) error { return nil },
+		func(f afero.Fs) error { return nil },
+		false,
+	},
+	{
+		"Can remove /test.txt if does exist",
+		removeArgs{"/test.txt"},
+		false,
+		func(f afero.Fs) error {
+			if _, err := f.Create("/test.txt"); err != nil {
+				return err
+			}
+
+			return nil
+		},
+		func(f afero.Fs) error {
+			if _, err := f.Stat("/test.txt"); !errors.Is(err, os.ErrNotExist) {
+				return err
+			}
+
+			return nil
+		},
+		false,
+	},
+	{
+		"Can not remove /mydir/test.txt if does not exist",
+		removeArgs{"/mydir/test.txt"},
+		true,
+		func(f afero.Fs) error { return nil },
+		func(f afero.Fs) error { return nil },
+		false,
+	},
+	{
+		"Can not remove /mydir/test.txt if does not exist, but the parent exists",
+		removeArgs{"/mydir/test.txt"},
+		true,
+		func(f afero.Fs) error {
+			return f.Mkdir("/mydir", os.ModePerm)
+		},
+		func(f afero.Fs) error { return nil },
+		false,
+	},
+	{
+		"Can remove /mydir/test.txt if does exist",
+		removeArgs{"/mydir/test.txt"},
+		false,
+		func(f afero.Fs) error {
+			if err := f.Mkdir("/mydir", os.ModePerm); err != nil {
+				return err
+			}
+
+			if _, err := f.Create("/mydir/test.txt"); err != nil {
+				return err
+			}
+
+			return nil
+		},
+		func(f afero.Fs) error {
+			if _, err := f.Stat("/mydir/test.txt"); !errors.Is(err, os.ErrNotExist) {
+				return err
+			}
+
+			return nil
+		},
+		false,
+	},
+	{
+		"Can remove /mydir if it is a directory and empty",
+		removeArgs{"/mydir"},
+		false,
+		func(f afero.Fs) error {
+			if err := f.Mkdir("/mydir", os.ModePerm); err != nil {
+				return err
+			}
+
+			return nil
+		},
+		func(f afero.Fs) error {
+			return nil
+		},
+		false,
+	},
+	// FIXME: STFS can delete directories using `Remove` even if it isn't empty
+	// {
+	// 	"Can not remove /mydir if it is a directory and not empty",
+	// 	removeArgs{"/mydir"},
+	// 	true,
+	// 	func(f afero.Fs) error {
+	// 		if err := f.Mkdir("/mydir", os.ModePerm); err != nil {
+	// 			return err
+	// 		}
+
+	// 		if _, err := f.Create("/mydir/test.txt"); err != nil {
+	// 			return err
+	// 		}
+
+	// 		return nil
+	// 	},
+	// 	func(f afero.Fs) error {
+	// 		return nil
+	// 	},
+	// 	false,
+	// },
+}
+
+func TestSTFS_Remove(t *testing.T) {
+	for _, tt := range removeTests {
+		tt := tt
+
+		runTestForAllFss(t, tt.name, true, func(t *testing.T, fs fsConfig) {
+			if err := tt.prepare(fs.fs); err != nil {
+				t.Errorf("%v prepare() error = %v", fs.fs.Name(), err)
+
+				return
+			}
+
+			if err := fs.fs.Remove(tt.args.name); (err != nil) != tt.wantErr {
+				if !tt.checkAfterError {
+					t.Errorf("%v.Remove() error = %v, wantErr %v", fs.fs.Name(), err, tt.wantErr)
+
+					return
+				}
+			}
+
+			if err := tt.check(fs.fs); err != nil {
+				t.Errorf("%v check() error = %v", fs.fs.Name(), err)
+
+				return
+			}
+		})
+	}
+}
