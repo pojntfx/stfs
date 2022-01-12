@@ -43,5 +43,6 @@ var (
 	ErrWriteCacheTypeUnsupported = errors.New("write cache type unsupported")
 	ErrWriteCacheTypeUnknown     = errors.New("write cache type unknown")
 
-	ErrNoRootDirectory = errors.New("root directory could not be found")
+	ErrNoRootDirectory   = errors.New("root directory could not be found")
+	ErrDirectoryNotEmpty = errors.New("directory not empty")
 )
