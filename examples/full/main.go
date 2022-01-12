@@ -172,6 +172,7 @@ func createFs(
 			)
 		},
 		readOnly,
+		false,
 
 		func(hdr *config.Header) {
 			jsonLogger.Trace("Header transform", hdr)

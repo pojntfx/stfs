@@ -407,6 +407,7 @@ func createSTFS(
 			)
 		},
 		readOnly,
+		false,
 
 		func(hdr *config.Header) {
 			jsonLogger.Trace("Header transform", hdr)
