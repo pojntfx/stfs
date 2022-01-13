@@ -593,7 +593,7 @@ func (f *STFS) Rename(oldname, newname string) error {
 		return os.ErrInvalid
 	}
 
-	_, err := inventory.Stat(
+	source, err := inventory.Stat(
 		f.metadata,
 
 		oldname,
@@ -624,14 +624,19 @@ func (f *STFS) Rename(oldname, newname string) error {
 		return err
 	}
 
-	if _, err := inventory.Stat(
+	target, err := inventory.Stat(
 		f.metadata,
 
 		newname,
 		false,
 
 		f.onHeader,
-	); err == nil {
+	)
+	if err == nil {
+		if target.Typeflag != source.Typeflag {
+			return os.ErrExist
+		}
+
 		if err := f.removeWithoutLocking(newname); err != nil {
 			return err
 		}

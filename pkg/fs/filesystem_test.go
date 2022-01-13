@@ -1718,7 +1718,7 @@ var renameTests = []struct {
 	checkAfterError bool
 }{
 	{
-		"Can not move / to /mydir",
+		"Can not rename / to /mydir",
 		renameArgs{"/", "/mydri"},
 		true,
 		func(f afero.Fs) error { return nil },
@@ -1726,7 +1726,31 @@ var renameTests = []struct {
 		false,
 	},
 	{
-		"Can move /test.txt to /new.txt if does exist",
+		"Can not rename / to /",
+		renameArgs{"/", "/"},
+		true,
+		func(f afero.Fs) error { return nil },
+		func(f afero.Fs) error { return nil },
+		false,
+	},
+	{
+		"Can not rename '' to ''",
+		renameArgs{"", ""},
+		true,
+		func(f afero.Fs) error { return nil },
+		func(f afero.Fs) error { return nil },
+		false,
+	},
+	{
+		"Can not rename remove ' ' to ' '",
+		renameArgs{" ", " "},
+		true,
+		func(f afero.Fs) error { return nil },
+		func(f afero.Fs) error { return nil },
+		false,
+	},
+	{
+		"Can rename /test.txt to /new.txt if does exist",
 		renameArgs{"/test.txt", "/new.txt"},
 		false,
 		func(f afero.Fs) error {
@@ -1755,7 +1779,7 @@ var renameTests = []struct {
 		false,
 	},
 	{
-		"Can not move /test.txt to /new.txt if does exist",
+		"Can not rename /test.txt to /new.txt if does exist",
 		renameArgs{"/test.txt", "/new.txt"},
 		true,
 		func(f afero.Fs) error {
@@ -1817,11 +1841,11 @@ var renameTests = []struct {
 	// 	false,
 	// },
 	{
-		"Can not move /test.txt to /mydir/new.txt if new parent drectory does not exist",
+		"Can not rename /test.txt to /mydir/new.txt if new parent drectory does not exist",
 		renameArgs{"/test.txt", "/mydir/new.txt"},
 		true,
 		func(f afero.Fs) error {
-			if _, err := f.Create("test.txt"); err != nil {
+			if _, err := f.Create("/test.txt"); err != nil {
 				return err
 			}
 
@@ -1837,11 +1861,11 @@ var renameTests = []struct {
 		false,
 	},
 	{
-		"Can move /test.txt to /mydir/new.txt if new parent drectory does exist",
+		"Can rename /test.txt to /mydir/new.txt if new parent drectory does exist",
 		renameArgs{"/test.txt", "/mydir/new.txt"},
 		false,
 		func(f afero.Fs) error {
-			if _, err := f.Create("test.txt"); err != nil {
+			if _, err := f.Create("/test.txt"); err != nil {
 				return err
 			}
 
@@ -1870,11 +1894,11 @@ var renameTests = []struct {
 		false,
 	},
 	{
-		"Can move /test.txt to /test.txt if does exist",
+		"Can rename /test.txt to /test.txt if does exist",
 		renameArgs{"/test.txt", "/test.txt"},
 		false,
 		func(f afero.Fs) error {
-			if _, err := f.Create("test.txt"); err != nil {
+			if _, err := f.Create("/test.txt"); err != nil {
 				return err
 			}
 
@@ -1890,7 +1914,7 @@ var renameTests = []struct {
 		false,
 	},
 	{
-		"Can not move /test.txt to /test.txt if does not exist",
+		"Can not rename move /test.txt to /test.txt if does not exist",
 		renameArgs{"/test.txt", "/test.txt"},
 		true,
 		func(f afero.Fs) error {
@@ -1906,7 +1930,7 @@ var renameTests = []struct {
 		false,
 	},
 	{
-		"Can move /test.txt to /existing.txt if source and target both exist",
+		"Can rename /test.txt to /existing.txt if source and target both exist",
 		renameArgs{"/test.txt", "/existing.txt"},
 		false,
 		func(f afero.Fs) error {
@@ -1929,6 +1953,62 @@ var renameTests = []struct {
 				return err
 			}
 
+			return nil
+		},
+		false,
+	},
+	{
+		"Can not rename /test.txt to /mydir if source is file and target is directory",
+		renameArgs{"/test.txt", "/mydir"},
+		true,
+		func(f afero.Fs) error {
+			if _, err := f.Create("/test.txt"); err != nil {
+				return err
+			}
+
+			if err := f.Mkdir("/mydir", os.ModePerm); err != nil {
+				return err
+			}
+
+			return nil
+		},
+		func(f afero.Fs) error {
+			return nil
+		},
+		false,
+	},
+	{
+		"Can not rename /mydir to /test.txt if source is directory and target is file",
+		renameArgs{"/mydir", "/test.txt"},
+		true,
+		func(f afero.Fs) error {
+			if _, err := f.Create("/test.txt"); err != nil {
+				return err
+			}
+
+			if err := f.Mkdir("/mydir", os.ModePerm); err != nil {
+				return err
+			}
+
+			return nil
+		},
+		func(f afero.Fs) error {
+			return nil
+		},
+		false,
+	},
+	{
+		"Can rename /test.txt to /test.txt/",
+		renameArgs{"/test.txt", "/test.txt/"},
+		false,
+		func(f afero.Fs) error {
+			if _, err := f.Create("/test.txt"); err != nil {
+				return err
+			}
+
+			return nil
+		},
+		func(f afero.Fs) error {
 			return nil
 		},
 		false,
