@@ -1703,3 +1703,262 @@ func TestSTFS_RemoveAll(t *testing.T) {
 		})
 	}
 }
+
+type renameArgs struct {
+	oldname string
+	newname string
+}
+
+var renameTests = []struct {
+	name            string
+	args            renameArgs
+	wantErr         bool
+	prepare         func(afero.Fs) error
+	check           func(afero.Fs) error
+	checkAfterError bool
+}{
+	{
+		"Can not move / to /mydir",
+		renameArgs{"/", "/mydri"},
+		true,
+		func(f afero.Fs) error { return nil },
+		func(f afero.Fs) error { return nil },
+		false,
+	},
+	{
+		"Can move /test.txt to /new.txt if does exist",
+		renameArgs{"/test.txt", "/new.txt"},
+		false,
+		func(f afero.Fs) error {
+			if _, err := f.Create("/test.txt"); err != nil {
+				return err
+			}
+
+			return nil
+		},
+		func(f afero.Fs) error {
+			if _, err := f.Stat("/test.txt"); !errors.Is(err, os.ErrNotExist) {
+				return err
+			}
+
+			info, err := f.Stat("/new.txt")
+			if err != nil {
+				return err
+			}
+
+			if info.Name() != "new.txt" {
+				return errors.New("renamed file has wrong name")
+			}
+
+			return nil
+		},
+		false,
+	},
+	{
+		"Can not move /test.txt to /new.txt if does exist",
+		renameArgs{"/test.txt", "/new.txt"},
+		true,
+		func(f afero.Fs) error {
+			return nil
+		},
+		func(f afero.Fs) error {
+			if _, err := f.Stat("/new.txt"); !errors.Is(err, os.ErrNotExist) {
+				return err
+			}
+
+			return nil
+		},
+		false,
+	},
+	// FIXME: Can't rename with in-memory or file cache (will need a upstream fix in CacheOnReadFs; `error = is a directory`)
+	// {
+	// 	"Can move empty directory /myolddir to /mydir",
+	// 	renameArgs{"/myolddir", "/mydir"},
+	// 	false,
+	// 	func(f afero.Fs) error {
+	// 		if err := f.Mkdir("/myolddir", os.ModePerm); err != nil {
+	// 			return err
+	// 		}
+
+	// 		return nil
+	// 	},
+	// 	func(f afero.Fs) error {
+	// 		if _, err := f.Stat("/mydir"); !errors.Is(err, os.ErrNotExist) {
+	// 			return err
+	// 		}
+
+	// 		return nil
+	// 	},
+	// 	false,
+	// },
+	// FIXME: Can't rename with in-memory or file cache (will need a upstream fix in CacheOnReadFs; `error = is a directory`)
+	// {
+	// 	"Can move non-empty directory /myolddir to /mydir",
+	// 	renameArgs{"/myolddir", "/mydir"},
+	// 	false,
+	// 	func(f afero.Fs) error {
+	// 		if err := f.Mkdir("/myolddir", os.ModePerm); err != nil {
+	// 			return err
+	// 		}
+
+	// 		if _, err := f.Create("/myolddir/test.txt"); err != nil {
+	// 			return err
+	// 		}
+
+	// 		return nil
+	// 	},
+	// 	func(f afero.Fs) error {
+	// 		if _, err := f.Stat("/mydir"); !errors.Is(err, os.ErrNotExist) {
+	// 			return err
+	// 		}
+
+	// 		return nil
+	// 	},
+	// 	false,
+	// },
+	{
+		"Can not move /test.txt to /mydir/new.txt if new parent drectory does not exist",
+		renameArgs{"/test.txt", "/mydir/new.txt"},
+		true,
+		func(f afero.Fs) error {
+			if _, err := f.Create("test.txt"); err != nil {
+				return err
+			}
+
+			return nil
+		},
+		func(f afero.Fs) error {
+			if _, err := f.Stat("/mydir/new.txt"); !errors.Is(err, os.ErrNotExist) {
+				return err
+			}
+
+			return nil
+		},
+		false,
+	},
+	{
+		"Can move /test.txt to /mydir/new.txt if new parent drectory does exist",
+		renameArgs{"/test.txt", "/mydir/new.txt"},
+		false,
+		func(f afero.Fs) error {
+			if _, err := f.Create("test.txt"); err != nil {
+				return err
+			}
+
+			if err := f.Mkdir("/mydir", os.ModePerm); err != nil {
+				return err
+			}
+
+			return nil
+		},
+		func(f afero.Fs) error {
+			if _, err := f.Stat("/test.txt"); !errors.Is(err, os.ErrNotExist) {
+				return err
+			}
+
+			info, err := f.Stat("/mydir/new.txt")
+			if err != nil {
+				return err
+			}
+
+			if info.Name() != "new.txt" {
+				return errors.New("renamed file has wrong name")
+			}
+
+			return nil
+		},
+		false,
+	},
+	{
+		"Can move /test.txt to /test.txt if does exist",
+		renameArgs{"/test.txt", "/test.txt"},
+		false,
+		func(f afero.Fs) error {
+			if _, err := f.Create("test.txt"); err != nil {
+				return err
+			}
+
+			return nil
+		},
+		func(f afero.Fs) error {
+			if _, err := f.Stat("/test.txt"); !errors.Is(err, os.ErrNotExist) {
+				return err
+			}
+
+			return nil
+		},
+		false,
+	},
+	{
+		"Can not move /test.txt to /test.txt if does not exist",
+		renameArgs{"/test.txt", "/test.txt"},
+		true,
+		func(f afero.Fs) error {
+			return nil
+		},
+		func(f afero.Fs) error {
+			if _, err := f.Stat("/test.txt"); !errors.Is(err, os.ErrNotExist) {
+				return err
+			}
+
+			return nil
+		},
+		false,
+	},
+	{
+		"Can move /test.txt to /existing.txt if source and target both exist",
+		renameArgs{"/test.txt", "/existing.txt"},
+		false,
+		func(f afero.Fs) error {
+			if _, err := f.Create("/test.txt"); err != nil {
+				return err
+			}
+
+			if _, err := f.Create("/existing.txt"); err != nil {
+				return err
+			}
+
+			return nil
+		},
+		func(f afero.Fs) error {
+			if _, err := f.Stat("/test.txt"); !errors.Is(err, os.ErrNotExist) {
+				return err
+			}
+
+			if _, err := f.Stat("/existing.txt"); err != nil {
+				return err
+			}
+
+			return nil
+		},
+		false,
+	},
+}
+
+func TestSTFS_Rename(t *testing.T) {
+	for _, tt := range renameTests {
+		tt := tt
+
+		runTestForAllFss(t, tt.name, true, func(t *testing.T, fs fsConfig) {
+			if err := tt.prepare(fs.fs); err != nil {
+				t.Errorf("%v prepare() error = %v", fs.fs.Name(), err)
+
+				return
+			}
+
+			if err := fs.fs.Rename(tt.args.oldname, tt.args.newname); (err != nil) != tt.wantErr {
+				if !tt.checkAfterError {
+					t.Errorf("%v.Rename() error = %v, wantErr %v", fs.fs.Name(), err, tt.wantErr)
+
+					return
+				}
+			}
+
+			if err := tt.check(fs.fs); err != nil {
+				t.Errorf("%v check() error = %v", fs.fs.Name(), err)
+
+				return
+			}
+		})
+	}
+}
