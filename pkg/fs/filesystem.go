@@ -499,6 +499,18 @@ func (f *STFS) Remove(name string) error {
 	f.ioLock.Lock()
 	defer f.ioLock.Unlock()
 
+	return f.removeWithoutLocking(name)
+}
+
+func (f *STFS) removeWithoutLocking(name string) error {
+	f.log.Debug("FileSystem.removeWithoutLocking", map[string]interface{}{
+		"name": name,
+	})
+
+	if f.readOnly {
+		return os.ErrPermission
+	}
+
 	hdr, err := inventory.Stat(
 		f.metadata,
 
@@ -576,6 +588,56 @@ func (f *STFS) Rename(oldname, newname string) error {
 
 	f.ioLock.Lock()
 	defer f.ioLock.Unlock()
+
+	if root, err := f.metadata.Metadata.GetRootPath(context.Background()); err != nil || root == oldname {
+		return os.ErrInvalid
+	}
+
+	_, err := inventory.Stat(
+		f.metadata,
+
+		oldname,
+		false,
+
+		f.onHeader,
+	)
+	if err != nil {
+		if err == sql.ErrNoRows {
+			return os.ErrNotExist
+		}
+
+		return err
+	}
+
+	if _, err := inventory.Stat(
+		f.metadata,
+
+		filepath.Dir(newname),
+		false,
+
+		f.onHeader,
+	); err != nil {
+		if err == sql.ErrNoRows {
+			return os.ErrNotExist
+		}
+
+		return err
+	}
+
+	if _, err := inventory.Stat(
+		f.metadata,
+
+		newname,
+		false,
+
+		f.onHeader,
+	); err == nil {
+		if err := f.removeWithoutLocking(newname); err != nil {
+			return err
+		}
+
+		return err
+	}
 
 	return f.writeOps.Move(oldname, newname)
 }
