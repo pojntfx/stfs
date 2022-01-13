@@ -640,6 +640,11 @@ var createTests = []struct {
 		false,
 	},
 	{
+		"Can create file /test.txt/",
+		createArgs{"/test.txt/"},
+		false,
+	},
+	{
 		"Can not create existing file/directory /",
 		createArgs{"/"},
 		true,
