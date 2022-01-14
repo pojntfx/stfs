@@ -7,6 +7,7 @@ import (
 	"io/ioutil"
 	"log"
 	"os"
+	"path"
 	"path/filepath"
 	"reflect"
 	"sync"
@@ -986,8 +987,11 @@ var openTests = []struct {
 			return nil
 		},
 		func(f afero.File) error {
-			if f.Name() != "/test.txt" {
-				return errors.New("invalid name")
+			want := "/test.txt"
+			got := f.Name()
+
+			if want != got {
+				return fmt.Errorf("invalid name, got %v, want %v", got, want)
 			}
 
 			return nil
@@ -1016,8 +1020,11 @@ var openTests = []struct {
 			return nil
 		},
 		func(f afero.File) error {
-			if f.Name() != "/mydir/test.txt" {
-				return errors.New("invalid name")
+			want := "/mydir/test.txt"
+			got := f.Name()
+
+			if want != got {
+				return fmt.Errorf("invalid name, got %v, want %v", got, want)
 			}
 
 			return nil
@@ -1102,8 +1109,11 @@ var openFileTests = []struct {
 			return nil
 		},
 		func(f afero.File) error {
-			if f.Name() != "/test.txt" {
-				return errors.New("invalid name")
+			want := "/test.txt"
+			got := f.Name()
+
+			if want != got {
+				return fmt.Errorf("invalid name, got %v, want %v", got, want)
 			}
 
 			return nil
@@ -1142,8 +1152,11 @@ var openFileTests = []struct {
 			return nil
 		},
 		func(f afero.File) error {
-			if f.Name() != "/mydir/test.txt" {
-				return errors.New("invalid name")
+			want := "/mydir/test.txt"
+			got := f.Name()
+
+			if want != got {
+				return fmt.Errorf("invalid name, got %v, want %v", got, want)
 			}
 
 			return nil
@@ -1162,8 +1175,11 @@ var openFileTests = []struct {
 			return nil
 		},
 		func(f afero.File) error {
-			if f.Name() != "/test.txt" {
-				return errors.New("invalid name")
+			want := "/test.txt"
+			got := f.Name()
+
+			if want != got {
+				return fmt.Errorf("invalid name, got %v, want %v", got, want)
 			}
 
 			if _, err := f.Write([]byte("test content")); err == nil {
@@ -1186,8 +1202,11 @@ var openFileTests = []struct {
 			return nil
 		},
 		func(f afero.File) error {
-			if f.Name() != "/test.txt" {
-				return errors.New("invalid name")
+			want := "/test.txt"
+			got := f.Name()
+
+			if want != got {
+				return fmt.Errorf("invalid name, got %v, want %v", got, want)
 			}
 
 			if _, err := f.Write([]byte("test content")); err != nil {
@@ -1210,8 +1229,11 @@ var openFileTests = []struct {
 			return nil
 		},
 		func(f afero.File) error {
-			if f.Name() != "/test.txt" {
-				return errors.New("invalid name")
+			want := "/test.txt"
+			got := f.Name()
+
+			if want != got {
+				return fmt.Errorf("invalid name, got %v, want %v", got, want)
 			}
 
 			if _, err := f.Write([]byte("test content")); err != nil {
@@ -1775,8 +1797,11 @@ var renameTests = []struct {
 				return err
 			}
 
-			if info.Name() != "new.txt" {
-				return errors.New("renamed file has wrong name")
+			want := "new.txt"
+			got := info.Name()
+
+			if want != got {
+				return fmt.Errorf("renamed file has wrong name, got %v, want %v", got, want)
 			}
 
 			return nil
@@ -1890,8 +1915,11 @@ var renameTests = []struct {
 				return err
 			}
 
-			if info.Name() != "new.txt" {
-				return errors.New("renamed file has wrong name")
+			want := "new.txt"
+			got := info.Name()
+
+			if want != got {
+				return fmt.Errorf("invalid name, got %v, want %v", got, want)
 			}
 
 			return nil
@@ -2040,6 +2068,153 @@ func TestSTFS_Rename(t *testing.T) {
 			}
 
 			if err := tt.check(fs.fs); err != nil {
+				t.Errorf("%v check() error = %v", fs.fs.Name(), err)
+
+				return
+			}
+		})
+	}
+}
+
+type statArgs struct {
+	name string
+}
+
+var statTests = []struct {
+	name    string
+	args    statArgs
+	wantErr bool
+	prepare func(afero.Fs) error
+	check   func(os.FileInfo) error
+}{
+	{
+		"Can stat /",
+		statArgs{"/"},
+		false,
+		func(f afero.Fs) error { return nil },
+		func(f os.FileInfo) error {
+			if dir, _ := path.Split(f.Name()); !(dir == "/" || dir == "") {
+				return fmt.Errorf("invalid dir part of path %v, should be ''", dir)
+
+			}
+
+			return nil
+		},
+	},
+	{
+		"Can not stat /test.txt without creating it",
+		statArgs{"/test.txt"},
+		true,
+		func(f afero.Fs) error { return nil },
+		func(f os.FileInfo) error { return nil },
+	},
+	{
+		"Can stat /test.txt after creating it",
+		statArgs{"/test.txt"},
+		false,
+		func(f afero.Fs) error {
+			if _, err := f.Create("/test.txt"); err != nil {
+				return err
+			}
+
+			return nil
+		},
+		func(f os.FileInfo) error {
+			want := "test.txt"
+			got := f.Name()
+
+			if want != got {
+				return fmt.Errorf("invalid name, got %v, want %v", got, want)
+			}
+
+			return nil
+		},
+	},
+	{
+		"Can not stat /mydir/test.txt without creating it",
+		statArgs{"/mydir/test.txt"},
+		true,
+		func(f afero.Fs) error { return nil },
+		func(f os.FileInfo) error { return nil },
+	},
+	{
+		"Can stat /mydir/test.txt after creating it",
+		statArgs{"/mydir/test.txt"},
+		false,
+		func(f afero.Fs) error {
+			if err := f.Mkdir("/mydir", os.ModePerm); err != nil {
+				return err
+			}
+
+			if _, err := f.Create("/mydir/test.txt"); err != nil {
+				return err
+			}
+
+			return nil
+		},
+		func(f os.FileInfo) error {
+			want := "test.txt"
+			got := f.Name()
+
+			if want != got {
+				return fmt.Errorf("invalid name, got %v, want %v", got, want)
+			}
+
+			return nil
+		},
+	},
+	// FIXME: With cache enabled, the permissions don't match
+	// {
+	// 	"Result of stat /test.txt after creating it matches provided values",
+	// 	statArgs{"/test.txt"},
+	// 	false,
+	// 	func(f afero.Fs) error {
+	// 		file, err := f.OpenFile("/test.txt", os.O_CREATE, os.ModePerm)
+	// 		if err != nil {
+	// 			return err
+	// 		}
+
+	// 		return file.Close()
+	// 	},
+	// 	func(f os.FileInfo) error {
+	// 		wantName := "test.txt"
+	// 		gotName := f.Name()
+
+	// 		if wantName != gotName {
+	// 			return fmt.Errorf("invalid name, got %v, want %v", gotName, wantName)
+	// 		}
+
+	// 		wantPerm := os.ModePerm
+	// 		gotPerm := f.Mode().Perm()
+
+	// 		if wantPerm != gotPerm {
+	// 			return fmt.Errorf("invalid perm, got %v, want %v", gotPerm, wantPerm)
+	// 		}
+
+	// 		return nil
+	// 	},
+	// },
+}
+
+func TestSTFS_Stat(t *testing.T) {
+	for _, tt := range statTests {
+		tt := tt
+
+		runTestForAllFss(t, tt.name, true, func(t *testing.T, fs fsConfig) {
+			if err := tt.prepare(fs.fs); err != nil {
+				t.Errorf("%v prepare() error = %v", fs.fs.Name(), err)
+
+				return
+			}
+
+			got, err := fs.fs.Stat(tt.args.name)
+			if (err != nil) != tt.wantErr {
+				t.Errorf("%v.Stat() error = %v, wantErr %v", fs.fs.Name(), err, tt.wantErr)
+
+				return
+			}
+
+			if err := tt.check(got); err != nil {
 				t.Errorf("%v check() error = %v", fs.fs.Name(), err)
 
 				return
