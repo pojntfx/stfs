@@ -132,16 +132,16 @@ func (f *STFS) mknodeWithoutLocking(dir bool, name string, perm os.FileMode, ove
 		return err
 	}
 
-	uid, err := strconv.Atoi(usr.Uid)
-	if err != nil {
-		// Some OSes like i.e. Windows don't support numeric UIDs, so use 0 instead
-		uid = 0
-	}
-
 	gid, err := strconv.Atoi(usr.Gid)
 	if err != nil {
 		// Some OSes like i.e. Windows don't support numeric GIDs, so use 0 instead
 		gid = 0
+	}
+
+	uid, err := strconv.Atoi(usr.Uid)
+	if err != nil {
+		// Some OSes like i.e. Windows don't support numeric UIDs, so use 0 instead
+		uid = 0
 	}
 
 	groups, err := usr.GroupIds()
