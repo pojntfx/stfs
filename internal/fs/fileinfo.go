@@ -16,6 +16,8 @@ type FileInfo struct {
 	size    int64
 	mode    fs.FileMode
 	modTime time.Time
+	gid     int
+	uid     int
 	isDir   bool
 
 	log logging.StructuredLogger
@@ -26,6 +28,8 @@ func NewFileInfo(
 	size int64,
 	mode fs.FileMode,
 	modTime time.Time,
+	gid int,
+	uid int,
 	isDir bool,
 
 	log logging.StructuredLogger,
@@ -35,6 +39,8 @@ func NewFileInfo(
 		size:    size,
 		mode:    mode,
 		modTime: modTime,
+		gid:     gid,
+		uid:     uid,
 		isDir:   isDir,
 
 		log: log,
@@ -51,6 +57,8 @@ func NewFileInfoFromTarHeader(
 		size:    hdr.FileInfo().Size(),
 		mode:    hdr.FileInfo().Mode(),
 		modTime: hdr.FileInfo().ModTime(),
+		gid:     hdr.Gid,
+		uid:     hdr.Uid,
 		isDir:   hdr.FileInfo().IsDir(),
 
 		log: log,
@@ -102,5 +110,8 @@ func (f *FileInfo) Sys() interface{} {
 		"name": f.name,
 	})
 
-	return nil
+	return &Stat{
+		Uid: uint32(f.uid),
+		Gid: uint32(f.gid),
+	}
 }
