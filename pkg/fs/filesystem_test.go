@@ -1773,6 +1773,8 @@ var renameTests = []struct {
 	prepare         func(afero.Fs) error
 	check           func(afero.Fs) error
 	checkAfterError bool
+	withCache       bool
+	withOsFs        bool
 }{
 	{
 		"Can not rename / to /mydir",
@@ -1781,6 +1783,8 @@ var renameTests = []struct {
 		func(f afero.Fs) error { return nil },
 		func(f afero.Fs) error { return nil },
 		false,
+		true,
+		true,
 	},
 	{
 		"Can not rename / to /",
@@ -1789,6 +1793,8 @@ var renameTests = []struct {
 		func(f afero.Fs) error { return nil },
 		func(f afero.Fs) error { return nil },
 		false,
+		true,
+		true,
 	},
 	{
 		"Can not rename '' to ''",
@@ -1797,6 +1803,8 @@ var renameTests = []struct {
 		func(f afero.Fs) error { return nil },
 		func(f afero.Fs) error { return nil },
 		false,
+		true,
+		true,
 	},
 	{
 		"Can not rename remove ' ' to ' '",
@@ -1805,6 +1813,8 @@ var renameTests = []struct {
 		func(f afero.Fs) error { return nil },
 		func(f afero.Fs) error { return nil },
 		false,
+		true,
+		true,
 	},
 	{
 		"Can rename /test.txt to /new.txt if does exist",
@@ -1837,6 +1847,8 @@ var renameTests = []struct {
 			return nil
 		},
 		false,
+		true,
+		true,
 	},
 	{
 		"Can not rename /test.txt to /new.txt if does exist",
@@ -1853,53 +1865,57 @@ var renameTests = []struct {
 			return nil
 		},
 		false,
+		true,
+		true,
 	},
-	// FIXME: Can't rename with in-memory or file cache (will need a upstream fix in CacheOnReadFs; `error = is a directory`)
-	// {
-	// 	"Can move empty directory /myolddir to /mydir",
-	// 	renameArgs{"/myolddir", "/mydir"},
-	// 	false,
-	// 	func(f afero.Fs) error {
-	// 		if err := f.Mkdir("/myolddir", os.ModePerm); err != nil {
-	// 			return err
-	// 		}
+	{
+		"Can move empty directory /myolddir to /mydir",
+		renameArgs{"/myolddir", "/mydir"},
+		false,
+		func(f afero.Fs) error {
+			if err := f.Mkdir("/myolddir", os.ModePerm); err != nil {
+				return err
+			}
 
-	// 		return nil
-	// 	},
-	// 	func(f afero.Fs) error {
-	// 		if _, err := f.Stat("/mydir"); !errors.Is(err, os.ErrNotExist) {
-	// 			return err
-	// 		}
+			return nil
+		},
+		func(f afero.Fs) error {
+			if _, err := f.Stat("/mydir"); !errors.Is(err, os.ErrNotExist) {
+				return err
+			}
 
-	// 		return nil
-	// 	},
-	// 	false,
-	// },
-	// FIXME: Can't rename with in-memory or file cache (will need a upstream fix in CacheOnReadFs; `error = is a directory`)
-	// {
-	// 	"Can move non-empty directory /myolddir to /mydir",
-	// 	renameArgs{"/myolddir", "/mydir"},
-	// 	false,
-	// 	func(f afero.Fs) error {
-	// 		if err := f.Mkdir("/myolddir", os.ModePerm); err != nil {
-	// 			return err
-	// 		}
+			return nil
+		},
+		false,
+		false, // FIXME: Can't rename with in-memory or file cache (will need a upstream fix in CacheOnReadFs; `error = is a directory`)
+		true,
+	},
+	{
+		"Can move non-empty directory /myolddir to /mydir",
+		renameArgs{"/myolddir", "/mydir"},
+		false,
+		func(f afero.Fs) error {
+			if err := f.Mkdir("/myolddir", os.ModePerm); err != nil {
+				return err
+			}
 
-	// 		if _, err := f.Create("/myolddir/test.txt"); err != nil {
-	// 			return err
-	// 		}
+			if _, err := f.Create("/myolddir/test.txt"); err != nil {
+				return err
+			}
 
-	// 		return nil
-	// 	},
-	// 	func(f afero.Fs) error {
-	// 		if _, err := f.Stat("/mydir"); !errors.Is(err, os.ErrNotExist) {
-	// 			return err
-	// 		}
+			return nil
+		},
+		func(f afero.Fs) error {
+			if _, err := f.Stat("/mydir"); !errors.Is(err, os.ErrNotExist) {
+				return err
+			}
 
-	// 		return nil
-	// 	},
-	// 	false,
-	// },
+			return nil
+		},
+		false,
+		false, // FIXME: Can't rename with in-memory or file cache (will need a upstream fix in CacheOnReadFs; `error = is a directory`)
+		true,
+	},
 	{
 		"Can not rename /test.txt to /mydir/new.txt if new parent drectory does not exist",
 		renameArgs{"/test.txt", "/mydir/new.txt"},
@@ -1919,6 +1935,8 @@ var renameTests = []struct {
 			return nil
 		},
 		false,
+		true,
+		true,
 	},
 	{
 		"Can rename /test.txt to /mydir/new.txt if new parent drectory does exist",
@@ -1955,6 +1973,8 @@ var renameTests = []struct {
 			return nil
 		},
 		false,
+		true,
+		true,
 	},
 	{
 		"Can rename /test.txt to /test.txt if does exist",
@@ -1975,6 +1995,8 @@ var renameTests = []struct {
 			return nil
 		},
 		false,
+		true,
+		true,
 	},
 	{
 		"Can not rename move /test.txt to /test.txt if does not exist",
@@ -1991,6 +2013,8 @@ var renameTests = []struct {
 			return nil
 		},
 		false,
+		true,
+		true,
 	},
 	{
 		"Can rename /test.txt to /existing.txt if source and target both exist",
@@ -2019,6 +2043,8 @@ var renameTests = []struct {
 			return nil
 		},
 		false,
+		true,
+		true,
 	},
 	{
 		"Can not rename /test.txt to /mydir if source is file and target is directory",
@@ -2039,6 +2065,8 @@ var renameTests = []struct {
 			return nil
 		},
 		false,
+		true,
+		true,
 	},
 	{
 		"Can not rename /mydir to /test.txt if source is directory and target is file",
@@ -2059,6 +2087,8 @@ var renameTests = []struct {
 			return nil
 		},
 		false,
+		true,
+		true,
 	},
 	{
 		"Can rename /test.txt to /test.txt/",
@@ -2075,6 +2105,8 @@ var renameTests = []struct {
 			return nil
 		},
 		false,
+		true,
+		true,
 	},
 }
 
@@ -2082,7 +2114,7 @@ func TestSTFS_Rename(t *testing.T) {
 	for _, tt := range renameTests {
 		tt := tt
 
-		runTestForAllFss(t, tt.name, true, true, true, func(t *testing.T, fs fsConfig) {
+		runTestForAllFss(t, tt.name, true, tt.withCache, tt.withOsFs, func(t *testing.T, fs fsConfig) {
 			if err := tt.prepare(fs.fs); err != nil {
 				t.Errorf("%v prepare() error = %v", fs.fs.Name(), err)
 
@@ -2111,11 +2143,13 @@ type statArgs struct {
 }
 
 var statTests = []struct {
-	name    string
-	args    statArgs
-	wantErr bool
-	prepare func(afero.Fs) error
-	check   func(os.FileInfo) error
+	name      string
+	args      statArgs
+	wantErr   bool
+	prepare   func(afero.Fs) error
+	check     func(os.FileInfo) error
+	withCache bool
+	withOsFs  bool
 }{
 	{
 		"Can stat /",
@@ -2130,6 +2164,8 @@ var statTests = []struct {
 
 			return nil
 		},
+		true,
+		true,
 	},
 	{
 		"Can not stat /test.txt without creating it",
@@ -2137,6 +2173,8 @@ var statTests = []struct {
 		true,
 		func(f afero.Fs) error { return nil },
 		func(f os.FileInfo) error { return nil },
+		true,
+		true,
 	},
 	{
 		"Can stat /test.txt after creating it",
@@ -2159,6 +2197,8 @@ var statTests = []struct {
 
 			return nil
 		},
+		true,
+		true,
 	},
 	{
 		"Can not stat /mydir/test.txt without creating it",
@@ -2166,6 +2206,8 @@ var statTests = []struct {
 		true,
 		func(f afero.Fs) error { return nil },
 		func(f os.FileInfo) error { return nil },
+		true,
+		true,
 	},
 	{
 		"Can stat /mydir/test.txt after creating it",
@@ -2192,45 +2234,48 @@ var statTests = []struct {
 
 			return nil
 		},
+		true,
+		true,
 	},
-	// FIXME: With cache enabled, the permissions don't match
-	// {
-	// 	"Result of stat /test.txt after creating it matches provided values",
-	// 	statArgs{"/test.txt"},
-	// 	false,
-	// 	func(f afero.Fs) error {
-	// 		file, err := f.OpenFile("/test.txt", os.O_CREATE, os.ModePerm)
-	// 		if err != nil {
-	// 			return err
-	// 		}
+	{
+		"Result of stat /test.txt after creating it matches provided values",
+		statArgs{"/test.txt"},
+		false,
+		func(f afero.Fs) error {
+			file, err := f.OpenFile("/test.txt", os.O_CREATE, os.ModePerm)
+			if err != nil {
+				return err
+			}
 
-	// 		return file.Close()
-	// 	},
-	// 	func(f os.FileInfo) error {
-	// 		wantName := "test.txt"
-	// 		gotName := f.Name()
+			return file.Close()
+		},
+		func(f os.FileInfo) error {
+			wantName := "test.txt"
+			gotName := f.Name()
 
-	// 		if wantName != gotName {
-	// 			return fmt.Errorf("invalid name, got %v, want %v", gotName, wantName)
-	// 		}
+			if wantName != gotName {
+				return fmt.Errorf("invalid name, got %v, want %v", gotName, wantName)
+			}
 
-	// 		wantPerm := os.ModePerm
-	// 		gotPerm := f.Mode().Perm()
+			wantPerm := os.ModePerm
+			gotPerm := f.Mode().Perm()
 
-	// 		if wantPerm != gotPerm {
-	// 			return fmt.Errorf("invalid perm, got %v, want %v", gotPerm, wantPerm)
-	// 		}
+			if wantPerm != gotPerm {
+				return fmt.Errorf("invalid perm, got %v, want %v", gotPerm, wantPerm)
+			}
 
-	// 		return nil
-	// 	},
-	// },
+			return nil
+		},
+		false, // FIXME: With cache enabled, the permissions don't match
+		false, // FIXME: With the OsFs, the permissions don't match
+	},
 }
 
 func TestSTFS_Stat(t *testing.T) {
 	for _, tt := range statTests {
 		tt := tt
 
-		runTestForAllFss(t, tt.name, true, true, true, func(t *testing.T, fs fsConfig) {
+		runTestForAllFss(t, tt.name, true, tt.withCache, tt.withOsFs, func(t *testing.T, fs fsConfig) {
 			if err := tt.prepare(fs.fs); err != nil {
 				t.Errorf("%v prepare() error = %v", fs.fs.Name(), err)
 
@@ -2259,34 +2304,37 @@ type chmodArgs struct {
 }
 
 var chmodTests = []struct {
-	name    string
-	args    chmodArgs
-	wantErr bool
-	prepare func(afero.Fs) error
-	check   func(f os.FileInfo) error
+	name      string
+	args      chmodArgs
+	wantErr   bool
+	prepare   func(afero.Fs) error
+	check     func(f os.FileInfo) error
+	withCache bool
+	withOsFs  bool
 }{
-	// FIXME: With cache enabled, directories can't be `chmod`ed
-	// {
-	// 	"Can chmod / to 0666",
-	// 	chmodArgs{"/", 0666},
-	// 	false,
-	// 	func(f afero.Fs) error { return nil },
-	// 	func(f os.FileInfo) error {
-	// 		if dir, _ := path.Split(f.Name()); !(dir == "/" || dir == "") {
-	// 			return fmt.Errorf("invalid dir part of path %v, should be ''", dir)
+	{
+		"Can chmod / to 0666",
+		chmodArgs{"/", 0666},
+		false,
+		func(f afero.Fs) error { return nil },
+		func(f os.FileInfo) error {
+			if dir, _ := path.Split(f.Name()); !(dir == "/" || dir == "") {
+				return fmt.Errorf("invalid dir part of path %v, should be ''", dir)
 
-	// 		}
+			}
 
-	// 		wantPerm := fs.FileMode(0666)
-	// 		gotPerm := f.Mode().Perm()
+			wantPerm := fs.FileMode(0666)
+			gotPerm := f.Mode().Perm()
 
-	// 		if wantPerm != gotPerm {
-	// 			return fmt.Errorf("invalid perm, got %v, want %v", gotPerm, wantPerm)
-	// 		}
+			if wantPerm != gotPerm {
+				return fmt.Errorf("invalid perm, got %v, want %v", gotPerm, wantPerm)
+			}
 
-	// 		return nil
-	// 	},
-	// },
+			return nil
+		},
+		false, // FIXME: With cache enabled, directories can't be `chmod`ed
+		true,
+	},
 	{
 		"Can chmod /test.txt to 0666 if it exists",
 		chmodArgs{"/test.txt", 0666},
@@ -2315,6 +2363,8 @@ var chmodTests = []struct {
 
 			return nil
 		},
+		true,
+		true,
 	},
 	{
 		"Can chmod /test.txt to 0777 if it exists",
@@ -2344,6 +2394,8 @@ var chmodTests = []struct {
 
 			return nil
 		},
+		true,
+		true,
 	},
 	{
 		"Can not chmod /test.txt without creating it",
@@ -2351,6 +2403,8 @@ var chmodTests = []struct {
 		true,
 		func(f afero.Fs) error { return nil },
 		func(f os.FileInfo) error { return nil },
+		true,
+		true,
 	},
 	{
 		"Can not chmod /mydir/test.txt without creating it",
@@ -2358,6 +2412,8 @@ var chmodTests = []struct {
 		true,
 		func(f afero.Fs) error { return nil },
 		func(f os.FileInfo) error { return nil },
+		true,
+		true,
 	},
 	{
 		"Can chmod /mydir/test.txt to 0666 after creating it",
@@ -2391,6 +2447,8 @@ var chmodTests = []struct {
 
 			return nil
 		},
+		true,
+		true,
 	},
 }
 
@@ -2398,7 +2456,7 @@ func TestSTFS_Chmod(t *testing.T) {
 	for _, tt := range chmodTests {
 		tt := tt
 
-		runTestForAllFss(t, tt.name, true, true, true, func(t *testing.T, fs fsConfig) {
+		runTestForAllFss(t, tt.name, true, tt.withCache, tt.withOsFs, func(t *testing.T, fs fsConfig) {
 			if err := tt.prepare(fs.fs); err != nil {
 				t.Errorf("%v prepare() error = %v", fs.fs.Name(), err)
 
