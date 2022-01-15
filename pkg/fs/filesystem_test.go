@@ -2397,3 +2397,107 @@ func TestSTFS_Chmod(t *testing.T) {
 		})
 	}
 }
+
+type chownArgs struct {
+	name string
+	uid  int
+	gid  int
+}
+
+var chownTests = []struct {
+	name    string
+	args    chownArgs
+	wantErr bool
+	prepare func(afero.Fs) error
+	check   func(f os.FileInfo) error
+}{
+	// FIXME: With cache enabled, files and directories can't be `chmod`ed
+	// {
+	// 	"Can chown /test.txt to 11, 11 if it exists",
+	// 	chownArgs{"/test.txt", 11, 11},
+	// 	false,
+	// 	func(f afero.Fs) error {
+	// 		if _, err := f.Create("/test.txt"); err != nil {
+	// 			return err
+	// 		}
+
+	// 		return nil
+	// 	},
+	// 	func(f os.FileInfo) error {
+	// 		want := "test.txt"
+	// 		got := f.Name()
+
+	// 		if want != got {
+	// 			return fmt.Errorf("invalid name, got %v, want %v", got, want)
+	// 		}
+
+	// 		wantGID := 11
+	// 		wantUID := 11
+
+	// 		gotSys, ok := f.Sys().(*ifs.Stat)
+	// 		if !ok {
+	// 			return errors.New("could not get fs.Stat from FileInfo.Sys()")
+	// 		}
+
+	// 		gotGID := int(gotSys.Gid)
+	// 		gotUID := int(gotSys.Uid)
+
+	// 		if wantGID != gotGID {
+	// 			return fmt.Errorf("invalid GID, got %v, want %v", gotGID, wantGID)
+	// 		}
+
+	// 		if wantUID != gotUID {
+	// 			return fmt.Errorf("invalid UID, got %v, want %v", gotUID, wantUID)
+	// 		}
+
+	// 		return nil
+	// 	},
+	// },
+	{
+		"Can not chown /test.txt without creating it",
+		chownArgs{"/test.txt", 11, 11},
+		true,
+		func(f afero.Fs) error { return nil },
+		func(f os.FileInfo) error { return nil },
+	},
+	{
+		"Can not chown /mydir/test.txt without creating it",
+		chownArgs{"/mydir/test.txt", 11, 11},
+		true,
+		func(f afero.Fs) error { return nil },
+		func(f os.FileInfo) error { return nil },
+	},
+}
+
+func TestSTFS_Chown(t *testing.T) {
+	for _, tt := range chownTests {
+		tt := tt
+
+		runTestForAllFss(t, tt.name, true, func(t *testing.T, fs fsConfig) {
+			if err := tt.prepare(fs.fs); err != nil {
+				t.Errorf("%v prepare() error = %v", fs.fs.Name(), err)
+
+				return
+			}
+
+			if err := fs.fs.Chown(tt.args.name, tt.args.uid, tt.args.gid); (err != nil) != tt.wantErr {
+				t.Errorf("%v.Chown() error = %v, wantErr %v", fs.fs.Name(), err, tt.wantErr)
+
+				return
+			}
+
+			got, err := fs.fs.Stat(tt.args.name)
+			if (err != nil) != tt.wantErr {
+				t.Errorf("%v.Stat() error = %v, wantErr %v", fs.fs.Name(), err, tt.wantErr)
+
+				return
+			}
+
+			if err := tt.check(got); err != nil {
+				t.Errorf("%v check() error = %v", fs.fs.Name(), err)
+
+				return
+			}
+		})
+	}
+}
