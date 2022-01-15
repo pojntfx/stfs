@@ -121,11 +121,22 @@ func (f *File) syncWithoutLocking() error {
 					return config.FileConfig{}, err
 				}
 
+				// Some OSes like i.e. Windows don't support numeric GIDs and UIDs, so use 0 instead
+				gid := 0
+				uid := 0
+				sys, ok := f.info.Sys().(*Stat)
+				if ok {
+					gid = int(sys.Gid)
+					uid = int(sys.Uid)
+				}
+
 				f.info = NewFileInfo(
 					f.info.Name(),
 					size,
 					f.info.Mode(),
 					f.info.ModTime(),
+					gid,
+					uid,
 					f.info.IsDir(),
 					f.log,
 				)
