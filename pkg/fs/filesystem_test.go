@@ -16,6 +16,7 @@ import (
 	"time"
 
 	"github.com/pojntfx/stfs/examples"
+	ifs "github.com/pojntfx/stfs/internal/fs"
 	"github.com/pojntfx/stfs/pkg/cache"
 	"github.com/pojntfx/stfs/pkg/config"
 	"github.com/pojntfx/stfs/pkg/keys"
@@ -435,7 +436,7 @@ func createSTFS(
 	)
 }
 
-func createFss(initialize bool) ([]fsConfig, error) {
+func createFss(initialize bool, withCache bool, withOsFs bool) ([]fsConfig, error) {
 	fss := []fsConfig{}
 
 	baseTmp, err := os.MkdirTemp(os.TempDir(), "stfs-test-*")
@@ -443,21 +444,27 @@ func createFss(initialize bool) ([]fsConfig, error) {
 		return nil, err
 	}
 
-	tmp := filepath.Join(baseTmp, "osfs")
+	if withOsFs {
+		tmp := filepath.Join(baseTmp, "osfs")
 
-	if err := os.MkdirAll(tmp, os.ModePerm); err != nil {
-		return nil, err
+		if err := os.MkdirAll(tmp, os.ModePerm); err != nil {
+			return nil, err
+		}
+
+		fss = append(fss, fsConfig{
+			stfsConfig{},
+			afero.NewBasePathFs(afero.NewOsFs(), tmp),
+			func() error {
+				return os.RemoveAll(tmp)
+			},
+		})
 	}
 
-	fss = append(fss, fsConfig{
-		stfsConfig{},
-		afero.NewBasePathFs(afero.NewOsFs(), tmp),
-		func() error {
-			return os.RemoveAll(tmp)
-		},
-	})
+	for _, cfg := range stfsConfigs {
+		if !withCache && cfg.fileSystemCache != config.NoneKey {
+			continue
+		}
 
-	for _, config := range stfsConfigs {
 		tmp, err := os.MkdirTemp(baseTmp, "fs-*")
 		if err != nil {
 			return nil, err
@@ -473,27 +480,27 @@ func createFss(initialize bool) ([]fsConfig, error) {
 			drive,
 			metadata,
 
-			config.recordSize,
-			config.readOnly,
+			cfg.recordSize,
+			cfg.readOnly,
 			verbose,
 
-			config.signature,
-			config.signatureRecipient,
-			config.signatureIdentity,
+			cfg.signature,
+			cfg.signatureRecipient,
+			cfg.signatureIdentity,
 
-			config.encryption,
-			config.encryptionRecipient,
-			config.encryptionIdentity,
+			cfg.encryption,
+			cfg.encryptionRecipient,
+			cfg.encryptionIdentity,
 
-			config.compression,
-			config.compressionLevel,
+			cfg.compression,
+			cfg.compressionLevel,
 
-			config.writeCache,
+			cfg.writeCache,
 			writeCacheDir,
 
-			config.fileSystemCache,
+			cfg.fileSystemCache,
 			fileSystemCacheDir,
-			config.fileSystemCacheDuration,
+			cfg.fileSystemCacheDuration,
 
 			initialize,
 		)
@@ -502,7 +509,7 @@ func createFss(initialize bool) ([]fsConfig, error) {
 		}
 
 		fss = append(fss, fsConfig{
-			config,
+			cfg,
 			stfs,
 			func() error {
 				return os.RemoveAll(tmp)
@@ -513,8 +520,8 @@ func createFss(initialize bool) ([]fsConfig, error) {
 	return fss, nil
 }
 
-func runTestForAllFss(t *testing.T, name string, initialize bool, action func(t *testing.T, fs fsConfig)) {
-	fss, err := createFss(initialize)
+func runTestForAllFss(t *testing.T, name string, initialize bool, withCache bool, withOsFs bool, action func(t *testing.T, fs fsConfig)) {
+	fss, err := createFss(initialize, withCache, withOsFs)
 	if err != nil {
 		t.Fatal(err)
 
@@ -588,7 +595,7 @@ func runTestForAllFss(t *testing.T, name string, initialize bool, action func(t 
 // }
 
 func TestSTFS_Name(t *testing.T) {
-	fss, err := createFss(true)
+	fss, err := createFss(true, true, true)
 	if err != nil {
 		t.Fatal(err)
 
@@ -672,7 +679,7 @@ func TestSTFS_Create(t *testing.T) {
 	for _, tt := range createTests {
 		tt := tt
 
-		runTestForAllFss(t, tt.name, true, func(t *testing.T, fs fsConfig) {
+		runTestForAllFss(t, tt.name, true, true, true, func(t *testing.T, fs fsConfig) {
 			file, err := fs.fs.Create(tt.args.name)
 			if (err != nil) != tt.wantErr {
 				t.Errorf("%v.Create() error = %v, wantErr %v", fs.fs.Name(), err, tt.wantErr)
@@ -776,7 +783,7 @@ func TestSTFS_Initialize(t *testing.T) {
 	for _, tt := range initializeTests {
 		tt := tt
 
-		runTestForAllFss(t, tt.name, false, func(t *testing.T, fs fsConfig) {
+		runTestForAllFss(t, tt.name, false, true, true, func(t *testing.T, fs fsConfig) {
 			f, ok := fs.fs.(*STFS)
 			if !ok {
 				if fs.fs.Name() == config.FileSystemNameSTFS {
@@ -848,7 +855,7 @@ func TestSTFS_Mkdir(t *testing.T) {
 	for _, tt := range mkdirTests {
 		tt := tt
 
-		runTestForAllFss(t, tt.name, true, func(t *testing.T, fs fsConfig) {
+		runTestForAllFss(t, tt.name, true, true, true, func(t *testing.T, fs fsConfig) {
 			if err := fs.fs.Mkdir(tt.args.name, tt.args.perm); (err != nil) != tt.wantErr {
 				t.Errorf("%v.Mkdir() error = %v, wantErr %v", fs.fs.Name(), err, tt.wantErr)
 			}
@@ -930,7 +937,7 @@ func TestSTFS_MkdirAll(t *testing.T) {
 	for _, tt := range mkdirAllTests {
 		tt := tt
 
-		runTestForAllFss(t, tt.name, true, func(t *testing.T, fs fsConfig) {
+		runTestForAllFss(t, tt.name, true, true, true, func(t *testing.T, fs fsConfig) {
 			if err := fs.fs.MkdirAll(tt.args.name, tt.args.perm); (err != nil) != tt.wantErr {
 				t.Errorf("%v.MkdirAll() error = %v, wantErr %v", fs.fs.Name(), err, tt.wantErr)
 			}
@@ -1037,7 +1044,7 @@ func TestSTFS_Open(t *testing.T) {
 	for _, tt := range openTests {
 		tt := tt
 
-		runTestForAllFss(t, tt.name, true, func(t *testing.T, fs fsConfig) {
+		runTestForAllFss(t, tt.name, true, true, true, func(t *testing.T, fs fsConfig) {
 			if err := tt.prepare(fs.fs); err != nil {
 				t.Errorf("%v prepare() error = %v", fs.fs.Name(), err)
 
@@ -1073,15 +1080,19 @@ var openFileTests = []struct {
 	prepare         func(afero.Fs) error
 	check           func(afero.File) error
 	checkAfterError bool
+	withCache       bool
+	withOsFs        bool
 }{
-	// FIXME: Can't open this with in-memory or file cache (will need a upstream fix in CacheOnReadFs)
-	// {
-	// 	"Can open /",
-	// 	openFileArgs{"/", os.O_RDONLY, 0},
-	// 	false,
-	// 	func(f afero.Fs) error { return nil },
-	// 	func(f afero.File) error { return nil },
-	// },
+	{
+		"Can open /",
+		openFileArgs{"/", os.O_RDONLY, 0},
+		false,
+		func(f afero.Fs) error { return nil },
+		func(f afero.File) error { return nil },
+		false,
+		false, // FIXME: Can't open this with in-memory or file cache (will need a upstream fix in CacheOnReadFs)
+		true,
+	},
 	{
 		"Can not open /test.txt without creating it",
 		openFileArgs{"/test.txt", os.O_RDONLY, 0},
@@ -1089,6 +1100,8 @@ var openFileTests = []struct {
 		func(f afero.Fs) error { return nil },
 		func(f afero.File) error { return nil },
 		false,
+		true,
+		true,
 	},
 	{
 		"Can open /test.txt if O_CREATE is set",
@@ -1097,6 +1110,8 @@ var openFileTests = []struct {
 		func(f afero.Fs) error { return nil },
 		func(f afero.File) error { return nil },
 		false,
+		true,
+		true,
 	},
 	{
 		"Can open /test.txt after creating it",
@@ -1120,6 +1135,8 @@ var openFileTests = []struct {
 			return nil
 		},
 		false,
+		true,
+		true,
 	},
 	{
 		"Can not open /mydir/test.txt without creating it",
@@ -1128,6 +1145,8 @@ var openFileTests = []struct {
 		func(f afero.Fs) error { return nil },
 		func(f afero.File) error { return nil },
 		false,
+		true,
+		true,
 	},
 	{
 		"Can not open /mydir/test.txt if O_CREATE is set",
@@ -1136,6 +1155,8 @@ var openFileTests = []struct {
 		func(f afero.Fs) error { return nil },
 		func(f afero.File) error { return nil },
 		false,
+		true,
+		true,
 	},
 	{
 		"Can open /mydir/test.txt after creating it",
@@ -1163,6 +1184,8 @@ var openFileTests = []struct {
 			return nil
 		},
 		false,
+		true,
+		true,
 	},
 	{
 		"Can not write to /test.txt if O_RDONLY is set",
@@ -1189,6 +1212,8 @@ var openFileTests = []struct {
 
 			return nil
 		},
+		true,
+		true,
 		true,
 	},
 	{
@@ -1217,6 +1242,8 @@ var openFileTests = []struct {
 			return nil
 		},
 		true,
+		true,
+		true,
 	},
 	{
 		"Can write to /test.txt if O_RDWR is set",
@@ -1244,6 +1271,8 @@ var openFileTests = []struct {
 			return nil
 		},
 		true,
+		true,
+		true,
 	},
 }
 
@@ -1251,7 +1280,7 @@ func TestSTFS_OpenFile(t *testing.T) {
 	for _, tt := range openFileTests {
 		tt := tt
 
-		runTestForAllFss(t, tt.name, true, func(t *testing.T, fs fsConfig) {
+		runTestForAllFss(t, tt.name, true, tt.withCache, tt.withOsFs, func(t *testing.T, fs fsConfig) {
 			if err := tt.prepare(fs.fs); err != nil {
 				t.Errorf("%v prepare() error = %v", fs.fs.Name(), err)
 
@@ -1480,7 +1509,7 @@ func TestSTFS_Remove(t *testing.T) {
 	for _, tt := range removeTests {
 		tt := tt
 
-		runTestForAllFss(t, tt.name, true, func(t *testing.T, fs fsConfig) {
+		runTestForAllFss(t, tt.name, true, true, true, func(t *testing.T, fs fsConfig) {
 			if err := tt.prepare(fs.fs); err != nil {
 				t.Errorf("%v prepare() error = %v", fs.fs.Name(), err)
 
@@ -1708,7 +1737,7 @@ func TestSTFS_RemoveAll(t *testing.T) {
 	for _, tt := range removeAllTests {
 		tt := tt
 
-		runTestForAllFss(t, tt.name, true, func(t *testing.T, fs fsConfig) {
+		runTestForAllFss(t, tt.name, true, true, true, func(t *testing.T, fs fsConfig) {
 			if err := tt.prepare(fs.fs); err != nil {
 				t.Errorf("%v prepare() error = %v", fs.fs.Name(), err)
 
@@ -2053,7 +2082,7 @@ func TestSTFS_Rename(t *testing.T) {
 	for _, tt := range renameTests {
 		tt := tt
 
-		runTestForAllFss(t, tt.name, true, func(t *testing.T, fs fsConfig) {
+		runTestForAllFss(t, tt.name, true, true, true, func(t *testing.T, fs fsConfig) {
 			if err := tt.prepare(fs.fs); err != nil {
 				t.Errorf("%v prepare() error = %v", fs.fs.Name(), err)
 
@@ -2201,7 +2230,7 @@ func TestSTFS_Stat(t *testing.T) {
 	for _, tt := range statTests {
 		tt := tt
 
-		runTestForAllFss(t, tt.name, true, func(t *testing.T, fs fsConfig) {
+		runTestForAllFss(t, tt.name, true, true, true, func(t *testing.T, fs fsConfig) {
 			if err := tt.prepare(fs.fs); err != nil {
 				t.Errorf("%v prepare() error = %v", fs.fs.Name(), err)
 
@@ -2369,7 +2398,7 @@ func TestSTFS_Chmod(t *testing.T) {
 	for _, tt := range chmodTests {
 		tt := tt
 
-		runTestForAllFss(t, tt.name, true, func(t *testing.T, fs fsConfig) {
+		runTestForAllFss(t, tt.name, true, true, true, func(t *testing.T, fs fsConfig) {
 			if err := tt.prepare(fs.fs); err != nil {
 				t.Errorf("%v prepare() error = %v", fs.fs.Name(), err)
 
@@ -2405,60 +2434,65 @@ type chownArgs struct {
 }
 
 var chownTests = []struct {
-	name    string
-	args    chownArgs
-	wantErr bool
-	prepare func(afero.Fs) error
-	check   func(f os.FileInfo) error
+	name      string
+	args      chownArgs
+	wantErr   bool
+	prepare   func(afero.Fs) error
+	check     func(f os.FileInfo) error
+	withCache bool
+	withOsFs  bool
 }{
-	// FIXME: With cache enabled, files and directories can't be `chmod`ed
-	// {
-	// 	"Can chown /test.txt to 11, 11 if it exists",
-	// 	chownArgs{"/test.txt", 11, 11},
-	// 	false,
-	// 	func(f afero.Fs) error {
-	// 		if _, err := f.Create("/test.txt"); err != nil {
-	// 			return err
-	// 		}
+	{
+		"Can chown /test.txt to 11, 11 if it exists",
+		chownArgs{"/test.txt", 11, 11},
+		false,
+		func(f afero.Fs) error {
+			if _, err := f.Create("/test.txt"); err != nil {
+				return err
+			}
 
-	// 		return nil
-	// 	},
-	// 	func(f os.FileInfo) error {
-	// 		want := "test.txt"
-	// 		got := f.Name()
+			return nil
+		},
+		func(f os.FileInfo) error {
+			want := "test.txt"
+			got := f.Name()
 
-	// 		if want != got {
-	// 			return fmt.Errorf("invalid name, got %v, want %v", got, want)
-	// 		}
+			if want != got {
+				return fmt.Errorf("invalid name, got %v, want %v", got, want)
+			}
 
-	// 		wantGID := 11
-	// 		wantUID := 11
+			wantGID := 11
+			wantUID := 11
 
-	// 		gotSys, ok := f.Sys().(*ifs.Stat)
-	// 		if !ok {
-	// 			return errors.New("could not get fs.Stat from FileInfo.Sys()")
-	// 		}
+			gotSys, ok := f.Sys().(*ifs.Stat)
+			if !ok {
+				return errors.New("could not get fs.Stat from FileInfo.Sys()")
+			}
 
-	// 		gotGID := int(gotSys.Gid)
-	// 		gotUID := int(gotSys.Uid)
+			gotGID := int(gotSys.Gid)
+			gotUID := int(gotSys.Uid)
 
-	// 		if wantGID != gotGID {
-	// 			return fmt.Errorf("invalid GID, got %v, want %v", gotGID, wantGID)
-	// 		}
+			if wantGID != gotGID {
+				return fmt.Errorf("invalid GID, got %v, want %v", gotGID, wantGID)
+			}
 
-	// 		if wantUID != gotUID {
-	// 			return fmt.Errorf("invalid UID, got %v, want %v", gotUID, wantUID)
-	// 		}
+			if wantUID != gotUID {
+				return fmt.Errorf("invalid UID, got %v, want %v", gotUID, wantUID)
+			}
 
-	// 		return nil
-	// 	},
-	// },
+			return nil
+		},
+		false,
+		false, // FIXME: With cache enabled, files and directories can't be `chmod`ed
+	},
 	{
 		"Can not chown /test.txt without creating it",
 		chownArgs{"/test.txt", 11, 11},
 		true,
 		func(f afero.Fs) error { return nil },
 		func(f os.FileInfo) error { return nil },
+		true,
+		true,
 	},
 	{
 		"Can not chown /mydir/test.txt without creating it",
@@ -2466,6 +2500,8 @@ var chownTests = []struct {
 		true,
 		func(f afero.Fs) error { return nil },
 		func(f os.FileInfo) error { return nil },
+		true,
+		true,
 	},
 }
 
@@ -2473,7 +2509,7 @@ func TestSTFS_Chown(t *testing.T) {
 	for _, tt := range chownTests {
 		tt := tt
 
-		runTestForAllFss(t, tt.name, true, func(t *testing.T, fs fsConfig) {
+		runTestForAllFss(t, tt.name, true, tt.withCache, tt.withOsFs, func(t *testing.T, fs fsConfig) {
 			if err := tt.prepare(fs.fs); err != nil {
 				t.Errorf("%v prepare() error = %v", fs.fs.Name(), err)
 
