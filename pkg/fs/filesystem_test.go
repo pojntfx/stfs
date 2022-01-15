@@ -4,6 +4,7 @@ import (
 	"errors"
 	"flag"
 	"fmt"
+	"io/fs"
 	"io/ioutil"
 	"log"
 	"os"
@@ -2203,6 +2204,180 @@ func TestSTFS_Stat(t *testing.T) {
 		runTestForAllFss(t, tt.name, true, func(t *testing.T, fs fsConfig) {
 			if err := tt.prepare(fs.fs); err != nil {
 				t.Errorf("%v prepare() error = %v", fs.fs.Name(), err)
+
+				return
+			}
+
+			got, err := fs.fs.Stat(tt.args.name)
+			if (err != nil) != tt.wantErr {
+				t.Errorf("%v.Stat() error = %v, wantErr %v", fs.fs.Name(), err, tt.wantErr)
+
+				return
+			}
+
+			if err := tt.check(got); err != nil {
+				t.Errorf("%v check() error = %v", fs.fs.Name(), err)
+
+				return
+			}
+		})
+	}
+}
+
+type chmodArgs struct {
+	name string
+	mode os.FileMode
+}
+
+var chmodTests = []struct {
+	name    string
+	args    chmodArgs
+	wantErr bool
+	prepare func(afero.Fs) error
+	check   func(f os.FileInfo) error
+}{
+	// FIXME: With cache enabled, directories can't be `chmod`ed
+	// {
+	// 	"Can chmod / to 0666",
+	// 	chmodArgs{"/", 0666},
+	// 	false,
+	// 	func(f afero.Fs) error { return nil },
+	// 	func(f os.FileInfo) error {
+	// 		if dir, _ := path.Split(f.Name()); !(dir == "/" || dir == "") {
+	// 			return fmt.Errorf("invalid dir part of path %v, should be ''", dir)
+
+	// 		}
+
+	// 		wantPerm := fs.FileMode(0666)
+	// 		gotPerm := f.Mode().Perm()
+
+	// 		if wantPerm != gotPerm {
+	// 			return fmt.Errorf("invalid perm, got %v, want %v", gotPerm, wantPerm)
+	// 		}
+
+	// 		return nil
+	// 	},
+	// },
+	{
+		"Can chmod /test.txt to 0666 if it exists",
+		chmodArgs{"/test.txt", 0666},
+		false,
+		func(f afero.Fs) error {
+			if _, err := f.Create("/test.txt"); err != nil {
+				return err
+			}
+
+			return nil
+		},
+		func(f os.FileInfo) error {
+			want := "test.txt"
+			got := f.Name()
+
+			if want != got {
+				return fmt.Errorf("invalid name, got %v, want %v", got, want)
+			}
+
+			wantPerm := fs.FileMode(0666)
+			gotPerm := f.Mode().Perm()
+
+			if wantPerm != gotPerm {
+				return fmt.Errorf("invalid perm, got %v, want %v", gotPerm, wantPerm)
+			}
+
+			return nil
+		},
+	},
+	{
+		"Can chmod /test.txt to 0777 if it exists",
+		chmodArgs{"/test.txt", 0777},
+		false,
+		func(f afero.Fs) error {
+			if _, err := f.Create("/test.txt"); err != nil {
+				return err
+			}
+
+			return nil
+		},
+		func(f os.FileInfo) error {
+			want := "test.txt"
+			got := f.Name()
+
+			if want != got {
+				return fmt.Errorf("invalid name, got %v, want %v", got, want)
+			}
+
+			wantPerm := fs.FileMode(0777)
+			gotPerm := f.Mode().Perm()
+
+			if wantPerm != gotPerm {
+				return fmt.Errorf("invalid perm, got %v, want %v", gotPerm, wantPerm)
+			}
+
+			return nil
+		},
+	},
+	{
+		"Can not chmod /test.txt without creating it",
+		chmodArgs{"/test.txt", 0666},
+		true,
+		func(f afero.Fs) error { return nil },
+		func(f os.FileInfo) error { return nil },
+	},
+	{
+		"Can not chmod /mydir/test.txt without creating it",
+		chmodArgs{"/mydir/test.txt", 0666},
+		true,
+		func(f afero.Fs) error { return nil },
+		func(f os.FileInfo) error { return nil },
+	},
+	{
+		"Can chmod /mydir/test.txt to 0666 after creating it",
+		chmodArgs{"/mydir/test.txt", 0666},
+		false,
+		func(f afero.Fs) error {
+			if err := f.Mkdir("/mydir", os.ModePerm); err != nil {
+				return err
+			}
+
+			if _, err := f.Create("/mydir/test.txt"); err != nil {
+				return err
+			}
+
+			return nil
+		},
+		func(f os.FileInfo) error {
+			want := "test.txt"
+			got := f.Name()
+
+			if want != got {
+				return fmt.Errorf("invalid name, got %v, want %v", got, want)
+			}
+
+			wantPerm := fs.FileMode(0666)
+			gotPerm := f.Mode().Perm()
+
+			if wantPerm != gotPerm {
+				return fmt.Errorf("invalid perm, got %v, want %v", gotPerm, wantPerm)
+			}
+
+			return nil
+		},
+	},
+}
+
+func TestSTFS_Chmod(t *testing.T) {
+	for _, tt := range chmodTests {
+		tt := tt
+
+		runTestForAllFss(t, tt.name, true, func(t *testing.T, fs fsConfig) {
+			if err := tt.prepare(fs.fs); err != nil {
+				t.Errorf("%v prepare() error = %v", fs.fs.Name(), err)
+
+				return
+			}
+
+			if err := fs.fs.Chmod(tt.args.name, tt.args.mode); (err != nil) != tt.wantErr {
+				t.Errorf("%v.Chmod() error = %v, wantErr %v", fs.fs.Name(), err, tt.wantErr)
 
 				return
 			}
