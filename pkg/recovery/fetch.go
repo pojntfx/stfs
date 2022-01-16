@@ -19,7 +19,6 @@ import (
 
 func Fetch(
 	reader config.DriveReaderConfig,
-	drive config.DriveConfig,
 	pipes config.PipeConfig,
 	crypto config.CryptoConfig,
 
@@ -45,7 +44,7 @@ func Fetch(
 		tr = tar.NewReader(reader.Drive)
 	} else {
 		// Seek to record
-		if err := mtio.SeekToRecordOnTape(drive.Drive.Fd(), int32(record)); err != nil {
+		if err := mtio.SeekToRecordOnTape(reader.Drive.Fd(), int32(record)); err != nil {
 			return err
 		}
 
@@ -67,7 +66,7 @@ func Fetch(
 		return err
 	}
 
-	if err := signature.VerifyHeader(hdr, drive.DriveIsRegular, pipes.Signature, crypto.Recipient); err != nil {
+	if err := signature.VerifyHeader(hdr, reader.DriveIsRegular, pipes.Signature, crypto.Recipient); err != nil {
 		return err
 	}
 
@@ -120,7 +119,7 @@ func Fetch(
 			}
 		}
 
-		verifier, verify, err := signature.Verify(decompressor, drive.DriveIsRegular, pipes.Signature, crypto.Recipient, sig)
+		verifier, verify, err := signature.Verify(decompressor, reader.DriveIsRegular, pipes.Signature, crypto.Recipient, sig)
 		if err != nil {
 			return err
 		}

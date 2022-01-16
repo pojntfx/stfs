@@ -7,22 +7,18 @@ import (
 	"time"
 )
 
+type ReadSeekFder interface {
+	io.ReadSeeker
+	Fd() uintptr
+}
+
 type DriveReaderConfig struct {
-	Drive          io.ReadSeeker
+	Drive          ReadSeekFder
 	DriveIsRegular bool
 }
 
 type DriveWriterConfig struct {
 	Drive          io.Writer
-	DriveIsRegular bool
-}
-
-type Drive interface {
-	Fd() uintptr
-}
-
-type DriveConfig struct {
-	Drive          Drive
 	DriveIsRegular bool
 }
 
@@ -32,9 +28,6 @@ type BackendConfig struct {
 
 	GetReader   func() (DriveReaderConfig, error)
 	CloseReader func() error
-
-	GetDrive   func() (DriveConfig, error)
-	CloseDrive func() error
 }
 
 type Header struct {

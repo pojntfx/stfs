@@ -109,15 +109,8 @@ func (o *Operations) Delete(name string) error {
 	}
 	defer o.backend.CloseReader()
 
-	drive, err := o.backend.GetDrive()
-	if err != nil {
-		return err
-	}
-	defer o.backend.CloseDrive()
-
 	return recovery.Index(
 		reader,
-		drive,
 		o.metadata,
 		o.pipes,
 		o.crypto,

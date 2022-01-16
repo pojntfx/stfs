@@ -60,12 +60,6 @@ func (o *Operations) Restore(
 	}
 	defer o.backend.CloseReader()
 
-	drive, err := o.backend.GetDrive()
-	if err != nil {
-		return err
-	}
-	defer o.backend.CloseDrive()
-
 	for _, dbhdr := range headersToRestore {
 		if o.onHeader != nil {
 			o.onHeader(&config.HeaderEvent{
@@ -90,7 +84,6 @@ func (o *Operations) Restore(
 
 		if err := recovery.Fetch(
 			reader,
-			drive,
 			o.pipes,
 			o.crypto,
 

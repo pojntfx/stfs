@@ -70,10 +70,6 @@ var recoveryIndexCmd = &cobra.Command{
 				Drive:          reader,
 				DriveIsRegular: readerIsRegular,
 			},
-			config.DriveConfig{
-				Drive:          reader,
-				DriveIsRegular: readerIsRegular,
-			},
 			config.MetadataConfig{
 				Metadata: metadataPersister,
 			},

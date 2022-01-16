@@ -118,9 +118,6 @@ func createFs(
 
 		GetReader:   tm.GetReader,
 		CloseReader: tm.Close,
-
-		GetDrive:   tm.GetDrive,
-		CloseDrive: tm.Close,
 	}
 	readCryptoConfig := config.CryptoConfig{
 		Recipient: signatureRecipient,
