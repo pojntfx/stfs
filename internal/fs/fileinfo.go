@@ -12,13 +12,15 @@ import (
 type FileInfo struct {
 	os.FileInfo
 
-	name    string
-	size    int64
-	mode    fs.FileMode
-	modTime time.Time
-	gid     int
-	uid     int
-	isDir   bool
+	name       string
+	size       int64
+	mode       fs.FileMode
+	modTime    time.Time
+	accessTime time.Time
+	changeTime time.Time
+	gid        int
+	uid        int
+	isDir      bool
 
 	log logging.StructuredLogger
 }
@@ -28,6 +30,8 @@ func NewFileInfo(
 	size int64,
 	mode fs.FileMode,
 	modTime time.Time,
+	accessTime time.Time,
+	changeTime time.Time,
 	gid int,
 	uid int,
 	isDir bool,
@@ -35,13 +39,15 @@ func NewFileInfo(
 	log logging.StructuredLogger,
 ) *FileInfo {
 	return &FileInfo{
-		name:    name,
-		size:    size,
-		mode:    mode,
-		modTime: modTime,
-		gid:     gid,
-		uid:     uid,
-		isDir:   isDir,
+		name:       name,
+		size:       size,
+		mode:       mode,
+		modTime:    modTime,
+		accessTime: accessTime,
+		changeTime: changeTime,
+		gid:        gid,
+		uid:        uid,
+		isDir:      isDir,
 
 		log: log,
 	}
@@ -53,13 +59,15 @@ func NewFileInfoFromTarHeader(
 	log logging.StructuredLogger,
 ) *FileInfo {
 	return &FileInfo{
-		name:    hdr.FileInfo().Name(),
-		size:    hdr.FileInfo().Size(),
-		mode:    hdr.FileInfo().Mode(),
-		modTime: hdr.FileInfo().ModTime(),
-		gid:     hdr.Gid,
-		uid:     hdr.Uid,
-		isDir:   hdr.FileInfo().IsDir(),
+		name:       hdr.FileInfo().Name(),
+		size:       hdr.FileInfo().Size(),
+		mode:       hdr.FileInfo().Mode(),
+		modTime:    hdr.FileInfo().ModTime(),
+		accessTime: hdr.AccessTime,
+		changeTime: hdr.ChangeTime,
+		gid:        hdr.Gid,
+		uid:        hdr.Uid,
+		isDir:      hdr.FileInfo().IsDir(),
 
 		log: log,
 	}
@@ -110,8 +118,11 @@ func (f *FileInfo) Sys() interface{} {
 		"name": f.name,
 	})
 
-	return &Stat{
-		Uid: uint32(f.uid),
-		Gid: uint32(f.gid),
-	}
+	return NewStat(
+		uint32(f.uid),
+		uint32(f.gid),
+		f.modTime.UnixNano(),
+		f.accessTime.UnixNano(),
+		f.changeTime.UnixNano(),
+	)
 }
