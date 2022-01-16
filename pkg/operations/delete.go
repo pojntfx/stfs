@@ -111,6 +111,7 @@ func (o *Operations) Delete(name string) error {
 
 	return recovery.Index(
 		reader,
+		o.backend.MagneticTapeIO,
 		o.metadata,
 		o.pipes,
 		o.crypto,

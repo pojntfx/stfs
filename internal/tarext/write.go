@@ -6,7 +6,7 @@ import (
 	"io"
 
 	"github.com/pojntfx/stfs/internal/ioext"
-	"github.com/pojntfx/stfs/internal/mtio"
+	"github.com/pojntfx/stfs/pkg/config"
 )
 
 func NewTapeWriter(f io.Writer, isRegular bool, recordSize int) (tw *tar.Writer, cleanup func(dirty *bool) error, err error) {
@@ -15,7 +15,7 @@ func NewTapeWriter(f io.Writer, isRegular bool, recordSize int) (tw *tar.Writer,
 	if isRegular {
 		tw = tar.NewWriter(f)
 	} else {
-		bw = bufio.NewWriterSize(f, mtio.BlockSize*recordSize)
+		bw = bufio.NewWriterSize(f, config.MagneticTapeBlockSize*recordSize)
 		counter = &ioext.CounterWriter{Writer: bw, BytesRead: 0}
 		tw = tar.NewWriter(counter)
 	}
@@ -28,9 +28,9 @@ func NewTapeWriter(f io.Writer, isRegular bool, recordSize int) (tw *tar.Writer,
 			}
 
 			if !isRegular {
-				if mtio.BlockSize*recordSize-counter.BytesRead > 0 {
+				if config.MagneticTapeBlockSize*recordSize-counter.BytesRead > 0 {
 					// Fill the rest of the record with zeros
-					if _, err := bw.Write(make([]byte, mtio.BlockSize*recordSize-counter.BytesRead)); err != nil {
+					if _, err := bw.Write(make([]byte, config.MagneticTapeBlockSize*recordSize-counter.BytesRead)); err != nil {
 						return err
 					}
 				}

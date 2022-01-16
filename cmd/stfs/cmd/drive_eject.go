@@ -2,6 +2,7 @@ package cmd
 
 import (
 	"github.com/pojntfx/stfs/pkg/hardware"
+	"github.com/pojntfx/stfs/pkg/mtio"
 	"github.com/pojntfx/stfs/pkg/tape"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
@@ -23,7 +24,10 @@ var driveEjectCmd = &cobra.Command{
 		}
 		defer reader.Close()
 
-		return hardware.Eject(reader.Fd())
+		return hardware.Eject(
+			mtio.MagneticTapeIO{},
+			reader.Fd(),
+		)
 	},
 }
 

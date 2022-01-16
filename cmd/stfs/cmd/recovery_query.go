@@ -6,6 +6,7 @@ import (
 	"github.com/pojntfx/stfs/internal/logging"
 	"github.com/pojntfx/stfs/pkg/config"
 	"github.com/pojntfx/stfs/pkg/keys"
+	"github.com/pojntfx/stfs/pkg/mtio"
 	"github.com/pojntfx/stfs/pkg/recovery"
 	"github.com/pojntfx/stfs/pkg/tape"
 	"github.com/spf13/cobra"
@@ -60,6 +61,7 @@ var recoveryQueryCmd = &cobra.Command{
 				Drive:          reader,
 				DriveIsRegular: readerIsRegular,
 			},
+			mtio.MagneticTapeIO{},
 			config.PipeConfig{
 				Compression: viper.GetString(compressionFlag),
 				Encryption:  viper.GetString(encryptionFlag),

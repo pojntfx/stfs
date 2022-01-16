@@ -30,7 +30,9 @@ type operation struct {
 	count int32 // Operation count
 }
 
-func GetCurrentRecordFromTape(fd uintptr) (int64, error) {
+type MagneticTapeIO struct{}
+
+func (t MagneticTapeIO) GetCurrentRecordFromTape(fd uintptr) (int64, error) {
 	pos := &position{}
 	if _, _, err := syscall.Syscall(
 		syscall.SYS_IOCTL,
@@ -44,7 +46,7 @@ func GetCurrentRecordFromTape(fd uintptr) (int64, error) {
 	return pos.blkNo, nil
 }
 
-func GoToEndOfTape(fd uintptr) error {
+func (t MagneticTapeIO) GoToEndOfTape(fd uintptr) error {
 	if _, _, err := syscall.Syscall(
 		syscall.SYS_IOCTL,
 		fd,
@@ -61,7 +63,7 @@ func GoToEndOfTape(fd uintptr) error {
 	return nil
 }
 
-func GoToNextFileOnTape(fd uintptr) error {
+func (t MagneticTapeIO) GoToNextFileOnTape(fd uintptr) error {
 	if _, _, err := syscall.Syscall(
 		syscall.SYS_IOCTL,
 		fd,
@@ -79,7 +81,7 @@ func GoToNextFileOnTape(fd uintptr) error {
 	return nil
 }
 
-func EjectTape(fd uintptr) error {
+func (t MagneticTapeIO) EjectTape(fd uintptr) error {
 	if _, _, err := syscall.Syscall(
 		syscall.SYS_IOCTL,
 		fd,
@@ -96,7 +98,7 @@ func EjectTape(fd uintptr) error {
 	return nil
 }
 
-func SeekToRecordOnTape(fd uintptr, record int32) error {
+func (t MagneticTapeIO) SeekToRecordOnTape(fd uintptr, record int32) error {
 	if _, _, err := syscall.Syscall(
 		syscall.SYS_IOCTL,
 		fd,

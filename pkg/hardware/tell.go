@@ -1,9 +1,7 @@
 package hardware
 
-import (
-	"github.com/pojntfx/stfs/internal/mtio"
-)
+import "github.com/pojntfx/stfs/pkg/config"
 
-func Tell(fd uintptr) (int64, error) {
-	return mtio.GetCurrentRecordFromTape(fd)
+func Tell(mt config.MagneticTapeIO, fd uintptr) (int64, error) {
+	return mt.GetCurrentRecordFromTape(fd)
 }

@@ -9,7 +9,6 @@ import (
 
 	"github.com/pojntfx/stfs/internal/converters"
 	"github.com/pojntfx/stfs/internal/ioext"
-	"github.com/pojntfx/stfs/internal/mtio"
 	"github.com/pojntfx/stfs/internal/records"
 	"github.com/pojntfx/stfs/internal/suffix"
 	"github.com/pojntfx/stfs/internal/tarext"
@@ -112,7 +111,7 @@ func (o *Operations) Update(
 					return []*tar.Header{}, err
 				}
 			} else {
-				buf := make([]byte, mtio.BlockSize*o.pipes.RecordSize)
+				buf := make([]byte, config.MagneticTapeBlockSize*o.pipes.RecordSize)
 				if _, err := io.CopyBuffer(compressor, signer, buf); err != nil {
 					return []*tar.Header{}, err
 				}
@@ -219,7 +218,7 @@ func (o *Operations) Update(
 					return []*tar.Header{}, err
 				}
 			} else {
-				buf := make([]byte, mtio.BlockSize*o.pipes.RecordSize)
+				buf := make([]byte, config.MagneticTapeBlockSize*o.pipes.RecordSize)
 				if _, err := io.CopyBuffer(compressor, f, buf); err != nil {
 					return []*tar.Header{}, err
 				}
@@ -291,6 +290,7 @@ func (o *Operations) Update(
 
 	return hdrs, recovery.Index(
 		reader,
+		o.backend.MagneticTapeIO,
 		o.metadata,
 		o.pipes,
 		o.crypto,

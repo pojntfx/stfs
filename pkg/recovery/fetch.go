@@ -9,7 +9,6 @@ import (
 	"path/filepath"
 
 	"github.com/pojntfx/stfs/internal/converters"
-	"github.com/pojntfx/stfs/internal/mtio"
 	"github.com/pojntfx/stfs/internal/records"
 	"github.com/pojntfx/stfs/pkg/compression"
 	"github.com/pojntfx/stfs/pkg/config"
@@ -19,6 +18,7 @@ import (
 
 func Fetch(
 	reader config.DriveReaderConfig,
+	mt config.MagneticTapeIO,
 	pipes config.PipeConfig,
 	crypto config.CryptoConfig,
 
@@ -37,20 +37,20 @@ func Fetch(
 	var tr *tar.Reader
 	if reader.DriveIsRegular {
 		// Seek to record and block
-		if _, err := reader.Drive.Seek(int64((pipes.RecordSize*mtio.BlockSize*record)+block*mtio.BlockSize), io.SeekStart); err != nil {
+		if _, err := reader.Drive.Seek(int64((pipes.RecordSize*config.MagneticTapeBlockSize*record)+block*config.MagneticTapeBlockSize), io.SeekStart); err != nil {
 			return err
 		}
 
 		tr = tar.NewReader(reader.Drive)
 	} else {
 		// Seek to record
-		if err := mtio.SeekToRecordOnTape(reader.Drive.Fd(), int32(record)); err != nil {
+		if err := mt.SeekToRecordOnTape(reader.Drive.Fd(), int32(record)); err != nil {
 			return err
 		}
 
 		// Seek to block
-		br := bufio.NewReaderSize(reader.Drive, mtio.BlockSize*pipes.RecordSize)
-		if _, err := br.Read(make([]byte, block*mtio.BlockSize)); err != nil {
+		br := bufio.NewReaderSize(reader.Drive, config.MagneticTapeBlockSize*pipes.RecordSize)
+		if _, err := br.Read(make([]byte, block*config.MagneticTapeBlockSize)); err != nil {
 			return err
 		}
 

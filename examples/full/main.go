@@ -11,6 +11,7 @@ import (
 	"github.com/pojntfx/stfs/pkg/config"
 	"github.com/pojntfx/stfs/pkg/fs"
 	"github.com/pojntfx/stfs/pkg/keys"
+	"github.com/pojntfx/stfs/pkg/mtio"
 	"github.com/pojntfx/stfs/pkg/operations"
 	"github.com/pojntfx/stfs/pkg/persisters"
 	"github.com/pojntfx/stfs/pkg/tape"
@@ -88,8 +89,10 @@ func createFs(
 		return nil, err
 	}
 
+	mt := mtio.MagneticTapeIO{}
 	tm := tape.NewTapeManager(
 		drive,
+		mt,
 		recordSize,
 		false,
 	)
@@ -118,6 +121,8 @@ func createFs(
 
 		GetReader:   tm.GetReader,
 		CloseReader: tm.Close,
+
+		MagneticTapeIO: mt,
 	}
 	readCryptoConfig := config.CryptoConfig{
 		Recipient: signatureRecipient,

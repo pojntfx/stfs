@@ -11,7 +11,6 @@ import (
 	"github.com/klauspost/pgzip"
 	"github.com/pierrec/lz4/v4"
 	"github.com/pojntfx/stfs/internal/ioext"
-	"github.com/pojntfx/stfs/internal/mtio"
 	"github.com/pojntfx/stfs/pkg/config"
 )
 
@@ -28,7 +27,7 @@ func Compress(
 	case config.CompressionFormatParallelGZipKey:
 		if compressionFormat == config.CompressionFormatGZipKey {
 			if !isRegular {
-				maxSize := getNearestPowerOf2Lower(mtio.BlockSize * recordSize)
+				maxSize := getNearestPowerOf2Lower(config.MagneticTapeBlockSize * recordSize)
 
 				if maxSize < 65535 { // See https://www.daylight.com/meetings/mug00/Sayle/gzip.html#:~:text=Stored%20blocks%20are%20allowed%20to,size%20of%20the%20gzip%20header.
 					return nil, config.ErrCompressionFormatRequiresLargerRecordSize
@@ -82,7 +81,7 @@ func Compress(
 
 		opts := []lz4.Option{lz4.CompressionLevelOption(l), lz4.ConcurrencyOption(-1)}
 		if !isRegular {
-			maxSize := getNearestPowerOf2Lower(mtio.BlockSize * recordSize)
+			maxSize := getNearestPowerOf2Lower(config.MagneticTapeBlockSize * recordSize)
 
 			if uint32(maxSize) < uint32(lz4.Block64Kb) {
 				return nil, config.ErrCompressionFormatRequiresLargerRecordSize
@@ -120,7 +119,7 @@ func Compress(
 
 		opts := []zstd.EOption{zstd.WithEncoderLevel(l)}
 		if !isRegular {
-			opts = append(opts, zstd.WithWindowSize(getNearestPowerOf2Lower(mtio.BlockSize*recordSize)))
+			opts = append(opts, zstd.WithWindowSize(getNearestPowerOf2Lower(config.MagneticTapeBlockSize*recordSize)))
 		}
 
 		zz, err := zstd.NewWriter(dst, opts...)
