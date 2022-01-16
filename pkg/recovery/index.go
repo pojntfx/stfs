@@ -155,7 +155,7 @@ func Index(
 		}
 
 		// Seek to block
-		br := bufio.NewReaderSize(drive.Drive, mtio.BlockSize*pipes.RecordSize)
+		br := bufio.NewReaderSize(reader.Drive, mtio.BlockSize*pipes.RecordSize)
 		if _, err := br.Read(make([]byte, block*mtio.BlockSize)); err != nil {
 			return err
 		}
@@ -184,7 +184,7 @@ func Index(
 					}
 					block = 0
 
-					br = bufio.NewReaderSize(drive.Drive, mtio.BlockSize*pipes.RecordSize)
+					br = bufio.NewReaderSize(reader.Drive, mtio.BlockSize*pipes.RecordSize)
 					curr = int64(int64(pipes.RecordSize) * mtio.BlockSize * record)
 					counter = &ioext.CounterReader{Reader: br, BytesRead: int(curr)}
 					tr = tar.NewReader(counter)

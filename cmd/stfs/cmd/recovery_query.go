@@ -56,6 +56,10 @@ var recoveryQueryCmd = &cobra.Command{
 		defer reader.Close()
 
 		if _, err := recovery.Query(
+			config.DriveReaderConfig{
+				Drive:          reader,
+				DriveIsRegular: readerIsRegular,
+			},
 			config.DriveConfig{
 				Drive:          reader,
 				DriveIsRegular: readerIsRegular,
