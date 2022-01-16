@@ -50,7 +50,7 @@ func Fetch(
 		}
 
 		// Seek to block
-		br := bufio.NewReaderSize(drive.Drive, mtio.BlockSize*pipes.RecordSize)
+		br := bufio.NewReaderSize(reader.Drive, mtio.BlockSize*pipes.RecordSize)
 		if _, err := br.Read(make([]byte, block*mtio.BlockSize)); err != nil {
 			return err
 		}

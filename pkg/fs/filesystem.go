@@ -217,10 +217,12 @@ func (f *STFS) Initialize(rootProposal string, rootPerm os.FileMode) (root strin
 
 	existingRoot, err := f.metadata.Metadata.GetRootPath(context.Background())
 	if err == config.ErrNoRootDirectory {
-		drive, err := f.readOps.GetBackend().GetDrive()
-
 		mkdirRoot := func() (string, error) {
 			if err := f.readOps.GetBackend().CloseDrive(); err != nil {
+				return "", err
+			}
+
+			if err := f.readOps.GetBackend().CloseReader(); err != nil {
 				return "", err
 			}
 
@@ -236,15 +238,18 @@ func (f *STFS) Initialize(rootProposal string, rootPerm os.FileMode) (root strin
 			return f.metadata.Metadata.GetRootPath(context.Background())
 		}
 
+		drive, err := f.readOps.GetBackend().GetDrive()
+		if err != nil {
+			return mkdirRoot()
+		}
+
+		reader, err := f.readOps.GetBackend().GetReader()
 		if err != nil {
 			return mkdirRoot()
 		}
 
 		if err := recovery.Index(
-			config.DriveReaderConfig{
-				Drive:          drive.Drive,
-				DriveIsRegular: drive.DriveIsRegular,
-			},
+			reader,
 			drive,
 			f.readOps.GetMetadata(),
 			f.readOps.GetPipes(),

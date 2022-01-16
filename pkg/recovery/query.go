@@ -16,7 +16,8 @@ import (
 )
 
 func Query(
-	state config.DriveConfig,
+	reader config.DriveReaderConfig,
+	drive config.DriveConfig,
 	pipes config.PipeConfig,
 	crypto config.CryptoConfig,
 
@@ -27,13 +28,13 @@ func Query(
 ) ([]*tar.Header, error) {
 	headers := []*tar.Header{}
 
-	if state.DriveIsRegular {
+	if reader.DriveIsRegular {
 		// Seek to record and block
-		if _, err := state.Drive.Seek(int64((pipes.RecordSize*mtio.BlockSize*record)+block*mtio.BlockSize), 0); err != nil {
+		if _, err := reader.Drive.Seek(int64((pipes.RecordSize*mtio.BlockSize*record)+block*mtio.BlockSize), 0); err != nil {
 			return []*tar.Header{}, err
 		}
 
-		tr := tar.NewReader(state.Drive)
+		tr := tar.NewReader(reader.Drive)
 
 		record := int64(record)
 		block := int64(block)
@@ -42,7 +43,7 @@ func Query(
 			hdr, err := tr.Next()
 			if err != nil {
 				for {
-					curr, err := state.Drive.Seek(0, io.SeekCurrent)
+					curr, err := reader.Drive.Seek(0, io.SeekCurrent)
 					if err != nil {
 						return []*tar.Header{}, err
 					}
@@ -60,11 +61,11 @@ func Query(
 					}
 
 					// Seek to record and block
-					if _, err := state.Drive.Seek(int64((pipes.RecordSize*mtio.BlockSize*int(record))+int(block)*mtio.BlockSize), io.SeekStart); err != nil {
+					if _, err := reader.Drive.Seek(int64((pipes.RecordSize*mtio.BlockSize*int(record))+int(block)*mtio.BlockSize), io.SeekStart); err != nil {
 						return []*tar.Header{}, err
 					}
 
-					tr = tar.NewReader(state.Drive)
+					tr = tar.NewReader(reader.Drive)
 
 					hdr, err = tr.Next()
 					if err != nil {
@@ -91,7 +92,7 @@ func Query(
 				return []*tar.Header{}, err
 			}
 
-			if err := signature.VerifyHeader(hdr, state.DriveIsRegular, pipes.Signature, crypto.Recipient); err != nil {
+			if err := signature.VerifyHeader(hdr, reader.DriveIsRegular, pipes.Signature, crypto.Recipient); err != nil {
 				return []*tar.Header{}, err
 			}
 
@@ -106,7 +107,7 @@ func Query(
 
 			headers = append(headers, hdr)
 
-			curr, err := state.Drive.Seek(0, io.SeekCurrent)
+			curr, err := reader.Drive.Seek(0, io.SeekCurrent)
 			if err != nil {
 				return []*tar.Header{}, err
 			}
@@ -115,7 +116,7 @@ func Query(
 				return []*tar.Header{}, err
 			}
 
-			currAndSize, err := state.Drive.Seek(0, io.SeekCurrent)
+			currAndSize, err := reader.Drive.Seek(0, io.SeekCurrent)
 			if err != nil {
 				return []*tar.Header{}, err
 			}
@@ -131,12 +132,12 @@ func Query(
 		}
 	} else {
 		// Seek to record
-		if err := mtio.SeekToRecordOnTape(state.Drive.Fd(), int32(record)); err != nil {
+		if err := mtio.SeekToRecordOnTape(drive.Drive.Fd(), int32(record)); err != nil {
 			return []*tar.Header{}, err
 		}
 
 		// Seek to block
-		br := bufio.NewReaderSize(state.Drive, mtio.BlockSize*pipes.RecordSize)
+		br := bufio.NewReaderSize(reader.Drive, mtio.BlockSize*pipes.RecordSize)
 		if _, err := br.Read(make([]byte, block*mtio.BlockSize)); err != nil {
 			return []*tar.Header{}, err
 		}
@@ -152,19 +153,19 @@ func Query(
 			hdr, err := tr.Next()
 			if err != nil {
 				if err == io.EOF {
-					if err := mtio.GoToNextFileOnTape(state.Drive.Fd()); err != nil {
+					if err := mtio.GoToNextFileOnTape(drive.Drive.Fd()); err != nil {
 						// EOD
 
 						break
 					}
 
-					record, err = mtio.GetCurrentRecordFromTape(state.Drive.Fd())
+					record, err = mtio.GetCurrentRecordFromTape(drive.Drive.Fd())
 					if err != nil {
 						return []*tar.Header{}, err
 					}
 					block = 0
 
-					br = bufio.NewReaderSize(state.Drive, mtio.BlockSize*pipes.RecordSize)
+					br = bufio.NewReaderSize(reader.Drive, mtio.BlockSize*pipes.RecordSize)
 					curr := int64(int64(pipes.RecordSize) * mtio.BlockSize * record)
 					counter := &ioext.CounterReader{Reader: br, BytesRead: int(curr)}
 					tr = tar.NewReader(counter)
@@ -179,7 +180,7 @@ func Query(
 				return []*tar.Header{}, err
 			}
 
-			if err := signature.VerifyHeader(hdr, state.DriveIsRegular, pipes.Signature, crypto.Recipient); err != nil {
+			if err := signature.VerifyHeader(hdr, reader.DriveIsRegular, pipes.Signature, crypto.Recipient); err != nil {
 				return []*tar.Header{}, err
 			}
 

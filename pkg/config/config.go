@@ -18,7 +18,6 @@ type DriveWriterConfig struct {
 }
 
 type Drive interface {
-	io.ReadSeeker
 	Fd() uintptr
 }
 
