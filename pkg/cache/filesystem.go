@@ -18,7 +18,7 @@ func NewCacheFilesystem(
 ) (afero.Fs, error) {
 	switch cacheType {
 	case config.FileSystemCacheTypeMemory:
-		if pathext.IsRoot(root) {
+		if pathext.IsRoot(root, false) {
 			return afero.NewCacheOnReadFs(base, afero.NewMemMapFs(), ttl), nil
 		}
 
@@ -32,13 +32,13 @@ func NewCacheFilesystem(
 			return nil, err
 		}
 
-		if pathext.IsRoot(root) {
+		if pathext.IsRoot(root, false) {
 			return afero.NewCacheOnReadFs(base, afero.NewBasePathFs(afero.NewOsFs(), cacheDir), ttl), nil
 		}
 
 		return afero.NewCacheOnReadFs(afero.NewBasePathFs(base, root), afero.NewBasePathFs(afero.NewOsFs(), cacheDir), ttl), nil
 	case config.NoneKey:
-		if pathext.IsRoot(root) {
+		if pathext.IsRoot(root, false) {
 			return base, nil
 		}
 

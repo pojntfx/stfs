@@ -11,6 +11,7 @@ import (
 	"path"
 	"path/filepath"
 	"reflect"
+	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -40,6 +41,11 @@ var (
 	fileSystemCacheDurations = []time.Duration{time.Hour} // This leads to more permutations, but tests multiple: []time.Duration{time.Minute, time.Hour}
 	stfsConfigs              = []stfsConfig{}
 )
+
+type symFs interface {
+	afero.Fs
+	afero.Symlinker
+}
 
 type stfsConfig struct {
 	recordSize int
@@ -666,7 +672,7 @@ var createTests = []struct {
 		true,
 	},
 	{
-		"Can not create file ' '",
+		"Can create file ' '",
 		createArgs{" "},
 		false,
 	},
@@ -2941,7 +2947,7 @@ var lstatTests = []struct {
 			return nil
 		},
 		func(f os.FileInfo) error {
-			want := "test.txt"
+			want := "test2.txt"
 			got := f.Name()
 
 			if want != got {
@@ -2982,7 +2988,7 @@ var lstatTests = []struct {
 			return nil
 		},
 		func(f os.FileInfo) error {
-			want := "test.txt"
+			want := "test2.txt"
 			got := f.Name()
 
 			if want != got {
@@ -3014,7 +3020,7 @@ var lstatTests = []struct {
 			return nil
 		},
 		func(f os.FileInfo) error {
-			wantName := "test.txt"
+			wantName := "test2.txt"
 			gotName := f.Name()
 
 			if wantName != gotName {
@@ -3080,70 +3086,24 @@ var symlinkTests = []struct {
 	name            string
 	args            symlinkArgs
 	wantErr         bool
-	prepare         func(*STFS) error
-	check           func(*STFS) error
+	prepare         func(symFs) error
+	check           func(symFs) error
 	checkAfterError bool
 	withCache       bool
 	withOsFs        bool
 }{
 	{
-		"Can not symlink / to /mydir",
+		"Can symlink / to /mydir",
 		symlinkArgs{"/", "/mydir"},
-		true,
-		func(f *STFS) error { return nil },
-		func(f *STFS) error { return nil },
 		false,
-		true,
-		true,
-	},
-	{
-		"Can not symlink / to /",
-		symlinkArgs{"/", "/"},
-		true,
-		func(f *STFS) error { return nil },
-		func(f *STFS) error { return nil },
-		false,
-		true,
-		true,
-	},
-	{
-		"Can not symlink '' to ''",
-		symlinkArgs{"", ""},
-		true,
-		func(f *STFS) error { return nil },
-		func(f *STFS) error { return nil },
-		false,
-		true,
-		true,
-	},
-	{
-		"Can not symlink ' ' to ' '",
-		symlinkArgs{" ", " "},
-		true,
-		func(f *STFS) error { return nil },
-		func(f *STFS) error { return nil },
-		false,
-		true,
-		true,
-	},
-	{
-		"Can symlink /test.txt to /new.txt if does exist",
-		symlinkArgs{"/test.txt", "/new.txt"},
-		false,
-		func(f *STFS) error {
-			if _, err := f.Create("/test.txt"); err != nil {
-				return err
-			}
-
-			return nil
-		},
-		func(f *STFS) error {
-			info, _, err := f.LstatIfPossible("/new.txt")
+		func(f symFs) error { return nil },
+		func(f symFs) error {
+			info, _, err := f.LstatIfPossible("/mydir")
 			if err != nil {
 				return err
 			}
 
-			want := "test.txt"
+			want := "mydir"
 			got := info.Name()
 
 			if want != got {
@@ -3157,11 +3117,77 @@ var symlinkTests = []struct {
 		true,
 	},
 	{
-		"Can not symlink /test.txt to /new.txt if does not exist",
-		symlinkArgs{"/test.txt", "/new.txt"},
+		"Can not symlink / to /",
+		symlinkArgs{"/", "/"},
 		true,
-		func(f *STFS) error { return nil },
-		func(f *STFS) error { return nil },
+		func(f symFs) error { return nil },
+		func(f symFs) error { return nil },
+		false,
+		true,
+		true,
+	},
+	{
+		"Can not symlink '' to ''",
+		symlinkArgs{"", ""},
+		true,
+		func(f symFs) error { return nil },
+		func(f symFs) error { return nil },
+		false,
+		true,
+		true,
+	},
+	{
+		"Can symlink ' ' to ' '",
+		symlinkArgs{" ", " "},
+		false,
+		func(f symFs) error { return nil },
+		func(f symFs) error {
+			if _, _, err := f.LstatIfPossible(" "); !errors.Is(err, os.ErrNotExist) {
+				return err
+			}
+
+			return nil
+		},
+		false,
+		true,
+		true,
+	},
+	{
+		"Can symlink /test.txt to /new.txt if does exist",
+		symlinkArgs{"/test.txt", "/new.txt"},
+		false,
+		func(f symFs) error {
+			if _, err := f.Create("/test.txt"); err != nil {
+				return err
+			}
+
+			return nil
+		},
+		func(f symFs) error {
+			info, _, err := f.LstatIfPossible("/new.txt")
+			if err != nil {
+				return err
+			}
+
+			want := "new.txt"
+			got := info.Name()
+
+			if want != got {
+				return fmt.Errorf("symlinked file has wrong name, got %v, want %v", got, want)
+			}
+
+			return nil
+		},
+		false,
+		true,
+		true,
+	},
+	{
+		"Can symlink /test.txt to /new.txt if does not exist",
+		symlinkArgs{"/test.txt", "/new.txt"},
+		false,
+		func(f symFs) error { return nil },
+		func(f symFs) error { return nil },
 		false,
 		true,
 		true,
@@ -3170,16 +3196,24 @@ var symlinkTests = []struct {
 		"Can symlink directory /myolddir to /mydir",
 		symlinkArgs{"/myolddir", "/mydir"},
 		false,
-		func(f *STFS) error {
+		func(f symFs) error {
 			if err := f.Mkdir("/myolddir", os.ModePerm); err != nil {
 				return err
 			}
 
 			return nil
 		},
-		func(f *STFS) error {
-			if _, _, err := f.LstatIfPossible("/mydir"); !errors.Is(err, os.ErrNotExist) {
+		func(f symFs) error {
+			info, _, err := f.LstatIfPossible("/mydir")
+			if err != nil {
 				return err
+			}
+
+			want := "mydir"
+			got := info.Name()
+
+			if want != got {
+				return fmt.Errorf("symlinked directory has wrong name, got %v, want %v", got, want)
 			}
 
 			return nil
@@ -3192,7 +3226,7 @@ var symlinkTests = []struct {
 		"Can symlink non-empty directory /myolddir to /mydir",
 		symlinkArgs{"/myolddir", "/mydir"},
 		false,
-		func(f *STFS) error {
+		func(f symFs) error {
 			if err := f.Mkdir("/myolddir", os.ModePerm); err != nil {
 				return err
 			}
@@ -3203,9 +3237,17 @@ var symlinkTests = []struct {
 
 			return nil
 		},
-		func(f *STFS) error {
-			if _, _, err := f.LstatIfPossible("/mydir"); !errors.Is(err, os.ErrNotExist) {
+		func(f symFs) error {
+			info, _, err := f.LstatIfPossible("/mydir")
+			if err != nil {
 				return err
+			}
+
+			want := "mydir"
+			got := info.Name()
+
+			if want != got {
+				return fmt.Errorf("symlinked directory has wrong name, got %v, want %v", got, want)
 			}
 
 			return nil
@@ -3218,14 +3260,14 @@ var symlinkTests = []struct {
 		"Can not symlink /test.txt to /mydir/new.txt if new parent drectory does not exist",
 		symlinkArgs{"/test.txt", "/mydir/new.txt"},
 		true,
-		func(f *STFS) error {
+		func(f symFs) error {
 			if _, err := f.Create("/test.txt"); err != nil {
 				return err
 			}
 
 			return nil
 		},
-		func(f *STFS) error {
+		func(f symFs) error {
 			if _, _, err := f.LstatIfPossible("/mydir/new.txt"); !errors.Is(err, os.ErrNotExist) {
 				return err
 			}
@@ -3240,7 +3282,7 @@ var symlinkTests = []struct {
 		"Can symlink /test.txt to /mydir/new.txt if new parent drectory does exist",
 		symlinkArgs{"/test.txt", "/mydir/new.txt"},
 		false,
-		func(f *STFS) error {
+		func(f symFs) error {
 			if _, err := f.Create("/test.txt"); err != nil {
 				return err
 			}
@@ -3251,13 +3293,13 @@ var symlinkTests = []struct {
 
 			return nil
 		},
-		func(f *STFS) error {
+		func(f symFs) error {
 			info, _, err := f.LstatIfPossible("/mydir/new.txt")
 			if err != nil {
 				return err
 			}
 
-			want := "test.txt"
+			want := "new.txt"
 			got := info.Name()
 
 			if want != got {
@@ -3274,24 +3316,38 @@ var symlinkTests = []struct {
 		"Can not symlink /test.txt to /test.txt if does exist",
 		symlinkArgs{"/test.txt", "/test.txt"},
 		true,
-		func(f *STFS) error {
+		func(f symFs) error {
 			if _, err := f.Create("/test.txt"); err != nil {
 				return err
 			}
 
 			return nil
 		},
-		func(f *STFS) error { return nil },
+		func(f symFs) error { return nil },
 		false,
 		true,
 		true,
 	},
 	{
-		"Can not symlink move /test.txt to /test.txt if does not exist",
+		"Can symlink /test.txt to /test.txt if does not exist",
 		symlinkArgs{"/test.txt", "/test.txt"},
-		true,
-		func(f *STFS) error { return nil },
-		func(f *STFS) error { return nil },
+		false,
+		func(f symFs) error { return nil },
+		func(f symFs) error {
+			info, _, err := f.LstatIfPossible("/test.txt")
+			if err != nil {
+				return err
+			}
+
+			want := "test.txt"
+			got := info.Name()
+
+			if want != got {
+				return fmt.Errorf("invalid name, got %v, want %v", got, want)
+			}
+
+			return nil
+		},
 		false,
 		true,
 		true,
@@ -3300,7 +3356,7 @@ var symlinkTests = []struct {
 		"Can not symlink /test.txt to /existing.txt if source and target both exist",
 		symlinkArgs{"/test.txt", "/existing.txt"},
 		true,
-		func(f *STFS) error {
+		func(f symFs) error {
 			if _, err := f.Create("/test.txt"); err != nil {
 				return err
 			}
@@ -3311,7 +3367,7 @@ var symlinkTests = []struct {
 
 			return nil
 		},
-		func(f *STFS) error { return nil },
+		func(f symFs) error { return nil },
 		false,
 		true,
 		true,
@@ -3320,7 +3376,7 @@ var symlinkTests = []struct {
 		"Can not symlink /test.txt to /mydir if source is file and target is directory",
 		symlinkArgs{"/test.txt", "/mydir"},
 		true,
-		func(f *STFS) error {
+		func(f symFs) error {
 			if _, err := f.Create("/test.txt"); err != nil {
 				return err
 			}
@@ -3331,7 +3387,7 @@ var symlinkTests = []struct {
 
 			return nil
 		},
-		func(f *STFS) error { return nil },
+		func(f symFs) error { return nil },
 		false,
 		true,
 		true,
@@ -3340,7 +3396,7 @@ var symlinkTests = []struct {
 		"Can not symlink /mydir to /test.txt if source is directory and target is file",
 		symlinkArgs{"/mydir", "/test.txt"},
 		true,
-		func(f *STFS) error {
+		func(f symFs) error {
 			if _, err := f.Create("/test.txt"); err != nil {
 				return err
 			}
@@ -3351,7 +3407,7 @@ var symlinkTests = []struct {
 
 			return nil
 		},
-		func(f *STFS) error { return nil },
+		func(f symFs) error { return nil },
 		false,
 		true,
 		true,
@@ -3360,14 +3416,14 @@ var symlinkTests = []struct {
 		"Can not symlink /test.txt to /test.txt/",
 		symlinkArgs{"/test.txt", "/test.txt/"},
 		true,
-		func(f *STFS) error {
+		func(f symFs) error {
 			if _, err := f.Create("/test.txt"); err != nil {
 				return err
 			}
 
 			return nil
 		},
-		func(f *STFS) error { return nil },
+		func(f symFs) error { return nil },
 		false,
 		true,
 		true,
@@ -3379,27 +3435,27 @@ func TestSTFS_Symlink(t *testing.T) {
 		tt := tt
 
 		runTestForAllFss(t, tt.name, true, tt.withCache, tt.withOsFs, func(t *testing.T, fs fsConfig) {
-			stfs, ok := fs.fs.(*STFS)
+			symFs, ok := fs.fs.(symFs)
 			if !ok {
 				return
 			}
 
-			if err := tt.prepare(stfs); err != nil {
-				t.Errorf("%v prepare() error = %v", stfs.Name(), err)
+			if err := tt.prepare(symFs); err != nil {
+				t.Errorf("%v prepare() error = %v", symFs.Name(), err)
 
 				return
 			}
 
-			if err := stfs.SymlinkIfPossible(tt.args.oldname, tt.args.newname); (err != nil) != tt.wantErr {
+			if err := symFs.SymlinkIfPossible(tt.args.oldname, tt.args.newname); (err != nil) != tt.wantErr {
 				if !tt.checkAfterError {
-					t.Errorf("%v.SymlinkIfPossible() error = %v, wantErr %v", stfs.Name(), err, tt.wantErr)
+					t.Errorf("%v.SymlinkIfPossible() error = %v, wantErr %v", symFs.Name(), err, tt.wantErr)
 
 					return
 				}
 			}
 
-			if err := tt.check(stfs); err != nil {
-				t.Errorf("%v check() error = %v", stfs.Name(), err)
+			if err := tt.check(symFs); err != nil {
+				t.Errorf("%v check() error = %v", symFs.Name(), err)
 
 				return
 			}
@@ -3415,7 +3471,7 @@ var readlinkTests = []struct {
 	name      string
 	args      readlinkArgs
 	wantErr   bool
-	prepare   func(*STFS) error
+	prepare   func(symFs) error
 	check     func(string) error
 	withCache bool
 	withOsFs  bool
@@ -3424,7 +3480,7 @@ var readlinkTests = []struct {
 		"Can not readlink /",
 		readlinkArgs{"/"},
 		true,
-		func(f *STFS) error { return nil },
+		func(f symFs) error { return nil },
 		func(got string) error { return nil },
 		true,
 		true,
@@ -3433,7 +3489,7 @@ var readlinkTests = []struct {
 		"Can not readlink /test.txt without creating it",
 		readlinkArgs{"/test.txt"},
 		true,
-		func(f *STFS) error { return nil },
+		func(f symFs) error { return nil },
 		func(got string) error { return nil },
 		true,
 		true,
@@ -3442,7 +3498,7 @@ var readlinkTests = []struct {
 		"Can readlink /test2.txt after creating /test.txt and symlinking it",
 		readlinkArgs{"/test2.txt"},
 		false,
-		func(f *STFS) error {
+		func(f symFs) error {
 			if _, err := f.Create("/test.txt"); err != nil {
 				return err
 			}
@@ -3456,7 +3512,7 @@ var readlinkTests = []struct {
 		func(got string) error {
 			want := "test.txt"
 
-			if want != got {
+			if !strings.HasSuffix(got, want) {
 				return fmt.Errorf("invalid name, got %v, want %v", got, want)
 			}
 
@@ -3469,7 +3525,7 @@ var readlinkTests = []struct {
 		"Can not readlink /mydir/test.txt without creating it",
 		readlinkArgs{"/mydir/test.txt"},
 		true,
-		func(f *STFS) error { return nil },
+		func(f symFs) error { return nil },
 		func(got string) error { return nil },
 		true,
 		true,
@@ -3478,7 +3534,7 @@ var readlinkTests = []struct {
 		"Can readlink /mydir/test2.txt after creating /mydir/test.txt and symlinking it",
 		readlinkArgs{"/mydir/test2.txt"},
 		false,
-		func(f *STFS) error {
+		func(f symFs) error {
 			if err := f.Mkdir("/mydir", os.ModePerm); err != nil {
 				return err
 			}
@@ -3496,7 +3552,7 @@ var readlinkTests = []struct {
 		func(got string) error {
 			want := "test.txt"
 
-			if want != got {
+			if !strings.HasSuffix(got, want) {
 				return fmt.Errorf("invalid name, got %v, want %v", got, want)
 			}
 
@@ -3509,7 +3565,7 @@ var readlinkTests = []struct {
 		"Result of readlink /test2.txt after creating /test.txt and symlinking it matches provided values",
 		readlinkArgs{"/test2.txt"},
 		false,
-		func(f *STFS) error {
+		func(f symFs) error {
 			file, err := f.OpenFile("/test.txt", os.O_CREATE, os.ModePerm)
 			if err != nil {
 				return err
@@ -3527,7 +3583,7 @@ var readlinkTests = []struct {
 		func(got string) error {
 			want := "test.txt"
 
-			if want != got {
+			if !strings.HasSuffix(got, want) {
 				return fmt.Errorf("invalid name, got %v, want %v", got, want)
 			}
 
@@ -3543,26 +3599,26 @@ func TestSTFS_Readlink(t *testing.T) {
 		tt := tt
 
 		runTestForAllFss(t, tt.name, true, tt.withCache, tt.withOsFs, func(t *testing.T, fs fsConfig) {
-			stfs, ok := fs.fs.(*STFS)
+			symFs, ok := fs.fs.(symFs)
 			if !ok {
 				return
 			}
 
-			if err := tt.prepare(stfs); err != nil {
-				t.Errorf("%v prepare() error = %v", stfs.Name(), err)
+			if err := tt.prepare(symFs); err != nil {
+				t.Errorf("%v prepare() error = %v", symFs.Name(), err)
 
 				return
 			}
 
-			got, err := stfs.ReadlinkIfPossible(tt.args.name)
+			got, err := symFs.ReadlinkIfPossible(tt.args.name)
 			if (err != nil) != tt.wantErr {
-				t.Errorf("%v.ReadlinkIfPossible() error = %v, wantErr %v", stfs.Name(), err, tt.wantErr)
+				t.Errorf("%v.ReadlinkIfPossible() error = %v, wantErr %v", symFs.Name(), err, tt.wantErr)
 
 				return
 			}
 
 			if err := tt.check(got); err != nil {
-				t.Errorf("%v check() error = %v", stfs.Name(), err)
+				t.Errorf("%v check() error = %v", symFs.Name(), err)
 
 				return
 			}
