@@ -71,10 +71,6 @@ var recoveryFetchCmd = &cobra.Command{
 				Drive:          reader,
 				DriveIsRegular: readerIsRegular,
 			},
-			config.DriveConfig{
-				Drive:          reader,
-				DriveIsRegular: readerIsRegular,
-			},
 			config.PipeConfig{
 				Compression: viper.GetString(compressionFlag),
 				Encryption:  viper.GetString(encryptionFlag),

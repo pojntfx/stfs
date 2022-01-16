@@ -17,7 +17,6 @@ import (
 
 func Query(
 	reader config.DriveReaderConfig,
-	drive config.DriveConfig,
 	pipes config.PipeConfig,
 	crypto config.CryptoConfig,
 
@@ -132,7 +131,7 @@ func Query(
 		}
 	} else {
 		// Seek to record
-		if err := mtio.SeekToRecordOnTape(drive.Drive.Fd(), int32(record)); err != nil {
+		if err := mtio.SeekToRecordOnTape(reader.Drive.Fd(), int32(record)); err != nil {
 			return []*tar.Header{}, err
 		}
 
@@ -153,13 +152,13 @@ func Query(
 			hdr, err := tr.Next()
 			if err != nil {
 				if err == io.EOF {
-					if err := mtio.GoToNextFileOnTape(drive.Drive.Fd()); err != nil {
+					if err := mtio.GoToNextFileOnTape(reader.Drive.Fd()); err != nil {
 						// EOD
 
 						break
 					}
 
-					record, err = mtio.GetCurrentRecordFromTape(drive.Drive.Fd())
+					record, err = mtio.GetCurrentRecordFromTape(reader.Drive.Fd())
 					if err != nil {
 						return []*tar.Header{}, err
 					}

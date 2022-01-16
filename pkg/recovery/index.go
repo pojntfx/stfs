@@ -21,7 +21,6 @@ import (
 
 func Index(
 	reader config.DriveReaderConfig,
-	drive config.DriveConfig,
 	metadata config.MetadataConfig,
 	pipes config.PipeConfig,
 	crypto config.CryptoConfig,
@@ -150,7 +149,7 @@ func Index(
 		}
 	} else {
 		// Seek to record
-		if err := mtio.SeekToRecordOnTape(drive.Drive.Fd(), int32(record)); err != nil {
+		if err := mtio.SeekToRecordOnTape(reader.Drive.Fd(), int32(record)); err != nil {
 			return err
 		}
 
@@ -172,13 +171,13 @@ func Index(
 			hdr, err := tr.Next()
 			if err != nil {
 				if err == io.EOF {
-					if err := mtio.GoToNextFileOnTape(drive.Drive.Fd()); err != nil {
+					if err := mtio.GoToNextFileOnTape(reader.Drive.Fd()); err != nil {
 						// EOD
 
 						break
 					}
 
-					record, err = mtio.GetCurrentRecordFromTape(drive.Drive.Fd())
+					record, err = mtio.GetCurrentRecordFromTape(reader.Drive.Fd())
 					if err != nil {
 						return err
 					}
@@ -200,7 +199,7 @@ func Index(
 					return err
 				}
 
-				if err := verifyHeader(hdr, drive.DriveIsRegular); err != nil {
+				if err := verifyHeader(hdr, reader.DriveIsRegular); err != nil {
 					return err
 				}
 

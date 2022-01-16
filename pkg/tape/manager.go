@@ -13,7 +13,7 @@ type TapeManager struct {
 	recordSize int
 	overwrite  bool
 
-	driveLock sync.Mutex
+	physicalLock sync.Mutex
 
 	readerLock      sync.Mutex
 	reader          *os.File
@@ -37,7 +37,7 @@ func NewTapeManager(
 }
 
 func (m *TapeManager) GetWriter() (config.DriveWriterConfig, error) {
-	m.driveLock.Lock()
+	m.physicalLock.Lock()
 
 	overwrite := m.overwrite
 	if m.overwrote {
@@ -73,17 +73,6 @@ func (m *TapeManager) GetReader() (config.DriveReaderConfig, error) {
 	}, nil
 }
 
-func (m *TapeManager) GetDrive() (config.DriveConfig, error) {
-	if err := m.openOrReuseReader(); err != nil {
-		return config.DriveConfig{}, err
-	}
-
-	return config.DriveConfig{
-		Drive:          m.reader,
-		DriveIsRegular: m.readerIsRegular,
-	}, nil
-}
-
 func (m *TapeManager) Close() error {
 	if m.closer != nil {
 		if err := m.closer(); err != nil {
@@ -91,7 +80,7 @@ func (m *TapeManager) Close() error {
 		}
 	}
 
-	m.driveLock.Unlock()
+	m.physicalLock.Unlock()
 
 	return nil
 }
@@ -109,7 +98,7 @@ func (m *TapeManager) openOrReuseReader() error {
 	}
 
 	if reopen {
-		m.driveLock.Lock()
+		m.physicalLock.Lock()
 
 		r, rr, err := OpenTapeReadOnly(m.drive)
 		if err != nil {

@@ -87,9 +87,6 @@ var operationArchiveCmd = &cobra.Command{
 
 				GetReader:   tm.GetReader,
 				CloseReader: tm.Close,
-
-				GetDrive:   tm.GetDrive,
-				CloseDrive: tm.Close,
 			},
 			config.MetadataConfig{
 				Metadata: metadataPersister,

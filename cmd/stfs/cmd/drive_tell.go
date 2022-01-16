@@ -3,7 +3,6 @@ package cmd
 import (
 	"fmt"
 
-	"github.com/pojntfx/stfs/pkg/config"
 	"github.com/pojntfx/stfs/pkg/hardware"
 	"github.com/pojntfx/stfs/pkg/tape"
 	"github.com/spf13/cobra"
@@ -18,7 +17,7 @@ var driveTellCmd = &cobra.Command{
 			return err
 		}
 
-		reader, readerIsRegular, err := tape.OpenTapeReadOnly(
+		reader, _, err := tape.OpenTapeReadOnly(
 			viper.GetString(driveFlag),
 		)
 		if err != nil {
@@ -26,12 +25,7 @@ var driveTellCmd = &cobra.Command{
 		}
 		defer reader.Close()
 
-		currentRecord, err := hardware.Tell(
-			config.DriveConfig{
-				Drive:          reader,
-				DriveIsRegular: readerIsRegular,
-			},
-		)
+		currentRecord, err := hardware.Tell(reader.Fd())
 		if err != nil {
 			return err
 		}

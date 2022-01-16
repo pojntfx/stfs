@@ -289,15 +289,8 @@ func (o *Operations) Update(
 	}
 	defer o.backend.CloseReader()
 
-	drive, err := o.backend.GetDrive()
-	if err != nil {
-		return []*tar.Header{}, err
-	}
-	defer o.backend.CloseDrive()
-
 	return hdrs, recovery.Index(
 		reader,
-		drive,
 		o.metadata,
 		o.pipes,
 		o.crypto,
