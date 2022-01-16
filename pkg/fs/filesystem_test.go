@@ -3406,3 +3406,166 @@ func TestSTFS_Symlink(t *testing.T) {
 		})
 	}
 }
+
+type readlinkArgs struct {
+	name string
+}
+
+var readlinkTests = []struct {
+	name      string
+	args      readlinkArgs
+	wantErr   bool
+	prepare   func(*STFS) error
+	check     func(string) error
+	withCache bool
+	withOsFs  bool
+}{
+	{
+		"Can not readlink /",
+		readlinkArgs{"/"},
+		true,
+		func(f *STFS) error { return nil },
+		func(got string) error { return nil },
+		true,
+		true,
+	},
+	{
+		"Can not readlink /test.txt without creating it",
+		readlinkArgs{"/test.txt"},
+		true,
+		func(f *STFS) error { return nil },
+		func(got string) error { return nil },
+		true,
+		true,
+	},
+	{
+		"Can readlink /test2.txt after creating /test.txt and symlinking it",
+		readlinkArgs{"/test2.txt"},
+		false,
+		func(f *STFS) error {
+			if _, err := f.Create("/test.txt"); err != nil {
+				return err
+			}
+
+			if err := f.SymlinkIfPossible("/test.txt", "/test2.txt"); err != nil {
+				return err
+			}
+
+			return nil
+		},
+		func(got string) error {
+			want := "test.txt"
+
+			if want != got {
+				return fmt.Errorf("invalid name, got %v, want %v", got, want)
+			}
+
+			return nil
+		},
+		true,
+		true,
+	},
+	{
+		"Can not readlink /mydir/test.txt without creating it",
+		readlinkArgs{"/mydir/test.txt"},
+		true,
+		func(f *STFS) error { return nil },
+		func(got string) error { return nil },
+		true,
+		true,
+	},
+	{
+		"Can readlink /mydir/test2.txt after creating /mydir/test.txt and symlinking it",
+		readlinkArgs{"/mydir/test2.txt"},
+		false,
+		func(f *STFS) error {
+			if err := f.Mkdir("/mydir", os.ModePerm); err != nil {
+				return err
+			}
+
+			if _, err := f.Create("/mydir/test.txt"); err != nil {
+				return err
+			}
+
+			if err := f.SymlinkIfPossible("/mydir/test.txt", "/mydir/test2.txt"); err != nil {
+				return err
+			}
+
+			return nil
+		},
+		func(got string) error {
+			want := "test.txt"
+
+			if want != got {
+				return fmt.Errorf("invalid name, got %v, want %v", got, want)
+			}
+
+			return nil
+		},
+		true,
+		true,
+	},
+	{
+		"Result of readlink /test2.txt after creating /test.txt and symlinking it matches provided values",
+		readlinkArgs{"/test2.txt"},
+		false,
+		func(f *STFS) error {
+			file, err := f.OpenFile("/test.txt", os.O_CREATE, os.ModePerm)
+			if err != nil {
+				return err
+			}
+			if err := file.Close(); err != nil {
+				return err
+			}
+
+			if err := f.SymlinkIfPossible("/test.txt", "/test2.txt"); err != nil {
+				return err
+			}
+
+			return nil
+		},
+		func(got string) error {
+			want := "test.txt"
+
+			if want != got {
+				return fmt.Errorf("invalid name, got %v, want %v", got, want)
+			}
+
+			return nil
+		},
+		true,
+		true,
+	},
+}
+
+func TestSTFS_Readlink(t *testing.T) {
+	for _, tt := range readlinkTests {
+		tt := tt
+
+		runTestForAllFss(t, tt.name, true, tt.withCache, tt.withOsFs, func(t *testing.T, fs fsConfig) {
+			stfs, ok := fs.fs.(*STFS)
+			if !ok {
+				return
+			}
+
+			if err := tt.prepare(stfs); err != nil {
+				t.Errorf("%v prepare() error = %v", stfs.Name(), err)
+
+				return
+			}
+
+			got, err := stfs.ReadlinkIfPossible(tt.args.name)
+			if (err != nil) != tt.wantErr {
+				t.Errorf("%v.ReadlinkIfPossible() error = %v, wantErr %v", stfs.Name(), err, tt.wantErr)
+
+				return
+			}
+
+			if err := tt.check(got); err != nil {
+				t.Errorf("%v check() error = %v", stfs.Name(), err)
+
+				return
+			}
+		})
+	}
+}
