@@ -9,7 +9,6 @@ import (
 
 	"github.com/pojntfx/stfs/internal/converters"
 	"github.com/pojntfx/stfs/internal/ioext"
-	"github.com/pojntfx/stfs/internal/mtio"
 	"github.com/pojntfx/stfs/pkg/config"
 	"github.com/pojntfx/stfs/pkg/encryption"
 	"github.com/pojntfx/stfs/pkg/signature"
@@ -17,6 +16,7 @@ import (
 
 func Query(
 	reader config.DriveReaderConfig,
+	mt config.MagneticTapeIO,
 	pipes config.PipeConfig,
 	crypto config.CryptoConfig,
 
@@ -29,7 +29,7 @@ func Query(
 
 	if reader.DriveIsRegular {
 		// Seek to record and block
-		if _, err := reader.Drive.Seek(int64((pipes.RecordSize*mtio.BlockSize*record)+block*mtio.BlockSize), 0); err != nil {
+		if _, err := reader.Drive.Seek(int64((pipes.RecordSize*config.MagneticTapeBlockSize*record)+block*config.MagneticTapeBlockSize), 0); err != nil {
 			return []*tar.Header{}, err
 		}
 
@@ -47,7 +47,7 @@ func Query(
 						return []*tar.Header{}, err
 					}
 
-					nextTotalBlocks := math.Ceil(float64((curr)) / float64(mtio.BlockSize))
+					nextTotalBlocks := math.Ceil(float64((curr)) / float64(config.MagneticTapeBlockSize))
 					record = int64(nextTotalBlocks) / int64(pipes.RecordSize)
 					block = int64(nextTotalBlocks) - (record * int64(pipes.RecordSize))
 
@@ -60,7 +60,7 @@ func Query(
 					}
 
 					// Seek to record and block
-					if _, err := reader.Drive.Seek(int64((pipes.RecordSize*mtio.BlockSize*int(record))+int(block)*mtio.BlockSize), io.SeekStart); err != nil {
+					if _, err := reader.Drive.Seek(int64((pipes.RecordSize*config.MagneticTapeBlockSize*int(record))+int(block)*config.MagneticTapeBlockSize), io.SeekStart); err != nil {
 						return []*tar.Header{}, err
 					}
 
@@ -120,7 +120,7 @@ func Query(
 				return []*tar.Header{}, err
 			}
 
-			nextTotalBlocks := math.Ceil(float64(curr+(currAndSize-curr)) / float64(mtio.BlockSize))
+			nextTotalBlocks := math.Ceil(float64(curr+(currAndSize-curr)) / float64(config.MagneticTapeBlockSize))
 			record = int64(nextTotalBlocks) / int64(pipes.RecordSize)
 			block = int64(nextTotalBlocks) - (record * int64(pipes.RecordSize))
 
@@ -131,20 +131,20 @@ func Query(
 		}
 	} else {
 		// Seek to record
-		if err := mtio.SeekToRecordOnTape(reader.Drive.Fd(), int32(record)); err != nil {
+		if err := mt.SeekToRecordOnTape(reader.Drive.Fd(), int32(record)); err != nil {
 			return []*tar.Header{}, err
 		}
 
 		// Seek to block
-		br := bufio.NewReaderSize(reader.Drive, mtio.BlockSize*pipes.RecordSize)
-		if _, err := br.Read(make([]byte, block*mtio.BlockSize)); err != nil {
+		br := bufio.NewReaderSize(reader.Drive, config.MagneticTapeBlockSize*pipes.RecordSize)
+		if _, err := br.Read(make([]byte, block*config.MagneticTapeBlockSize)); err != nil {
 			return []*tar.Header{}, err
 		}
 
 		record := int64(record)
 		block := int64(block)
 
-		curr := int64((pipes.RecordSize * mtio.BlockSize * int(record)) + (int(block) * mtio.BlockSize))
+		curr := int64((pipes.RecordSize * config.MagneticTapeBlockSize * int(record)) + (int(block) * config.MagneticTapeBlockSize))
 		counter := &ioext.CounterReader{Reader: br, BytesRead: int(curr)}
 
 		tr := tar.NewReader(counter)
@@ -152,20 +152,20 @@ func Query(
 			hdr, err := tr.Next()
 			if err != nil {
 				if err == io.EOF {
-					if err := mtio.GoToNextFileOnTape(reader.Drive.Fd()); err != nil {
+					if err := mt.GoToNextFileOnTape(reader.Drive.Fd()); err != nil {
 						// EOD
 
 						break
 					}
 
-					record, err = mtio.GetCurrentRecordFromTape(reader.Drive.Fd())
+					record, err = mt.GetCurrentRecordFromTape(reader.Drive.Fd())
 					if err != nil {
 						return []*tar.Header{}, err
 					}
 					block = 0
 
-					br = bufio.NewReaderSize(reader.Drive, mtio.BlockSize*pipes.RecordSize)
-					curr := int64(int64(pipes.RecordSize) * mtio.BlockSize * record)
+					br = bufio.NewReaderSize(reader.Drive, config.MagneticTapeBlockSize*pipes.RecordSize)
+					curr := int64(int64(pipes.RecordSize) * config.MagneticTapeBlockSize * record)
 					counter := &ioext.CounterReader{Reader: br, BytesRead: int(curr)}
 					tr = tar.NewReader(counter)
 
@@ -200,7 +200,7 @@ func Query(
 
 			currAndSize := int64(counter.BytesRead)
 
-			nextTotalBlocks := math.Ceil(float64(curr+(currAndSize-curr)) / float64(mtio.BlockSize))
+			nextTotalBlocks := math.Ceil(float64(curr+(currAndSize-curr)) / float64(config.MagneticTapeBlockSize))
 			record = int64(nextTotalBlocks) / int64(pipes.RecordSize)
 			block = int64(nextTotalBlocks) - (record * int64(pipes.RecordSize))
 

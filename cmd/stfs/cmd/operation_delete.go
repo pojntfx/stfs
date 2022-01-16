@@ -6,6 +6,7 @@ import (
 	"github.com/pojntfx/stfs/internal/logging"
 	"github.com/pojntfx/stfs/pkg/config"
 	"github.com/pojntfx/stfs/pkg/keys"
+	"github.com/pojntfx/stfs/pkg/mtio"
 	"github.com/pojntfx/stfs/pkg/operations"
 	"github.com/pojntfx/stfs/pkg/persisters"
 	"github.com/pojntfx/stfs/pkg/tape"
@@ -53,8 +54,10 @@ var operationDeleteCmd = &cobra.Command{
 			return err
 		}
 
+		mt := mtio.MagneticTapeIO{}
 		tm := tape.NewTapeManager(
 			viper.GetString(driveFlag),
+			mt,
 			viper.GetInt(recordSizeFlag),
 			false,
 		)
@@ -71,6 +74,8 @@ var operationDeleteCmd = &cobra.Command{
 
 				GetReader:   tm.GetReader,
 				CloseReader: tm.Close,
+
+				MagneticTapeIO: mt,
 			},
 			config.MetadataConfig{
 				Metadata: metadataPersister,

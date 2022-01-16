@@ -10,6 +10,7 @@ import (
 	"github.com/pojntfx/stfs/pkg/cache"
 	"github.com/pojntfx/stfs/pkg/config"
 	"github.com/pojntfx/stfs/pkg/fs"
+	"github.com/pojntfx/stfs/pkg/mtio"
 	"github.com/pojntfx/stfs/pkg/operations"
 	"github.com/pojntfx/stfs/pkg/persisters"
 	"github.com/pojntfx/stfs/pkg/tape"
@@ -24,8 +25,10 @@ func main() {
 
 	flag.Parse()
 
+	mt := mtio.MagneticTapeIO{}
 	tm := tape.NewTapeManager(
 		*driveFlag,
+		mt,
 		*recordSizeFlag,
 		false,
 	)
@@ -54,6 +57,8 @@ func main() {
 
 		GetReader:   tm.GetReader,
 		CloseReader: tm.Close,
+
+		MagneticTapeIO: mt,
 	}
 	readCryptoConfig := config.CryptoConfig{}
 

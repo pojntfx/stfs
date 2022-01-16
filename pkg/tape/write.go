@@ -3,10 +3,15 @@ package tape
 import (
 	"os"
 
-	"github.com/pojntfx/stfs/internal/mtio"
+	"github.com/pojntfx/stfs/pkg/config"
 )
 
-func OpenTapeWriteOnly(drive string, recordSize int, overwrite bool) (f *os.File, isRegular bool, err error) {
+func OpenTapeWriteOnly(
+	drive string,
+	mt config.MagneticTapeIO,
+	recordSize int,
+	overwrite bool,
+) (f *os.File, isRegular bool, err error) {
 	stat, err := os.Stat(drive)
 	if err == nil {
 		isRegular = stat.Mode().IsRegular()
@@ -40,7 +45,7 @@ func OpenTapeWriteOnly(drive string, recordSize int, overwrite bool) (f *os.File
 			}
 
 			// Seek to the start of the tape
-			if err := mtio.SeekToRecordOnTape(f.Fd(), 0); err != nil {
+			if err := mt.SeekToRecordOnTape(f.Fd(), 0); err != nil {
 				return nil, false, err
 			}
 
@@ -65,7 +70,7 @@ func OpenTapeWriteOnly(drive string, recordSize int, overwrite bool) (f *os.File
 
 		if !overwrite {
 			// Go to end of tape
-			if err := mtio.GoToEndOfTape(f.Fd()); err != nil {
+			if err := mt.GoToEndOfTape(f.Fd()); err != nil {
 				return nil, false, err
 			}
 		}

@@ -28,6 +28,8 @@ type BackendConfig struct {
 
 	GetReader   func() (DriveReaderConfig, error)
 	CloseReader func() error
+
+	MagneticTapeIO MagneticTapeIO
 }
 
 type Header struct {
@@ -95,4 +97,12 @@ type FileConfig struct {
 	Info    fs.FileInfo
 	Path    string
 	Link    string
+}
+
+type MagneticTapeIO interface {
+	GetCurrentRecordFromTape(fd uintptr) (int64, error)
+	GoToEndOfTape(fd uintptr) error
+	GoToNextFileOnTape(fd uintptr) error
+	EjectTape(fd uintptr) error
+	SeekToRecordOnTape(fd uintptr, record int32) error
 }

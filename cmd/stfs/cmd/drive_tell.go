@@ -4,6 +4,7 @@ import (
 	"fmt"
 
 	"github.com/pojntfx/stfs/pkg/hardware"
+	"github.com/pojntfx/stfs/pkg/mtio"
 	"github.com/pojntfx/stfs/pkg/tape"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
@@ -25,7 +26,10 @@ var driveTellCmd = &cobra.Command{
 		}
 		defer reader.Close()
 
-		currentRecord, err := hardware.Tell(reader.Fd())
+		currentRecord, err := hardware.Tell(
+			mtio.MagneticTapeIO{},
+			reader.Fd(),
+		)
 		if err != nil {
 			return err
 		}

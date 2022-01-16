@@ -130,6 +130,7 @@ func (o *Operations) Move(from string, to string) error {
 
 	return recovery.Index(
 		reader,
+		o.backend.MagneticTapeIO,
 		o.metadata,
 		o.pipes,
 		o.crypto,

@@ -84,6 +84,7 @@ func (o *Operations) Restore(
 
 		if err := recovery.Fetch(
 			reader,
+			o.backend.MagneticTapeIO,
 			o.pipes,
 			o.crypto,
 

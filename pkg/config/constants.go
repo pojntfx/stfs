@@ -34,6 +34,8 @@ const (
 
 	WriteCacheTypeMemory = "memory"
 	WriteCacheTypeFile   = "file"
+
+	MagneticTapeBlockSize = 512
 )
 
 var (

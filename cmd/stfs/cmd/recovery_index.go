@@ -9,6 +9,7 @@ import (
 	"github.com/pojntfx/stfs/pkg/config"
 	"github.com/pojntfx/stfs/pkg/encryption"
 	"github.com/pojntfx/stfs/pkg/keys"
+	"github.com/pojntfx/stfs/pkg/mtio"
 	"github.com/pojntfx/stfs/pkg/persisters"
 	"github.com/pojntfx/stfs/pkg/recovery"
 	"github.com/pojntfx/stfs/pkg/signature"
@@ -70,6 +71,7 @@ var recoveryIndexCmd = &cobra.Command{
 				Drive:          reader,
 				DriveIsRegular: readerIsRegular,
 			},
+			mtio.MagneticTapeIO{},
 			config.MetadataConfig{
 				Metadata: metadataPersister,
 			},

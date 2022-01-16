@@ -1,9 +1,7 @@
 package hardware
 
-import (
-	"github.com/pojntfx/stfs/internal/mtio"
-)
+import "github.com/pojntfx/stfs/pkg/config"
 
-func Eject(fd uintptr) error {
-	return mtio.EjectTape(fd)
+func Eject(mt config.MagneticTapeIO, fd uintptr) error {
+	return mt.EjectTape(fd)
 }

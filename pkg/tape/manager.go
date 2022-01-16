@@ -10,6 +10,7 @@ import (
 
 type TapeManager struct {
 	drive      string
+	mt         config.MagneticTapeIO
 	recordSize int
 	overwrite  bool
 
@@ -26,11 +27,13 @@ type TapeManager struct {
 
 func NewTapeManager(
 	drive string,
+	mt config.MagneticTapeIO,
 	recordSize int,
 	overwrite bool,
 ) *TapeManager {
 	return &TapeManager{
 		drive:      drive,
+		mt:         mt,
 		recordSize: recordSize,
 		overwrite:  overwrite,
 	}
@@ -47,6 +50,7 @@ func (m *TapeManager) GetWriter() (config.DriveWriterConfig, error) {
 
 	writer, writerIsRegular, err := OpenTapeWriteOnly(
 		m.drive,
+		m.mt,
 		m.recordSize,
 		overwrite,
 	)

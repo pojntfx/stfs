@@ -241,6 +241,7 @@ func (f *STFS) Initialize(rootProposal string, rootPerm os.FileMode) (root strin
 
 		if err := recovery.Index(
 			reader,
+			f.readOps.GetBackend().MagneticTapeIO,
 			f.readOps.GetMetadata(),
 			f.readOps.GetPipes(),
 			f.readOps.GetCrypto(),
