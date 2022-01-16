@@ -7,6 +7,7 @@ import (
 	"io/fs"
 	"os"
 	"sync"
+	"time"
 
 	"github.com/pojntfx/stfs/internal/ioext"
 	"github.com/pojntfx/stfs/pkg/cache"
@@ -124,17 +125,24 @@ func (f *File) syncWithoutLocking() error {
 				// Some OSes like i.e. Windows don't support numeric GIDs and UIDs, so use 0 instead
 				gid := 0
 				uid := 0
+				modTime := f.info.ModTime()
+				accessTime := f.info.ModTime()
+				changeTime := f.info.ModTime()
 				sys, ok := f.info.Sys().(*Stat)
 				if ok {
 					gid = int(sys.Gid)
 					uid = int(sys.Uid)
+					accessTime = time.Unix(0, sys.Atim.Nano())
+					changeTime = time.Unix(0, sys.Ctim.Nano())
 				}
 
 				f.info = NewFileInfo(
 					f.info.Name(),
 					size,
 					f.info.Mode(),
-					f.info.ModTime(),
+					modTime,
+					accessTime,
+					changeTime,
 					gid,
 					uid,
 					f.info.IsDir(),
