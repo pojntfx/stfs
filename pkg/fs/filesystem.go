@@ -912,8 +912,57 @@ func (f *STFS) SymlinkIfPossible(oldname, newname string) error {
 	oldname = cleanName(oldname)
 	newname = cleanName(newname)
 
+	if oldname == newname {
+		return os.ErrExist
+	}
+
 	f.ioLock.Lock()
 	defer f.ioLock.Unlock()
+
+	if root, err := f.metadata.Metadata.GetRootPath(context.Background()); err != nil || root == oldname {
+		return os.ErrInvalid
+	}
+
+	if _, err := inventory.Stat(
+		f.metadata,
+
+		oldname,
+		false,
+
+		f.onHeader,
+	); err != nil {
+		if err == sql.ErrNoRows {
+			return os.ErrNotExist
+		}
+
+		return err
+	}
+
+	if _, err := inventory.Stat(
+		f.metadata,
+
+		filepath.Dir(newname),
+		false,
+
+		f.onHeader,
+	); err != nil {
+		if err == sql.ErrNoRows {
+			return os.ErrNotExist
+		}
+
+		return err
+	}
+
+	if _, err := inventory.Stat(
+		f.metadata,
+
+		newname,
+		false,
+
+		f.onHeader,
+	); err == nil {
+		return os.ErrExist
+	}
 
 	return f.mknodeWithoutLocking(false, oldname, os.ModePerm, false, newname, false)
 }
