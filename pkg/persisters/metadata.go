@@ -260,7 +260,7 @@ func (p *MetadataPersister) GetHeaderDirectChildren(ctx context.Context, name st
 	headers := []*config.Header{}
 
 	// Root node
-	if pathext.IsRoot(name) {
+	if pathext.IsRoot(name, false) {
 		prefix = ""
 		depth := depth{}
 
@@ -455,7 +455,7 @@ func (p *MetadataPersister) headerExistsExact(ctx context.Context, name string) 
 
 func (p *MetadataPersister) getSanitizedPath(ctx context.Context, name string) string {
 	// If root is queried, return actual root
-	if pathext.IsRoot(name) {
+	if pathext.IsRoot(name, false) {
 		return p.root
 	}
 

@@ -20,6 +20,7 @@ func Stat(
 	onHeader func(hdr *config.Header),
 ) (*tar.Header, error) {
 	name = filepath.ToSlash(name)
+	linkname := filepath.ToSlash(name)
 
 	if symlink {
 		// Resolve symlink
@@ -36,6 +37,7 @@ func Stat(
 		}
 
 		name = link.Name
+		linkname = link.Linkname
 	}
 
 	dbhdr, err := metadata.Metadata.GetHeader(context.Background(), name)
@@ -48,6 +50,10 @@ func Stat(
 		} else {
 			return nil, err
 		}
+	}
+	if symlink {
+		dbhdr.Name = linkname
+		dbhdr.Linkname = name
 	}
 
 	hdr, err := converters.DBHeaderToTarHeader(converters.ConfigHeaderToDBHeader(dbhdr))

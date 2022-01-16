@@ -15,6 +15,7 @@ import (
 	"time"
 
 	ifs "github.com/pojntfx/stfs/internal/fs"
+	"github.com/pojntfx/stfs/internal/pathext"
 	"github.com/pojntfx/stfs/pkg/cache"
 	"github.com/pojntfx/stfs/pkg/config"
 	"github.com/pojntfx/stfs/pkg/encryption"
@@ -850,7 +851,7 @@ func (f *STFS) Chtimes(name string, atime time.Time, mtime time.Time) error {
 	return f.updateMetadata(hdr)
 }
 
-func (f *STFS) lstatIfPossibleWithoutLocking(name string) (os.FileInfo, bool, error) {
+func (f *STFS) lstatIfPossibleWithoutLocking(name string) (info os.FileInfo, linkname string, possible bool, err error) {
 	f.log.Debug("FileSystem.lstatIfPossibleWithoutLocking", map[string]interface{}{
 		"name": name,
 	})
@@ -865,13 +866,13 @@ func (f *STFS) lstatIfPossibleWithoutLocking(name string) (os.FileInfo, bool, er
 	)
 	if err != nil {
 		if err == sql.ErrNoRows {
-			return nil, true, os.ErrNotExist
+			return nil, "", true, os.ErrNotExist
 		}
 
-		return nil, true, err
+		return nil, "", true, err
 	}
 
-	return ifs.NewFileInfoFromTarHeader(hdr, f.log), true, nil
+	return ifs.NewFileInfoFromTarHeader(hdr, f.log), path.Base(hdr.Linkname), true, nil
 }
 
 func (f *STFS) LstatIfPossible(name string) (os.FileInfo, bool, error) {
@@ -888,7 +889,9 @@ func (f *STFS) LstatIfPossible(name string) (os.FileInfo, bool, error) {
 	f.ioLock.Lock()
 	defer f.ioLock.Unlock()
 
-	return f.lstatIfPossibleWithoutLocking(name)
+	info, _, possible, err := f.lstatIfPossibleWithoutLocking(name)
+
+	return info, possible, err
 }
 
 func (f *STFS) SymlinkIfPossible(oldname, newname string) error {
@@ -909,34 +912,21 @@ func (f *STFS) SymlinkIfPossible(oldname, newname string) error {
 		return os.ErrInvalid
 	}
 
-	oldname = cleanName(oldname)
-	newname = cleanName(newname)
+	var err error
+	rawOldName := oldname
+	oldname, err = f.resolveCleanName(oldname, true)
+	if err != nil {
+		return err
+	}
 
-	if oldname == newname {
-		return os.ErrExist
+	rawNewName := newname
+	newname, err = f.resolveCleanName(newname, true)
+	if err != nil {
+		return err
 	}
 
 	f.ioLock.Lock()
 	defer f.ioLock.Unlock()
-
-	if root, err := f.metadata.Metadata.GetRootPath(context.Background()); err != nil || root == oldname {
-		return os.ErrInvalid
-	}
-
-	if _, err := inventory.Stat(
-		f.metadata,
-
-		oldname,
-		false,
-
-		f.onHeader,
-	); err != nil {
-		if err == sql.ErrNoRows {
-			return os.ErrNotExist
-		}
-
-		return err
-	}
 
 	if _, err := inventory.Stat(
 		f.metadata,
@@ -953,15 +943,21 @@ func (f *STFS) SymlinkIfPossible(oldname, newname string) error {
 		return err
 	}
 
-	if _, err := inventory.Stat(
-		f.metadata,
-
-		newname,
-		false,
-
-		f.onHeader,
-	); err == nil {
+	if pathext.IsRoot(rawNewName, false) && pathext.IsRoot(rawOldName, false) {
 		return os.ErrExist
+	}
+
+	if !pathext.IsRoot(rawNewName, true) {
+		if _, err := inventory.Stat(
+			f.metadata,
+
+			newname,
+			false,
+
+			f.onHeader,
+		); err == nil {
+			return os.ErrExist
+		}
 	}
 
 	return f.mknodeWithoutLocking(false, oldname, os.ModePerm, false, newname, false)
@@ -981,16 +977,28 @@ func (f *STFS) ReadlinkIfPossible(name string) (string, error) {
 	f.ioLock.Lock()
 	defer f.ioLock.Unlock()
 
-	info, _, err := f.lstatIfPossibleWithoutLocking(name)
+	_, linkname, _, err := f.lstatIfPossibleWithoutLocking(name)
 	if err != nil {
 		return "", err
 	}
 
-	return info.Name(), nil
+	return linkname, nil
 }
 
 func checkName(name string) bool {
 	return len(name) == 0
+}
+
+func (f *STFS) resolveCleanName(name string, aliasRoot bool) (string, error) {
+	if pathext.IsRoot(name, true) && aliasRoot {
+		var err error
+		name, err = f.metadata.Metadata.GetRootPath(context.Background())
+		if err != nil {
+			return "", err
+		}
+	}
+
+	return filepath.Clean(name), nil
 }
 
 func cleanName(name string) string {
