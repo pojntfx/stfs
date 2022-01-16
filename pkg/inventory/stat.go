@@ -23,10 +23,10 @@ func Stat(
 
 	if symlink {
 		// Resolve symlink
-		link, err := metadata.Metadata.GetHeader(context.Background(), name)
+		link, err := metadata.Metadata.GetHeaderByLinkname(context.Background(), name)
 		if err != nil {
 			if err == sql.ErrNoRows {
-				link, err = metadata.Metadata.GetHeader(context.Background(), strings.TrimSuffix(name, "/")+"/")
+				link, err = metadata.Metadata.GetHeaderByLinkname(context.Background(), strings.TrimSuffix(name, "/")+"/")
 				if err != nil {
 					return nil, err
 				}
@@ -35,7 +35,7 @@ func Stat(
 			}
 		}
 
-		name = link.Linkname
+		name = link.Name
 	}
 
 	dbhdr, err := metadata.Metadata.GetHeader(context.Background(), name)

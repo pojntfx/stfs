@@ -25,6 +25,7 @@ import (
 	"github.com/pojntfx/stfs/pkg/tape"
 	"github.com/pojntfx/stfs/pkg/utility"
 	"github.com/spf13/afero"
+	"github.com/volatiletech/sqlboiler/v4/boil"
 )
 
 const (
@@ -91,6 +92,12 @@ type cryptoConfig struct {
 
 func TestMain(m *testing.M) {
 	flag.Parse() // So that `testing.Short` can be called, see https://go-review.googlesource.com/c/go/+/7604/
+
+	if verbose {
+		boil.DebugMode = false
+		boil.DebugWriter = os.Stderr
+	}
+
 	if testing.Short() {
 		for _, writeCacheType := range config.KnownWriteCacheTypes {
 			for _, fileSystemCacheType := range config.KnownFileSystemCacheTypes {
@@ -2880,6 +2887,183 @@ func TestSTFS_Chtimes(t *testing.T) {
 
 			if err := tt.check(got); err != nil {
 				t.Errorf("%v check() error = %v", fs.fs.Name(), err)
+
+				return
+			}
+		})
+	}
+}
+
+type lstatArgs struct {
+	name string
+}
+
+var lstatTests = []struct {
+	name      string
+	args      lstatArgs
+	wantErr   bool
+	prepare   func(*STFS) error
+	check     func(os.FileInfo) error
+	withCache bool
+	withOsFs  bool
+}{
+	{
+		"Can not lstat /",
+		lstatArgs{"/"},
+		true,
+		func(f *STFS) error { return nil },
+		func(f os.FileInfo) error { return nil },
+		true,
+		true,
+	},
+	{
+		"Can not lstat /test.txt without creating it",
+		lstatArgs{"/test.txt"},
+		true,
+		func(f *STFS) error { return nil },
+		func(f os.FileInfo) error { return nil },
+		true,
+		true,
+	},
+	{
+		"Can lstat /test2.txt after creating /test.txt and symlinking it",
+		lstatArgs{"/test2.txt"},
+		false,
+		func(f *STFS) error {
+			if _, err := f.Create("/test.txt"); err != nil {
+				return err
+			}
+
+			if err := f.SymlinkIfPossible("/test.txt", "/test2.txt"); err != nil {
+				return err
+			}
+
+			return nil
+		},
+		func(f os.FileInfo) error {
+			want := "test.txt"
+			got := f.Name()
+
+			if want != got {
+				return fmt.Errorf("invalid name, got %v, want %v", got, want)
+			}
+
+			return nil
+		},
+		true,
+		true,
+	},
+	{
+		"Can not lstat /mydir/test.txt without creating it",
+		lstatArgs{"/mydir/test.txt"},
+		true,
+		func(f *STFS) error { return nil },
+		func(f os.FileInfo) error { return nil },
+		true,
+		true,
+	},
+	{
+		"Can lstat /mydir/test2.txt after creating /mydir/test.txt and symlinking it",
+		lstatArgs{"/mydir/test2.txt"},
+		false,
+		func(f *STFS) error {
+			if err := f.Mkdir("/mydir", os.ModePerm); err != nil {
+				return err
+			}
+
+			if _, err := f.Create("/mydir/test.txt"); err != nil {
+				return err
+			}
+
+			if err := f.SymlinkIfPossible("/mydir/test.txt", "/mydir/test2.txt"); err != nil {
+				return err
+			}
+
+			return nil
+		},
+		func(f os.FileInfo) error {
+			want := "test.txt"
+			got := f.Name()
+
+			if want != got {
+				return fmt.Errorf("invalid name, got %v, want %v", got, want)
+			}
+
+			return nil
+		},
+		true,
+		true,
+	},
+	{
+		"Result of lstat /test2.txt after creating /test.txt and symlinking it matches provided values",
+		lstatArgs{"/test2.txt"},
+		false,
+		func(f *STFS) error {
+			file, err := f.OpenFile("/test.txt", os.O_CREATE, os.ModePerm)
+			if err != nil {
+				return err
+			}
+			if err := file.Close(); err != nil {
+				return err
+			}
+
+			if err := f.SymlinkIfPossible("/test.txt", "/test2.txt"); err != nil {
+				return err
+			}
+
+			return nil
+		},
+		func(f os.FileInfo) error {
+			wantName := "test.txt"
+			gotName := f.Name()
+
+			if wantName != gotName {
+				return fmt.Errorf("invalid name, got %v, want %v", gotName, wantName)
+			}
+
+			wantPerm := os.ModePerm
+			gotPerm := f.Mode().Perm()
+
+			if wantPerm != gotPerm {
+				return fmt.Errorf("invalid perm, got %v, want %v", gotPerm, wantPerm)
+			}
+
+			return nil
+		},
+		true,
+		true,
+	},
+}
+
+func TestSTFS_Lstat(t *testing.T) {
+	for _, tt := range lstatTests {
+		tt := tt
+
+		runTestForAllFss(t, tt.name, true, tt.withCache, tt.withOsFs, func(t *testing.T, fs fsConfig) {
+			stfs, ok := fs.fs.(*STFS)
+			if !ok {
+				return
+			}
+
+			if err := tt.prepare(stfs); err != nil {
+				t.Errorf("%v prepare() error = %v", stfs.Name(), err)
+
+				return
+			}
+
+			got, possible, err := stfs.LstatIfPossible(tt.args.name)
+			if !possible {
+				t.Errorf("%v.LstatIfPossible() possible = %v, want %v", stfs.Name(), possible, true)
+			}
+
+			if (err != nil) != tt.wantErr {
+				t.Errorf("%v.LstatIfPossible() error = %v, wantErr %v", stfs.Name(), err, tt.wantErr)
+
+				return
+			}
+
+			if err := tt.check(got); err != nil {
+				t.Errorf("%v check() error = %v", stfs.Name(), err)
 
 				return
 			}
