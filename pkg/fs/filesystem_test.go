@@ -2544,6 +2544,96 @@ var chownTests = []struct {
 		false, // FIXME: With cache enabled, files and directories can't be `chmod`ed
 	},
 	{
+		"Can chown /mydir/test.txt to 11, 11 if it exists",
+		chownArgs{"/mydir/test.txt", 11, 11},
+		false,
+		func(f afero.Fs) error {
+			if err := f.Mkdir("/mydir", os.ModePerm); err != nil {
+				return err
+			}
+
+			if _, err := f.Create("/mydir/test.txt"); err != nil {
+				return err
+			}
+
+			return nil
+		},
+		func(f os.FileInfo) error {
+			want := "test.txt"
+			got := f.Name()
+
+			if want != got {
+				return fmt.Errorf("invalid name, got %v, want %v", got, want)
+			}
+
+			wantGID := 11
+			wantUID := 11
+
+			gotSys, ok := f.Sys().(*ifs.Stat)
+			if !ok {
+				return errors.New("could not get fs.Stat from FileInfo.Sys()")
+			}
+
+			gotGID := int(gotSys.Gid)
+			gotUID := int(gotSys.Uid)
+
+			if wantGID != gotGID {
+				return fmt.Errorf("invalid GID, got %v, want %v", gotGID, wantGID)
+			}
+
+			if wantUID != gotUID {
+				return fmt.Errorf("invalid UID, got %v, want %v", gotUID, wantUID)
+			}
+
+			return nil
+		},
+		false,
+		false, // FIXME: With cache enabled, files and directories can't be `chmod`ed
+	},
+	{
+		"Can chown /mydir to 11, 11 if it exists",
+		chownArgs{"/mydir", 11, 11},
+		false,
+		func(f afero.Fs) error {
+			if err := f.Mkdir("/mydir", os.ModePerm); err != nil {
+				return err
+			}
+
+			return nil
+		},
+		func(f os.FileInfo) error {
+			want := "mydir"
+			got := f.Name()
+
+			if want != got {
+				return fmt.Errorf("invalid name, got %v, want %v", got, want)
+			}
+
+			wantGID := 11
+			wantUID := 11
+
+			gotSys, ok := f.Sys().(*ifs.Stat)
+			if !ok {
+				return errors.New("could not get fs.Stat from FileInfo.Sys()")
+			}
+
+			gotGID := int(gotSys.Gid)
+			gotUID := int(gotSys.Uid)
+
+			if wantGID != gotGID {
+				return fmt.Errorf("invalid GID, got %v, want %v", gotGID, wantGID)
+			}
+
+			if wantUID != gotUID {
+				return fmt.Errorf("invalid UID, got %v, want %v", gotUID, wantUID)
+			}
+
+			return nil
+		},
+		false,
+		false, // FIXME: With cache enabled, files and directories can't be `chmod`ed
+	},
+	{
 		"Can not chown /test.txt without creating it",
 		chownArgs{"/test.txt", 11, 11},
 		true,
@@ -2576,6 +2666,207 @@ func TestSTFS_Chown(t *testing.T) {
 
 			if err := fs.fs.Chown(tt.args.name, tt.args.uid, tt.args.gid); (err != nil) != tt.wantErr {
 				t.Errorf("%v.Chown() error = %v, wantErr %v", fs.fs.Name(), err, tt.wantErr)
+
+				return
+			}
+
+			got, err := fs.fs.Stat(tt.args.name)
+			if (err != nil) != tt.wantErr {
+				t.Errorf("%v.Stat() error = %v, wantErr %v", fs.fs.Name(), err, tt.wantErr)
+
+				return
+			}
+
+			if err := tt.check(got); err != nil {
+				t.Errorf("%v check() error = %v", fs.fs.Name(), err)
+
+				return
+			}
+		})
+	}
+}
+
+type chtimesArgs struct {
+	name  string
+	atime time.Time
+	mtime time.Time
+}
+
+var chtimesTests = []struct {
+	name      string
+	args      chtimesArgs
+	wantErr   bool
+	prepare   func(afero.Fs) error
+	check     func(f os.FileInfo) error
+	withCache bool
+	withOsFs  bool
+}{
+	{
+		"Can chtimes /test.txt to 2021-12-23, 2022-01-14, if it exists",
+		chtimesArgs{"/test.txt", time.Date(2021, 12, 23, 0, 0, 0, 0, time.UTC), time.Date(2022, 01, 14, 0, 0, 0, 0, time.UTC)},
+		false,
+		func(f afero.Fs) error {
+			if _, err := f.Create("/test.txt"); err != nil {
+				return err
+			}
+
+			return nil
+		},
+		func(f os.FileInfo) error {
+			want := "test.txt"
+			got := f.Name()
+
+			if want != got {
+				return fmt.Errorf("invalid name, got %v, want %v", got, want)
+			}
+
+			wantAtime := time.Date(2021, 12, 23, 0, 0, 0, 0, time.UTC)
+			wantMtime := time.Date(2022, 01, 14, 0, 0, 0, 0, time.UTC)
+
+			gotSys, ok := f.Sys().(*ifs.Stat)
+			if !ok {
+				return errors.New("could not get fs.Stat from FileInfo.Sys()")
+			}
+
+			gotAtime := time.Unix(0, gotSys.Atim.Nano())
+			gotMtime := f.ModTime()
+
+			if !wantAtime.Equal(gotAtime) {
+				return fmt.Errorf("invalid Atime, got %v, want %v", gotAtime, wantAtime)
+			}
+
+			if !wantMtime.Equal(gotMtime) {
+				return fmt.Errorf("invalid Mtime, got %v, want %v", gotMtime, wantMtime)
+			}
+
+			return nil
+		},
+		false, // FIXME: Can't cast to `Stat` struct if cache is enabled
+		false, // FIXME: Can't cast to `Stat` struct if OsFs is enabled
+	},
+	{
+		"Can chtimes /mydir/test.txt to 2021-12-23, 2022-01-14, if it exists",
+		chtimesArgs{"/mydir/test.txt", time.Date(2021, 12, 23, 0, 0, 0, 0, time.UTC), time.Date(2022, 01, 14, 0, 0, 0, 0, time.UTC)},
+		false,
+		func(f afero.Fs) error {
+			if err := f.Mkdir("/mydir", os.ModePerm); err != nil {
+				return err
+			}
+
+			if _, err := f.Create("/mydir/test.txt"); err != nil {
+				return err
+			}
+
+			return nil
+		},
+		func(f os.FileInfo) error {
+			want := "test.txt"
+			got := f.Name()
+
+			if want != got {
+				return fmt.Errorf("invalid name, got %v, want %v", got, want)
+			}
+
+			wantAtime := time.Date(2021, 12, 23, 0, 0, 0, 0, time.UTC)
+			wantMtime := time.Date(2022, 01, 14, 0, 0, 0, 0, time.UTC)
+
+			gotSys, ok := f.Sys().(*ifs.Stat)
+			if !ok {
+				return errors.New("could not get fs.Stat from FileInfo.Sys()")
+			}
+
+			gotAtime := time.Unix(0, gotSys.Atim.Nano())
+			gotMtime := f.ModTime()
+
+			if !wantAtime.Equal(gotAtime) {
+				return fmt.Errorf("invalid Atime, got %v, want %v", gotAtime, wantAtime)
+			}
+
+			if !wantMtime.Equal(gotMtime) {
+				return fmt.Errorf("invalid Mtime, got %v, want %v", gotMtime, wantMtime)
+			}
+
+			return nil
+		},
+		false, // FIXME: Can't cast to `Stat` struct if cache is enabled
+		false, // FIXME: Can't cast to `Stat` struct if OsFs is enabled
+	},
+	{
+		"Can chtimes /mydir to 2021-12-23, 2022-01-14, if it exists",
+		chtimesArgs{"/mydir", time.Date(2021, 12, 23, 0, 0, 0, 0, time.UTC), time.Date(2022, 01, 14, 0, 0, 0, 0, time.UTC)},
+		false,
+		func(f afero.Fs) error {
+			if err := f.Mkdir("/mydir", os.ModePerm); err != nil {
+				return err
+			}
+
+			return nil
+		},
+		func(f os.FileInfo) error {
+			want := "mydir"
+			got := f.Name()
+
+			if want != got {
+				return fmt.Errorf("invalid name, got %v, want %v", got, want)
+			}
+
+			wantAtime := time.Date(2021, 12, 23, 0, 0, 0, 0, time.UTC)
+			wantMtime := time.Date(2022, 01, 14, 0, 0, 0, 0, time.UTC)
+
+			gotSys, ok := f.Sys().(*ifs.Stat)
+			if !ok {
+				return errors.New("could not get fs.Stat from FileInfo.Sys()")
+			}
+
+			gotAtime := time.Unix(0, gotSys.Atim.Nano())
+			gotMtime := f.ModTime()
+
+			if !wantAtime.Equal(gotAtime) {
+				return fmt.Errorf("invalid Atime, got %v, want %v", gotAtime, wantAtime)
+			}
+
+			if !wantMtime.Equal(gotMtime) {
+				return fmt.Errorf("invalid Mtime, got %v, want %v", gotMtime, wantMtime)
+			}
+
+			return nil
+		},
+		false, // FIXME: Can't cast to `Stat` struct if cache is enabled
+		false, // FIXME: Can't cast to `Stat` struct if OsFs is enabled
+	},
+	{
+		"Can not chtimes /test.txt without creating it",
+		chtimesArgs{"/test.txt", time.Date(2021, 12, 23, 0, 0, 0, 0, time.UTC), time.Date(2022, 01, 14, 0, 0, 0, 0, time.UTC)},
+		true,
+		func(f afero.Fs) error { return nil },
+		func(f os.FileInfo) error { return nil },
+		true,
+		true,
+	},
+	{
+		"Can not chtimes /mydir/test.txt without creating it",
+		chtimesArgs{"/mydir/test.txt", time.Date(2021, 12, 23, 0, 0, 0, 0, time.UTC), time.Date(2022, 01, 14, 0, 0, 0, 0, time.UTC)},
+		true,
+		func(f afero.Fs) error { return nil },
+		func(f os.FileInfo) error { return nil },
+		true,
+		true,
+	},
+}
+
+func TestSTFS_Chtimes(t *testing.T) {
+	for _, tt := range chtimesTests {
+		tt := tt
+
+		runTestForAllFss(t, tt.name, true, tt.withCache, tt.withOsFs, func(t *testing.T, fs fsConfig) {
+			if err := tt.prepare(fs.fs); err != nil {
+				t.Errorf("%v prepare() error = %v", fs.fs.Name(), err)
+
+				return
+			}
+
+			if err := fs.fs.Chtimes(tt.args.name, tt.args.atime, tt.args.mtime); (err != nil) != tt.wantErr {
+				t.Errorf("%v.Chtimes() error = %v, wantErr %v", fs.fs.Name(), err, tt.wantErr)
 
 				return
 			}
