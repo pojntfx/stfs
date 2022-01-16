@@ -119,8 +119,11 @@ func (f *STFS) Create(name string) (afero.File, error) {
 
 func (f *STFS) mknodeWithoutLocking(dir bool, name string, perm os.FileMode, overwrite bool, linkname string, initializing bool) error {
 	f.log.Trace("FileSystem.mknodeWithoutLocking", map[string]interface{}{
-		"name": name,
-		"perm": perm,
+		"name":         name,
+		"perm":         perm,
+		"overwrite":    overwrite,
+		"linkname":     linkname,
+		"initializing": initializing,
 	})
 
 	if f.readOnly {

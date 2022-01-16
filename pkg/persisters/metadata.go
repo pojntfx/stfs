@@ -217,6 +217,20 @@ func (p *MetadataPersister) GetHeader(ctx context.Context, name string) (*config
 	return converters.DBHeaderToConfigHeader(hdr), nil
 }
 
+func (p *MetadataPersister) GetHeaderByLinkname(ctx context.Context, linkname string) (*config.Header, error) {
+	linkname = p.getSanitizedPath(ctx, linkname)
+
+	hdr, err := models.Headers(
+		qm.Where(models.HeaderColumns.Linkname+" = ?", linkname),
+		qm.Where(models.HeaderColumns.Deleted+" != 1"),
+	).One(ctx, p.sqlite.DB)
+	if err != nil {
+		return nil, err
+	}
+
+	return converters.DBHeaderToConfigHeader(hdr), nil
+}
+
 func (p *MetadataPersister) GetHeaderChildren(ctx context.Context, name string) ([]*config.Header, error) {
 	name = p.getSanitizedPath(ctx, name)
 

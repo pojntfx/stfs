@@ -68,6 +68,7 @@ type MetadataPersister interface {
 	MoveHeader(ctx context.Context, oldName string, newName string, lastknownrecord, lastknownblock int64) error
 	GetHeaders(ctx context.Context) ([]*Header, error)
 	GetHeader(ctx context.Context, name string) (*Header, error)
+	GetHeaderByLinkname(ctx context.Context, linkname string) (*Header, error)
 	GetHeaderChildren(ctx context.Context, name string) ([]*Header, error)
 	GetRootPath(ctx context.Context) (string, error)
 	GetHeaderDirectChildren(ctx context.Context, name string, limit int) ([]*Header, error)
