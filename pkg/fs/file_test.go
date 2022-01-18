@@ -1,12 +1,17 @@
 package fs
 
 import (
+	"errors"
 	"fmt"
 	"os"
+	"path"
 	"testing"
+	"time"
+
+	"github.com/spf13/afero"
 )
 
-var filenameTests = []struct {
+var fileNameTests = []struct {
 	name      string
 	open      string
 	prepare   func(symFs) error
@@ -97,7 +102,7 @@ var filenameTests = []struct {
 }
 
 func TestFile_Name(t *testing.T) {
-	for _, tt := range filenameTests {
+	for _, tt := range fileNameTests {
 		tt := tt
 
 		runTestForAllFss(t, tt.name, true, tt.withCache, tt.withOsFs, func(t *testing.T, fs fsConfig) {
@@ -123,6 +128,259 @@ func TestFile_Name(t *testing.T) {
 
 			if err := tt.check(got); err != nil {
 				t.Errorf("%v check() error = %v", symFs.Name(), err)
+
+				return
+			}
+		})
+	}
+}
+
+type fileStatArgs struct {
+	name string
+}
+
+var fileStatTests = []struct {
+	name      string
+	open      string
+	wantErr   bool
+	prepare   func(afero.Fs) error
+	check     func(os.FileInfo) error
+	withCache bool
+	withOsFs  bool
+}{
+	{
+		"Can stat /",
+		"/",
+		false,
+		func(f afero.Fs) error { return nil },
+		func(f os.FileInfo) error {
+			dir, _ := path.Split(f.Name())
+			if !(dir == "/" || dir == "") {
+				return fmt.Errorf("invalid dir part of path %v, should be ''", dir)
+
+			}
+
+			if !f.IsDir() {
+				return fmt.Errorf("%v is not a directory", dir)
+			}
+
+			return nil
+		},
+		true,
+		true,
+	},
+	{
+		"Can stat /test.txt",
+		"/test.txt",
+		false,
+		func(f afero.Fs) error {
+			if _, err := f.Create("/test.txt"); err != nil {
+				return err
+			}
+
+			return nil
+		},
+		func(f os.FileInfo) error {
+			wantName := "test.txt"
+			gotName := f.Name()
+
+			if wantName != gotName {
+				return fmt.Errorf("invalid name, got %v, want %v", gotName, wantName)
+			}
+
+			wantPerm := fmt.Sprintf("%o", 0666)
+			gotPerm := fmt.Sprintf("%o", f.Mode())
+
+			if wantPerm != gotPerm {
+				return fmt.Errorf("invalid perm, got %v, want %v", gotPerm, wantPerm)
+			}
+
+			return nil
+		},
+		true,
+		false, // HACK: OsFs uses umask, which yields unexpected permission bits (see https://github.com/golang/go/issues/38282)
+	},
+	{
+		"Can stat system-specific properties of /test.txt",
+		"/test.txt",
+		false,
+		func(f afero.Fs) error {
+			if _, err := f.Create("/test.txt"); err != nil {
+				return err
+			}
+
+			if err := f.Chtimes("/test.txt", time.Date(2021, 12, 23, 0, 0, 0, 0, time.UTC), time.Date(2022, 01, 14, 0, 0, 0, 0, time.UTC)); err != nil {
+				return err
+			}
+
+			return nil
+		},
+		func(f os.FileInfo) error {
+			wantName := "test.txt"
+			gotName := f.Name()
+
+			if wantName != gotName {
+				return fmt.Errorf("invalid name, got %v, want %v", gotName, wantName)
+			}
+
+			wantPerm := fmt.Sprintf("%o", 0666)
+			gotPerm := fmt.Sprintf("%o", f.Mode())
+
+			if wantPerm != gotPerm {
+				return fmt.Errorf("invalid perm, got %v, want %v", gotPerm, wantPerm)
+			}
+
+			wantAtime := time.Date(2021, 12, 23, 0, 0, 0, 0, time.UTC)
+			wantMtime := time.Date(2022, 01, 14, 0, 0, 0, 0, time.UTC)
+
+			gotSys, ok := f.Sys().(*Stat)
+			if !ok {
+				return errors.New("could not get fs.Stat from FileInfo.Sys()")
+			}
+
+			gotAtime := time.Unix(0, gotSys.Atim.Nano())
+			gotMtime := f.ModTime()
+
+			if !wantAtime.Equal(gotAtime) {
+				return fmt.Errorf("invalid Atime, got %v, want %v", gotAtime, wantAtime)
+			}
+
+			if !wantMtime.Equal(gotMtime) {
+				return fmt.Errorf("invalid Mtime, got %v, want %v", gotMtime, wantMtime)
+			}
+
+			return nil
+		},
+		true,
+		false, // HACK: OsFs uses umask, which yields unexpected permission bits (see https://github.com/golang/go/issues/38282)
+	},
+	{
+		"Can stat /mydir/test.txt",
+		"/mydir/test.txt",
+		false,
+		func(f afero.Fs) error {
+			if err := f.Mkdir("/mydir", os.ModePerm); err != nil {
+				return err
+			}
+
+			if _, err := f.Create("/mydir/test.txt"); err != nil {
+				return err
+			}
+
+			return nil
+		},
+		func(f os.FileInfo) error {
+			wantName := "test.txt"
+			gotName := f.Name()
+
+			if wantName != gotName {
+				return fmt.Errorf("invalid name, got %v, want %v", gotName, wantName)
+			}
+
+			wantPerm := fmt.Sprintf("%o", 0666)
+			gotPerm := fmt.Sprintf("%o", f.Mode())
+
+			if wantPerm != gotPerm {
+				return fmt.Errorf("invalid perm, got %v, want %v", gotPerm, wantPerm)
+			}
+
+			return nil
+		},
+		true,
+		false, // HACK: OsFs uses umask, which yields unexpected permission bits (see https://github.com/golang/go/issues/38282)
+	},
+	{
+		"Can stat system-specific properties of /mydir/test.txt",
+		"/mydir/test.txt",
+		false,
+		func(f afero.Fs) error {
+			if err := f.Mkdir("/mydir", os.ModePerm); err != nil {
+				return err
+			}
+
+			if _, err := f.Create("/mydir/test.txt"); err != nil {
+				return err
+			}
+
+			if err := f.Chtimes("/mydir/test.txt", time.Date(2021, 12, 23, 0, 0, 0, 0, time.UTC), time.Date(2022, 01, 14, 0, 0, 0, 0, time.UTC)); err != nil {
+				return err
+			}
+
+			return nil
+		},
+		func(f os.FileInfo) error {
+			wantName := "test.txt"
+			gotName := f.Name()
+
+			if wantName != gotName {
+				return fmt.Errorf("invalid name, got %v, want %v", gotName, wantName)
+			}
+
+			wantPerm := fmt.Sprintf("%o", 0666)
+			gotPerm := fmt.Sprintf("%o", f.Mode())
+
+			if wantPerm != gotPerm {
+				return fmt.Errorf("invalid perm, got %v, want %v", gotPerm, wantPerm)
+			}
+
+			wantAtime := time.Date(2021, 12, 23, 0, 0, 0, 0, time.UTC)
+			wantMtime := time.Date(2022, 01, 14, 0, 0, 0, 0, time.UTC)
+
+			gotSys, ok := f.Sys().(*Stat)
+			if !ok {
+				return errors.New("could not get fs.Stat from FileInfo.Sys()")
+			}
+
+			gotAtime := time.Unix(0, gotSys.Atim.Nano())
+			gotMtime := f.ModTime()
+
+			if !wantAtime.Equal(gotAtime) {
+				return fmt.Errorf("invalid Atime, got %v, want %v", gotAtime, wantAtime)
+			}
+
+			if !wantMtime.Equal(gotMtime) {
+				return fmt.Errorf("invalid Mtime, got %v, want %v", gotMtime, wantMtime)
+			}
+
+			return nil
+		},
+		true,
+		false, // HACK: OsFs uses umask, which yields unexpected permission bits (see https://github.com/golang/go/issues/38282)
+	},
+}
+
+func TestSTFS_FileStat(t *testing.T) {
+	for _, tt := range fileStatTests {
+		tt := tt
+
+		runTestForAllFss(t, tt.name, true, tt.withCache, tt.withOsFs, func(t *testing.T, fs fsConfig) {
+			symFs, ok := fs.fs.(symFs)
+			if !ok {
+				return
+			}
+
+			if err := tt.prepare(symFs); err != nil {
+				t.Errorf("%v prepare() error = %v", symFs.Name(), err)
+
+				return
+			}
+
+			file, err := symFs.Open(tt.open)
+			if err != nil {
+				t.Errorf("%v open() error = %v", symFs.Name(), err)
+
+				return
+			}
+
+			got, err := file.Stat()
+			if (err != nil) != tt.wantErr {
+				t.Errorf("%v.File.Stat() error = %v, wantErr %v", fs.fs.Name(), err, tt.wantErr)
+
+				return
+			}
+
+			if err := tt.check(got); err != nil {
+				t.Errorf("%v check() error = %v", fs.fs.Name(), err)
 
 				return
 			}
