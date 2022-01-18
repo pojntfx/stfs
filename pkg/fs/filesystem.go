@@ -367,10 +367,6 @@ func (f *STFS) Open(name string) (afero.File, error) {
 		"name": name,
 	})
 
-	if checkName(name) {
-		return nil, os.ErrInvalid
-	}
-
 	name = cleanName(name)
 
 	return f.OpenFile(name, os.O_RDONLY, 0)

@@ -991,6 +991,20 @@ var openTests = []struct {
 		func(f afero.File) error { return nil },
 	},
 	{
+		"Can not open ' '",
+		openArgs{" "},
+		true,
+		func(f afero.Fs) error { return nil },
+		func(f afero.File) error { return nil },
+	},
+	{
+		"Can open ''",
+		openArgs{""},
+		false,
+		func(f afero.Fs) error { return nil },
+		func(f afero.File) error { return nil },
+	},
+	{
 		"Can not open /test.txt without creating it",
 		openArgs{"/test.txt"},
 		true,
