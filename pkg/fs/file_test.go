@@ -387,3 +387,74 @@ func TestSTFS_FileStat(t *testing.T) {
 		})
 	}
 }
+
+type readdirArgs struct {
+	count int
+}
+
+var readdirTests = []struct {
+	name      string
+	open      string
+	args      readdirArgs
+	wantErr   bool
+	prepare   func(afero.Fs) error
+	check     func([]os.FileInfo) error
+	withCache bool
+	withOsFs  bool
+}{
+	{
+		"Can readdir all in / if there are no children",
+		"/",
+		readdirArgs{-1},
+		false,
+		func(f afero.Fs) error { return nil },
+		func(f []os.FileInfo) error {
+			if len(f) > 0 {
+				return errors.New("found unexpected children in empty directory")
+			}
+
+			return nil
+		},
+		true,
+		true,
+	},
+}
+
+func TestSTFS_Readdir(t *testing.T) {
+	for _, tt := range readdirTests {
+		tt := tt
+
+		runTestForAllFss(t, tt.name, true, tt.withCache, tt.withOsFs, func(t *testing.T, fs fsConfig) {
+			symFs, ok := fs.fs.(symFs)
+			if !ok {
+				return
+			}
+
+			if err := tt.prepare(symFs); err != nil {
+				t.Errorf("%v prepare() error = %v", symFs.Name(), err)
+
+				return
+			}
+
+			file, err := symFs.Open(tt.open)
+			if err != nil {
+				t.Errorf("%v open() error = %v", symFs.Name(), err)
+
+				return
+			}
+
+			got, err := file.Readdir(tt.args.count)
+			if (err != nil) != tt.wantErr {
+				t.Errorf("%v.File.Readdir() error = %v, wantErr %v", fs.fs.Name(), err, tt.wantErr)
+
+				return
+			}
+
+			if err := tt.check(got); err != nil {
+				t.Errorf("%v check() error = %v", fs.fs.Name(), err)
+
+				return
+			}
+		})
+	}
+}
