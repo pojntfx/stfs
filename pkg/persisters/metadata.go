@@ -259,6 +259,11 @@ func (p *MetadataPersister) GetHeaderDirectChildren(ctx context.Context, name st
 	rootDepth := 0
 	headers := []*config.Header{}
 
+	// We want <=, not <
+	if limit > 0 {
+		limit++
+	}
+
 	// Root node
 	if pathext.IsRoot(name, false) {
 		prefix = ""
@@ -344,7 +349,7 @@ where %v like ?
 
 				return nil, err
 			}
-		} else if limit < 0 {
+		} else if limit <= 0 {
 			if err := queries.Raw(
 				query,
 				prefix,
@@ -377,7 +382,7 @@ where %v like ?
 		}
 	}
 
-	if limit < 0 || len(outhdrs) < limit {
+	if limit <= 0 || len(outhdrs) < limit || len(outhdrs) == 0 {
 		return outhdrs, nil
 	}
 

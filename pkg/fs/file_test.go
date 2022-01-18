@@ -418,6 +418,293 @@ var readdirTests = []struct {
 		true,
 		true,
 	},
+	{
+		"Can readdir all in '' if there are no children",
+		"",
+		readdirArgs{-1},
+		false,
+		func(f afero.Fs) error { return nil },
+		func(f []os.FileInfo) error {
+			if len(f) > 0 {
+				return errors.New("found unexpected children in empty directory")
+			}
+
+			return nil
+		},
+		true,
+		true,
+	},
+	{
+		"Can readdir all in / if there is one child",
+		"/",
+		readdirArgs{-1},
+		false,
+		func(f afero.Fs) error {
+			if _, err := f.Create("/test.txt"); err != nil {
+				return err
+			}
+
+			return nil
+		},
+		func(f []os.FileInfo) error {
+			wantNames := []string{"test.txt"}
+
+			for i, info := range f {
+				wantName := wantNames[i]
+				gotName := info.Name()
+
+				if wantName != gotName {
+					return fmt.Errorf("invalid name, got %v, want %v", gotName, wantName)
+				}
+			}
+
+			wantLength := len(f)
+			gotLength := 1
+			if wantLength != gotLength {
+				return fmt.Errorf("invalid amount of children, got %v, want %v", wantLength, gotLength)
+			}
+
+			return nil
+		},
+		true,
+		true,
+	},
+	{
+		"Can readdir all with -1 in / if there are multiple children",
+		"/",
+		readdirArgs{-1},
+		false,
+		func(f afero.Fs) error {
+			if _, err := f.Create("/test.txt"); err != nil {
+				return err
+			}
+
+			if _, err := f.Create("/asdf.txt"); err != nil {
+				return err
+			}
+
+			if err := f.Mkdir("/mydir", os.ModePerm); err != nil {
+				return err
+			}
+
+			return nil
+		},
+		func(f []os.FileInfo) error {
+			wantNames := map[string]struct{}{
+				"test.txt": {},
+				"asdf.txt": {},
+				"mydir":    {},
+			}
+
+			for _, info := range f {
+				name, ok := wantNames[info.Name()]
+				if !ok {
+					return fmt.Errorf("could not find file or directory with name %v", name)
+				}
+			}
+
+			wantLength := len(f)
+			gotLength := 3
+			if wantLength != gotLength {
+				return fmt.Errorf("invalid amount of children, got %v, want %v", wantLength, gotLength)
+			}
+
+			return nil
+		},
+		true,
+		true,
+	},
+	{
+		"Can readdir all with 0 in / if there are multiple children",
+		"/",
+		readdirArgs{0},
+		false,
+		func(f afero.Fs) error {
+			if _, err := f.Create("/test.txt"); err != nil {
+				return err
+			}
+
+			if _, err := f.Create("/asdf.txt"); err != nil {
+				return err
+			}
+
+			if err := f.Mkdir("/mydir", os.ModePerm); err != nil {
+				return err
+			}
+
+			return nil
+		},
+		func(f []os.FileInfo) error {
+			wantNames := map[string]struct{}{
+				"test.txt": {},
+				"asdf.txt": {},
+				"mydir":    {},
+			}
+
+			for _, info := range f {
+				name, ok := wantNames[info.Name()]
+				if !ok {
+					return fmt.Errorf("could not find file or directory with name %v", name)
+				}
+			}
+
+			wantLength := len(f)
+			gotLength := 3
+			if wantLength != gotLength {
+				return fmt.Errorf("invalid amount of children, got %v, want %v", wantLength, gotLength)
+			}
+
+			return nil
+		},
+		true,
+		true,
+	},
+	{
+		"Can readdir 2 in / if there are multiple children",
+		"/",
+		readdirArgs{2},
+		false,
+		func(f afero.Fs) error {
+			if _, err := f.Create("/test.txt"); err != nil {
+				return err
+			}
+
+			if _, err := f.Create("/asdf.txt"); err != nil {
+				return err
+			}
+
+			if err := f.Mkdir("/mydir", os.ModePerm); err != nil {
+				return err
+			}
+
+			return nil
+		},
+		func(f []os.FileInfo) error {
+			wantNames := map[string]struct{}{
+				"test.txt": {},
+				"asdf.txt": {},
+				"mydir":    {},
+			}
+
+			for _, info := range f {
+				name, ok := wantNames[info.Name()]
+				if !ok {
+					return fmt.Errorf("could not find file or directory with name %v", name)
+				}
+			}
+
+			wantLength := len(f)
+			gotLength := 2
+			if wantLength != gotLength {
+				return fmt.Errorf("invalid amount of children, got %v, want %v", wantLength, gotLength)
+			}
+
+			return nil
+		},
+		true,
+		true,
+	},
+	{
+		"Can readdir 2 in /mydir if there are multiple children",
+		"/mydir",
+		readdirArgs{2},
+		false,
+		func(f afero.Fs) error {
+			if _, err := f.Create("/test.txt"); err != nil {
+				return err
+			}
+
+			if err := f.Mkdir("/mydir", os.ModePerm); err != nil {
+				return err
+			}
+
+			if _, err := f.Create("/mydir/asdf.txt"); err != nil {
+				return err
+			}
+
+			if _, err := f.Create("/mydir/hmm.txt"); err != nil {
+				return err
+			}
+
+			return nil
+		},
+		func(f []os.FileInfo) error {
+			wantNames := map[string]struct{}{
+				"asdf.txt": {},
+				"hmm.txt":  {},
+			}
+
+			for _, info := range f {
+				name, ok := wantNames[info.Name()]
+				if !ok {
+					return fmt.Errorf("could not find file or directory with name %v", name)
+				}
+			}
+
+			wantLength := len(f)
+			gotLength := 2
+			if wantLength != gotLength {
+				return fmt.Errorf("invalid amount of children, got %v, want %v", wantLength, gotLength)
+			}
+
+			return nil
+		},
+		true,
+		true,
+	},
+	{
+		"Can readdir 3 in /mydir/nested if there are multiple children",
+		"/mydir/nested",
+		readdirArgs{3},
+		false,
+		func(f afero.Fs) error {
+			if _, err := f.Create("/test.txt"); err != nil {
+				return err
+			}
+
+			if err := f.MkdirAll("/mydir/nested", os.ModePerm); err != nil {
+				return err
+			}
+
+			if _, err := f.Create("/mydir/nested/asdf.txt"); err != nil {
+				return err
+			}
+
+			if _, err := f.Create("/mydir/nested/hmm.txt"); err != nil {
+				return err
+			}
+
+			if _, err := f.Create("/mydir/nested/hmm2.txt"); err != nil {
+				return err
+			}
+
+			return nil
+		},
+		func(f []os.FileInfo) error {
+			wantNames := map[string]struct{}{
+				"asdf.txt": {},
+				"hmm.txt":  {},
+				"hmm2.txt": {},
+			}
+
+			for _, info := range f {
+				name, ok := wantNames[info.Name()]
+				if !ok {
+					return fmt.Errorf("could not find file or directory with name %v", name)
+				}
+			}
+
+			wantLength := len(f)
+			gotLength := 3
+			if wantLength != gotLength {
+				return fmt.Errorf("invalid amount of children, got %v, want %v", wantLength, gotLength)
+			}
+
+			return nil
+		},
+		true,
+		true,
+	},
 }
 
 func TestSTFS_Readdir(t *testing.T) {
