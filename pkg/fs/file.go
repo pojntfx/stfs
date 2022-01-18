@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/pojntfx/stfs/internal/ioext"
+	"github.com/pojntfx/stfs/internal/pathext"
 	"github.com/pojntfx/stfs/pkg/cache"
 	"github.com/pojntfx/stfs/pkg/config"
 	"github.com/pojntfx/stfs/pkg/inventory"
@@ -369,6 +370,10 @@ func (f *File) Name() string {
 
 	f.ioLock.Lock()
 	defer f.ioLock.Unlock()
+
+	if pathext.IsRoot(f.path, false) {
+		return ""
+	}
 
 	return f.path
 }
