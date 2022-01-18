@@ -17,7 +17,6 @@ import (
 	"time"
 
 	"github.com/pojntfx/stfs/examples"
-	ifs "github.com/pojntfx/stfs/internal/fs"
 	"github.com/pojntfx/stfs/pkg/cache"
 	"github.com/pojntfx/stfs/pkg/config"
 	"github.com/pojntfx/stfs/pkg/keys"
@@ -2537,7 +2536,7 @@ var chownTests = []struct {
 			wantGID := 11
 			wantUID := 11
 
-			gotSys, ok := f.Sys().(*ifs.Stat)
+			gotSys, ok := f.Sys().(*Stat)
 			if !ok {
 				return errors.New("could not get fs.Stat from FileInfo.Sys()")
 			}
@@ -2584,7 +2583,7 @@ var chownTests = []struct {
 			wantGID := 11
 			wantUID := 11
 
-			gotSys, ok := f.Sys().(*ifs.Stat)
+			gotSys, ok := f.Sys().(*Stat)
 			if !ok {
 				return errors.New("could not get fs.Stat from FileInfo.Sys()")
 			}
@@ -2627,7 +2626,7 @@ var chownTests = []struct {
 			wantGID := 11
 			wantUID := 11
 
-			gotSys, ok := f.Sys().(*ifs.Stat)
+			gotSys, ok := f.Sys().(*Stat)
 			if !ok {
 				return errors.New("could not get fs.Stat from FileInfo.Sys()")
 			}
@@ -2738,7 +2737,7 @@ var chtimesTests = []struct {
 			wantAtime := time.Date(2021, 12, 23, 0, 0, 0, 0, time.UTC)
 			wantMtime := time.Date(2022, 01, 14, 0, 0, 0, 0, time.UTC)
 
-			gotSys, ok := f.Sys().(*ifs.Stat)
+			gotSys, ok := f.Sys().(*Stat)
 			if !ok {
 				return errors.New("could not get fs.Stat from FileInfo.Sys()")
 			}
@@ -2785,7 +2784,7 @@ var chtimesTests = []struct {
 			wantAtime := time.Date(2021, 12, 23, 0, 0, 0, 0, time.UTC)
 			wantMtime := time.Date(2022, 01, 14, 0, 0, 0, 0, time.UTC)
 
-			gotSys, ok := f.Sys().(*ifs.Stat)
+			gotSys, ok := f.Sys().(*Stat)
 			if !ok {
 				return errors.New("could not get fs.Stat from FileInfo.Sys()")
 			}
@@ -2828,7 +2827,7 @@ var chtimesTests = []struct {
 			wantAtime := time.Date(2021, 12, 23, 0, 0, 0, 0, time.UTC)
 			wantMtime := time.Date(2022, 01, 14, 0, 0, 0, 0, time.UTC)
 
-			gotSys, ok := f.Sys().(*ifs.Stat)
+			gotSys, ok := f.Sys().(*Stat)
 			if !ok {
 				return errors.New("could not get fs.Stat from FileInfo.Sys()")
 			}

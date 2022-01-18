@@ -14,7 +14,6 @@ import (
 	"sync"
 	"time"
 
-	ifs "github.com/pojntfx/stfs/internal/fs"
 	"github.com/pojntfx/stfs/internal/pathext"
 	"github.com/pojntfx/stfs/pkg/cache"
 	"github.com/pojntfx/stfs/pkg/config"
@@ -393,7 +392,7 @@ func (f *STFS) OpenFile(name string, flag int, perm os.FileMode) (afero.File, er
 	f.ioLock.Lock()
 	defer f.ioLock.Unlock()
 
-	flags := &ifs.FileFlags{}
+	flags := &FileFlags{}
 	if f.readOnly {
 		if (flag&O_ACCMODE) == os.O_RDONLY || (flag&O_ACCMODE) == os.O_RDWR {
 			flags.Read = true
@@ -475,7 +474,7 @@ func (f *STFS) OpenFile(name string, flag int, perm os.FileMode) (afero.File, er
 		return nil, config.ErrIsDirectory
 	}
 
-	return ifs.NewFile(
+	return NewFile(
 		f.readOps,
 		f.writeOps,
 
@@ -490,7 +489,7 @@ func (f *STFS) OpenFile(name string, flag int, perm os.FileMode) (afero.File, er
 		&f.ioLock,
 
 		path.Base(hdr.Name),
-		ifs.NewFileInfoFromTarHeader(hdr, f.log),
+		NewFileInfoFromTarHeader(hdr, f.log),
 
 		f.onHeader,
 		f.log,
@@ -690,7 +689,7 @@ func (f *STFS) Stat(name string) (os.FileInfo, error) {
 		return nil, err
 	}
 
-	return ifs.NewFileInfoFromTarHeader(hdr, f.log), nil
+	return NewFileInfoFromTarHeader(hdr, f.log), nil
 }
 
 func (f *STFS) updateMetadata(hdr *tar.Header) error {
@@ -868,7 +867,7 @@ func (f *STFS) lstatIfPossibleWithoutLocking(name string) (info os.FileInfo, lin
 		return nil, "", true, err
 	}
 
-	return ifs.NewFileInfoFromTarHeader(hdr, f.log), path.Base(hdr.Linkname), true, nil
+	return NewFileInfoFromTarHeader(hdr, f.log), path.Base(hdr.Linkname), true, nil
 }
 
 func (f *STFS) LstatIfPossible(name string) (os.FileInfo, bool, error) {
