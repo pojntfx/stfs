@@ -1,8 +1,11 @@
 package fs
 
 import (
+	"crypto/sha512"
+	"encoding/base64"
 	"errors"
 	"fmt"
+	"io"
 	"os"
 	"path"
 	"testing"
@@ -10,6 +13,33 @@ import (
 
 	"github.com/spf13/afero"
 )
+
+type deterministicReader struct {
+	maxIndex int
+	index    int
+}
+
+func newDeterministicReader(maxIndex int) *deterministicReader {
+	return &deterministicReader{
+		maxIndex: maxIndex,
+	}
+}
+
+func (w *deterministicReader) Read(p []byte) (int, error) {
+	if w.index > w.maxIndex {
+		return -1, io.EOF
+	}
+
+	buf := make([]byte, len(p))
+
+	for i := 0; i < len(buf); i++ {
+		buf[i] = byte(w.index)
+	}
+
+	w.index++
+
+	return copy(p, buf), nil
+}
 
 var fileNameTests = []struct {
 	name      string
@@ -133,10 +163,6 @@ func TestFile_Name(t *testing.T) {
 			}
 		})
 	}
-}
-
-type fileStatArgs struct {
-	name string
 }
 
 var fileStatTests = []struct {
@@ -349,7 +375,7 @@ var fileStatTests = []struct {
 	},
 }
 
-func TestSTFS_FileStat(t *testing.T) {
+func TestFile_Stat(t *testing.T) {
 	for _, tt := range fileStatTests {
 		tt := tt
 
@@ -461,7 +487,7 @@ var readdirTests = []struct {
 			wantLength := len(f)
 			gotLength := 1
 			if wantLength != gotLength {
-				return fmt.Errorf("invalid amount of children, got %v, want %v", wantLength, gotLength)
+				return fmt.Errorf("invalid amount of children, got %v, want %v", gotLength, wantLength)
 			}
 
 			return nil
@@ -506,7 +532,7 @@ var readdirTests = []struct {
 			wantLength := len(f)
 			gotLength := 3
 			if wantLength != gotLength {
-				return fmt.Errorf("invalid amount of children, got %v, want %v", wantLength, gotLength)
+				return fmt.Errorf("invalid amount of children, got %v, want %v", gotLength, wantLength)
 			}
 
 			return nil
@@ -551,7 +577,7 @@ var readdirTests = []struct {
 			wantLength := len(f)
 			gotLength := 3
 			if wantLength != gotLength {
-				return fmt.Errorf("invalid amount of children, got %v, want %v", wantLength, gotLength)
+				return fmt.Errorf("invalid amount of children, got %v, want %v", gotLength, wantLength)
 			}
 
 			return nil
@@ -596,7 +622,7 @@ var readdirTests = []struct {
 			wantLength := len(f)
 			gotLength := 2
 			if wantLength != gotLength {
-				return fmt.Errorf("invalid amount of children, got %v, want %v", wantLength, gotLength)
+				return fmt.Errorf("invalid amount of children, got %v, want %v", gotLength, wantLength)
 			}
 
 			return nil
@@ -644,7 +670,7 @@ var readdirTests = []struct {
 			wantLength := len(f)
 			gotLength := 2
 			if wantLength != gotLength {
-				return fmt.Errorf("invalid amount of children, got %v, want %v", wantLength, gotLength)
+				return fmt.Errorf("invalid amount of children, got %v, want %v", gotLength, wantLength)
 			}
 
 			return nil
@@ -697,7 +723,7 @@ var readdirTests = []struct {
 			wantLength := len(f)
 			gotLength := 3
 			if wantLength != gotLength {
-				return fmt.Errorf("invalid amount of children, got %v, want %v", wantLength, gotLength)
+				return fmt.Errorf("invalid amount of children, got %v, want %v", gotLength, wantLength)
 			}
 
 			return nil
@@ -707,7 +733,7 @@ var readdirTests = []struct {
 	},
 }
 
-func TestSTFS_Readdir(t *testing.T) {
+func TestFile_Readdir(t *testing.T) {
 	for _, tt := range readdirTests {
 		tt := tt
 
@@ -819,7 +845,7 @@ var readdirnamesTests = []struct {
 			wantLength := len(f)
 			gotLength := 1
 			if wantLength != gotLength {
-				return fmt.Errorf("invalid amount of children, got %v, want %v", wantLength, gotLength)
+				return fmt.Errorf("invalid amount of children, got %v, want %v", gotLength, wantLength)
 			}
 
 			return nil
@@ -864,7 +890,7 @@ var readdirnamesTests = []struct {
 			wantLength := len(f)
 			gotLength := 3
 			if wantLength != gotLength {
-				return fmt.Errorf("invalid amount of children, got %v, want %v", wantLength, gotLength)
+				return fmt.Errorf("invalid amount of children, got %v, want %v", gotLength, wantLength)
 			}
 
 			return nil
@@ -909,7 +935,7 @@ var readdirnamesTests = []struct {
 			wantLength := len(f)
 			gotLength := 3
 			if wantLength != gotLength {
-				return fmt.Errorf("invalid amount of children, got %v, want %v", wantLength, gotLength)
+				return fmt.Errorf("invalid amount of children, got %v, want %v", gotLength, wantLength)
 			}
 
 			return nil
@@ -954,7 +980,7 @@ var readdirnamesTests = []struct {
 			wantLength := len(f)
 			gotLength := 2
 			if wantLength != gotLength {
-				return fmt.Errorf("invalid amount of children, got %v, want %v", wantLength, gotLength)
+				return fmt.Errorf("invalid amount of children, got %v, want %v", gotLength, wantLength)
 			}
 
 			return nil
@@ -1002,7 +1028,7 @@ var readdirnamesTests = []struct {
 			wantLength := len(f)
 			gotLength := 2
 			if wantLength != gotLength {
-				return fmt.Errorf("invalid amount of children, got %v, want %v", wantLength, gotLength)
+				return fmt.Errorf("invalid amount of children, got %v, want %v", gotLength, wantLength)
 			}
 
 			return nil
@@ -1055,7 +1081,7 @@ var readdirnamesTests = []struct {
 			wantLength := len(f)
 			gotLength := 3
 			if wantLength != gotLength {
-				return fmt.Errorf("invalid amount of children, got %v, want %v", wantLength, gotLength)
+				return fmt.Errorf("invalid amount of children, got %v, want %v", gotLength, wantLength)
 			}
 
 			return nil
@@ -1065,7 +1091,7 @@ var readdirnamesTests = []struct {
 	},
 }
 
-func TestSTFS_Readdirnames(t *testing.T) {
+func TestFile_Readdirnames(t *testing.T) {
 	for _, tt := range readdirnamesTests {
 		tt := tt
 
@@ -1096,6 +1122,215 @@ func TestSTFS_Readdirnames(t *testing.T) {
 			}
 
 			if err := tt.check(got); err != nil {
+				t.Errorf("%v check() error = %v", fs.fs.Name(), err)
+
+				return
+			}
+		})
+	}
+}
+
+var readTests = []struct {
+	name      string
+	open      string
+	wantErr   bool
+	prepare   func(afero.Fs) error
+	check     func(afero.File) error
+	withCache bool
+	withOsFs  bool
+	large     bool
+}{
+	{
+		"Can read /test.txt if it exists and is empty",
+		"/test.txt",
+		false,
+		func(f afero.Fs) error {
+			if _, err := f.Create("/test.txt"); err != nil {
+				return err
+			}
+
+			return nil
+		},
+		func(f afero.File) error {
+			wantContent := []byte{}
+			gotContent := make([]byte, len(wantContent))
+
+			wantLength := len(wantContent)
+			gotLength, err := f.Read(gotContent)
+			if err != io.EOF {
+				return err
+			}
+
+			if wantLength != gotLength {
+				return fmt.Errorf("invalid read length, got %v, want %v", gotLength, wantLength)
+			}
+
+			if string(wantContent) != string(gotContent) {
+				return fmt.Errorf("invalid read content, got %v, want %v", gotContent, wantContent)
+			}
+
+			return nil
+		},
+		true,
+		true,
+		false,
+	},
+	{
+		"Can read /test.txt if it exists and contains small amount of data",
+		"/test.txt",
+		false,
+		func(f afero.Fs) error {
+			file, err := f.Create("/test.txt")
+			if err != nil {
+				return err
+			}
+
+			if _, err := file.Write([]byte("Hello, world")); err != nil {
+				return err
+			}
+
+			return file.Close()
+		},
+		func(f afero.File) error {
+			wantContent := []byte("Hello, world")
+			gotContent := make([]byte, len(wantContent))
+
+			wantLength := len(wantContent)
+			gotLength, err := f.Read(gotContent)
+			if err != io.EOF {
+				return err
+			}
+
+			if gotLength != wantLength {
+				return fmt.Errorf("invalid read length, got %v, want %v", gotLength, wantLength)
+			}
+
+			if string(gotContent) != string(wantContent) {
+				return fmt.Errorf("invalid read content, got %v, want %v", gotContent, wantContent)
+			}
+
+			return nil
+		},
+		true,
+		true,
+		false,
+	},
+	{
+		"Can read /test.txt if it exists and contains 30 MB amount of data",
+		"/test.txt",
+		false,
+		func(f afero.Fs) error {
+			file, err := f.Create("/test.txt")
+			if err != nil {
+				return err
+			}
+
+			r := newDeterministicReader(1000)
+
+			if _, err := io.Copy(file, r); err != nil {
+				return err
+			}
+
+			return file.Close()
+		},
+		func(f afero.File) error {
+			wantHash := "HTUi7GuNreHASha4hhl1xwuYk03pyTJ0IJbFLv04UdccT9m_NA2oBFTrnMxJhEu3VMGxDYk_04Th9C0zOj5MyA=="
+			wantLength := int64(32800768)
+
+			hasher := sha512.New()
+			gotLength, err := io.Copy(hasher, f)
+			if err != nil {
+				return err
+			}
+			gotHash := base64.URLEncoding.EncodeToString(hasher.Sum(nil))
+
+			if gotLength != wantLength {
+				return fmt.Errorf("invalid read length, got %v, want %v", gotLength, wantLength)
+			}
+
+			if gotHash != wantHash {
+				return fmt.Errorf("invalid read hash, got %v, want %v", gotHash, wantHash)
+			}
+
+			return nil
+		},
+		true,
+		true,
+		false,
+	},
+	{
+		"Can read /test.txt if it exists and contains 300 MB of data",
+		"/test.txt",
+		false,
+		func(f afero.Fs) error {
+			file, err := f.Create("/test.txt")
+			if err != nil {
+				return err
+			}
+
+			r := newDeterministicReader(10000)
+
+			if _, err := io.Copy(file, r); err != nil {
+				return err
+			}
+
+			return file.Close()
+		},
+		func(f afero.File) error {
+			wantHash := "3NXGfwSdGiFZjd-sdIcx4xrUnsOPOb4LeDBYGZFVPoRyMqGdqTEHsTbk1Ow3Vn-wIdFqaO8Zj6eXhYvWBakkuQ=="
+			wantLength := int64(327712768)
+
+			hasher := sha512.New()
+			gotLength, err := io.Copy(hasher, f)
+			if err != nil {
+				return err
+			}
+			gotHash := base64.URLEncoding.EncodeToString(hasher.Sum(nil))
+
+			if gotLength != wantLength {
+				return fmt.Errorf("invalid read length, got %v, want %v", gotLength, wantLength)
+			}
+
+			if gotHash != wantHash {
+				return fmt.Errorf("invalid read hash, got %v, want %v", gotHash, wantHash)
+			}
+
+			return nil
+		},
+		true,
+		true,
+		true,
+	},
+}
+
+func TestFile_Read(t *testing.T) {
+	for _, tt := range readTests {
+		tt := tt
+
+		runTestForAllFss(t, tt.name, true, tt.withCache, tt.withOsFs, func(t *testing.T, fs fsConfig) {
+			if tt.large && testing.Short() {
+				return
+			}
+
+			symFs, ok := fs.fs.(symFs)
+			if !ok {
+				return
+			}
+
+			if err := tt.prepare(symFs); err != nil {
+				t.Errorf("%v prepare() error = %v", symFs.Name(), err)
+
+				return
+			}
+
+			file, err := symFs.Open(tt.open)
+			if err != nil {
+				t.Errorf("%v open() error = %v", symFs.Name(), err)
+
+				return
+			}
+
+			if err := tt.check(file); (err != nil) != tt.wantErr {
 				t.Errorf("%v check() error = %v", fs.fs.Name(), err)
 
 				return

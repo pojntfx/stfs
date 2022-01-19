@@ -459,6 +459,10 @@ func (f *File) Read(p []byte) (n int, err error) {
 		return -1, os.ErrPermission
 	}
 
+	if len(p) <= 0 {
+		return 0, nil
+	}
+
 	f.ioLock.Lock()
 	defer f.ioLock.Unlock()
 
