@@ -6,7 +6,6 @@ package persisters
 import (
 	"context"
 	"database/sql"
-	"errors"
 	"fmt"
 	"path"
 	"path/filepath"
@@ -108,7 +107,11 @@ func (p *MetadataPersister) UpsertHeader(ctx context.Context, dbhdr *config.Head
 		hdr.Name = p.getSanitizedPath(ctx, idbhdr.Name)
 	}
 
-	if _, err := models.FindHeader(ctx, p.sqlite.DB, hdr.Name, models.HeaderColumns.Name); err != nil {
+	if _, err := models.Headers(
+		qm.Where(models.HeaderColumns.Name+" = ?", hdr.Name),
+		qm.Where(models.HeaderColumns.Linkname+" = ?", hdr.Linkname),
+		qm.Where(models.HeaderColumns.Deleted+" != 1"),
+	).One(ctx, p.sqlite.DB); err != nil {
 		if err == sql.ErrNoRows {
 			if err := hdr.Insert(ctx, p.sqlite.DB, boil.Infer()); err != nil {
 				return err
@@ -219,21 +222,17 @@ func (p *MetadataPersister) GetHeader(ctx context.Context, name string) (*config
 }
 
 func (p *MetadataPersister) GetHeaderByLinkname(ctx context.Context, linkname string) (*config.Header, error) {
-	return nil, errors.New("not implemented")
+	linkname = p.getSanitizedPath(ctx, linkname)
 
-	// FIXME: Handle linkname
+	hdr, err := models.Headers(
+		qm.Where(models.HeaderColumns.Linkname+" = ?", linkname),
+		qm.Where(models.HeaderColumns.Deleted+" != 1"),
+	).One(ctx, p.sqlite.DB)
+	if err != nil {
+		return nil, err
+	}
 
-	// linkname = p.getSanitizedPath(ctx, linkname)
-
-	// hdr, err := models.Headers(
-	// 	qm.Where(models.HeaderColumns.Linkname+" = ?", linkname),
-	// 	qm.Where(models.HeaderColumns.Deleted+" != 1"),
-	// ).One(ctx, p.sqlite.DB)
-	// if err != nil {
-	// 	return nil, err
-	// }
-
-	// return converters.DBHeaderToConfigHeader(hdr), nil
+	return converters.DBHeaderToConfigHeader(hdr), nil
 }
 
 func (p *MetadataPersister) GetHeaderChildren(ctx context.Context, name string) ([]*config.Header, error) {
@@ -295,7 +294,7 @@ func (p *MetadataPersister) GetHeaderDirectChildren(ctx context.Context, name st
 
 	getHeaders := func(prefix string) ([]*config.Header, error) {
 		query := fmt.Sprintf(
-			`select %v, %v, %v, %v, %v, %v, %v, %v, %v, %v, %v, %v, %v, %v, %v, %v, %v, %v, %v, %v,
+			`select %v, %v, %v, %v, %v, %v, %v, %v, %v, %v, %v, %v, %v, %v, %v, %v, %v, %v, %v, %v, %v,
     length(replace(%v, ?, '')) - length(replace(replace(%v, ?, ''), '/', '')) as depth
 from %v
 where %v like ?
@@ -315,7 +314,7 @@ where %v like ?
 			models.HeaderColumns.Deleted,
 			models.HeaderColumns.Typeflag,
 			models.HeaderColumns.Name,
-			// models.HeaderColumns.Linkname, // FIXME: Handle linkname
+			models.HeaderColumns.Linkname,
 			models.HeaderColumns.Size,
 			models.HeaderColumns.Mode,
 			models.HeaderColumns.UID,
@@ -397,7 +396,10 @@ where %v like ?
 func (p *MetadataPersister) DeleteHeader(ctx context.Context, name string, lastknownrecord, lastknownblock int64) (*config.Header, error) {
 	name = p.getSanitizedPath(ctx, name)
 
-	hdr, err := models.FindHeader(ctx, p.sqlite.DB, name)
+	hdr, err := models.Headers(
+		qm.Where(models.HeaderColumns.Name+" = ?", name),
+		qm.Where(models.HeaderColumns.Deleted+" != 1"),
+	).One(ctx, p.sqlite.DB)
 	if err != nil {
 		return nil, err
 	}
