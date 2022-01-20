@@ -451,16 +451,16 @@ func (f *File) Read(p []byte) (n int, err error) {
 		"p":    len(p),
 	})
 
-	if f.info.IsDir() {
-		return -1, config.ErrIsDirectory
-	}
-
 	if !f.flags.Read {
 		return -1, os.ErrPermission
 	}
 
 	if len(p) <= 0 {
 		return 0, nil
+	}
+
+	if f.info.IsDir() {
+		return -1, config.ErrIsDirectory
 	}
 
 	f.ioLock.Lock()

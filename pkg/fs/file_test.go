@@ -1,6 +1,7 @@
 package fs
 
 import (
+	"bytes"
 	"crypto/sha512"
 	"encoding/base64"
 	"errors"
@@ -1141,6 +1142,112 @@ var readTests = []struct {
 	large     bool
 }{
 	{
+		"Can read / into empty buffer",
+		"/",
+		false,
+		func(f afero.Fs) error { return nil },
+		func(f afero.File) error {
+			wantContent := []byte{}
+			gotContent := make([]byte, len(wantContent))
+
+			wantLength := len(wantContent)
+			gotLength, err := f.Read(gotContent)
+			if err != io.EOF {
+				return err
+			}
+
+			if wantLength != gotLength {
+				return fmt.Errorf("invalid read length, got %v, want %v", gotLength, wantLength)
+			}
+
+			if string(wantContent) != string(gotContent) {
+				return fmt.Errorf("invalid read content, got %v, want %v", gotContent, wantContent)
+			}
+
+			return nil
+		},
+		true,
+		true,
+		false,
+	},
+	{
+		"Can read /mydir into empty buffer",
+		"/mydir",
+		false,
+		func(f afero.Fs) error {
+			if err := f.Mkdir("/mydir", os.ModePerm); err != nil {
+				return err
+			}
+
+			return nil
+		},
+		func(f afero.File) error {
+			wantContent := []byte{}
+			gotContent := make([]byte, len(wantContent))
+
+			wantLength := len(wantContent)
+			gotLength, err := f.Read(gotContent)
+			if err != io.EOF {
+				return err
+			}
+
+			if wantLength != gotLength {
+				return fmt.Errorf("invalid read length, got %v, want %v", gotLength, wantLength)
+			}
+
+			if string(wantContent) != string(gotContent) {
+				return fmt.Errorf("invalid read content, got %v, want %v", gotContent, wantContent)
+			}
+
+			return nil
+		},
+		true,
+		true,
+		false,
+	},
+	{
+		"Can not read / into non-empty buffer",
+		"/",
+		true,
+		func(f afero.Fs) error { return nil },
+		func(f afero.File) error {
+			gotContent := make([]byte, 10)
+
+			if _, err := f.Read(gotContent); err != io.EOF {
+				return err
+			}
+
+			return nil
+		},
+		true,
+		true,
+		false,
+	},
+	{
+		"Can not read /mydir into non-empty buffer",
+		"/mydir",
+		true,
+		func(f afero.Fs) error {
+			if err := f.Mkdir("/mydir", os.ModePerm); err != nil {
+				return err
+			}
+
+			return nil
+		},
+		func(f afero.File) error {
+			gotContent := make([]byte, 10)
+
+			if _, err := f.Read(gotContent); err != io.EOF {
+				return err
+			}
+
+			return nil
+		},
+		true,
+		true,
+		false,
+	},
+	{
 		"Can read /test.txt if it exists and is empty",
 		"/test.txt",
 		false,
@@ -1300,6 +1407,60 @@ var readTests = []struct {
 		true,
 		true,
 		true,
+	},
+	{
+		"Can read /test.txt sequentially if it exists and contains 30 MB amount of data",
+		"/test.txt",
+		false,
+		func(f afero.Fs) error {
+			file, err := f.Create("/test.txt")
+			if err != nil {
+				return err
+			}
+
+			r := newDeterministicReader(1000)
+
+			if _, err := io.Copy(file, r); err != nil {
+				return err
+			}
+
+			return file.Close()
+		},
+		func(f afero.File) error {
+			firstChunk := make([]byte, 32800768/2)
+			secondChunk := make([]byte, 32800768/2)
+
+			if _, err := f.Read(firstChunk); err != nil {
+				return err
+			}
+
+			if _, err := f.Read(secondChunk); err != nil {
+				return err
+			}
+
+			wantHash := "HTUi7GuNreHASha4hhl1xwuYk03pyTJ0IJbFLv04UdccT9m_NA2oBFTrnMxJhEu3VMGxDYk_04Th9C0zOj5MyA=="
+			wantLength := int64(32800768)
+
+			hasher := sha512.New()
+			gotLength, err := io.Copy(hasher, bytes.NewBuffer(append(firstChunk, secondChunk...)))
+			if err != nil {
+				return err
+			}
+			gotHash := base64.URLEncoding.EncodeToString(hasher.Sum(nil))
+
+			if gotLength != wantLength {
+				return fmt.Errorf("invalid read length, got %v, want %v", gotLength, wantLength)
+			}
+
+			if gotHash != wantHash {
+				return fmt.Errorf("invalid read hash, got %v, want %v", gotHash, wantHash)
+			}
+
+			return nil
+		},
+		true,
+		true,
+		false,
 	},
 }
 
