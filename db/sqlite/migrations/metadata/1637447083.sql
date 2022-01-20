@@ -15,9 +15,9 @@ create table headers (
     -- depending on the presence of a trailing slash in Name.
     typeflag integer not null,
     -- Name of file entry
-    name text not null primary key,
+    name text not null,
     -- Target name of link (valid for TypeLink or TypeSymlink)
-    -- linkname text not null, -- FIXME: Handle linkname
+    linkname text not null,
     -- Logical file size in bytes
     size integer not null,
     -- Permission and mode bits
@@ -65,7 +65,9 @@ create table headers (
     -- If the format is unspecified when Writer.WriteHeader is called,
     -- then it uses the first format (in the order of USTAR, PAX, GNU)
     -- capable of encoding this Header (see Format).
-    format integer not null
+    format integer not null,
+
+    primary key (name, linkname)
 );
 -- +migrate Down
 drop table headers;

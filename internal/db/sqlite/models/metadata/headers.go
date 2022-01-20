@@ -30,6 +30,7 @@ type Header struct {
 	Deleted         int64     `boil:"deleted" json:"deleted" toml:"deleted" yaml:"deleted"`
 	Typeflag        int64     `boil:"typeflag" json:"typeflag" toml:"typeflag" yaml:"typeflag"`
 	Name            string    `boil:"name" json:"name" toml:"name" yaml:"name"`
+	Linkname        string    `boil:"linkname" json:"linkname" toml:"linkname" yaml:"linkname"`
 	Size            int64     `boil:"size" json:"size" toml:"size" yaml:"size"`
 	Mode            int64     `boil:"mode" json:"mode" toml:"mode" yaml:"mode"`
 	UID             int64     `boil:"uid" json:"uid" toml:"uid" yaml:"uid"`
@@ -56,6 +57,7 @@ var HeaderColumns = struct {
 	Deleted         string
 	Typeflag        string
 	Name            string
+	Linkname        string
 	Size            string
 	Mode            string
 	UID             string
@@ -77,6 +79,7 @@ var HeaderColumns = struct {
 	Deleted:         "deleted",
 	Typeflag:        "typeflag",
 	Name:            "name",
+	Linkname:        "linkname",
 	Size:            "size",
 	Mode:            "mode",
 	UID:             "uid",
@@ -100,6 +103,7 @@ var HeaderTableColumns = struct {
 	Deleted         string
 	Typeflag        string
 	Name            string
+	Linkname        string
 	Size            string
 	Mode            string
 	UID             string
@@ -121,6 +125,7 @@ var HeaderTableColumns = struct {
 	Deleted:         "headers.deleted",
 	Typeflag:        "headers.typeflag",
 	Name:            "headers.name",
+	Linkname:        "headers.linkname",
 	Size:            "headers.size",
 	Mode:            "headers.mode",
 	UID:             "headers.uid",
@@ -190,6 +195,7 @@ var HeaderWhere = struct {
 	Deleted         whereHelperint64
 	Typeflag        whereHelperint64
 	Name            whereHelperstring
+	Linkname        whereHelperstring
 	Size            whereHelperint64
 	Mode            whereHelperint64
 	UID             whereHelperint64
@@ -211,6 +217,7 @@ var HeaderWhere = struct {
 	Deleted:         whereHelperint64{field: "\"headers\".\"deleted\""},
 	Typeflag:        whereHelperint64{field: "\"headers\".\"typeflag\""},
 	Name:            whereHelperstring{field: "\"headers\".\"name\""},
+	Linkname:        whereHelperstring{field: "\"headers\".\"linkname\""},
 	Size:            whereHelperint64{field: "\"headers\".\"size\""},
 	Mode:            whereHelperint64{field: "\"headers\".\"mode\""},
 	UID:             whereHelperint64{field: "\"headers\".\"uid\""},
@@ -243,10 +250,10 @@ func (*headerR) NewStruct() *headerR {
 type headerL struct{}
 
 var (
-	headerAllColumns            = []string{"record", "lastknownrecord", "block", "lastknownblock", "deleted", "typeflag", "name", "size", "mode", "uid", "gid", "uname", "gname", "modtime", "accesstime", "changetime", "devmajor", "devminor", "paxrecords", "format"}
-	headerColumnsWithoutDefault = []string{"record", "lastknownrecord", "block", "lastknownblock", "deleted", "typeflag", "name", "size", "mode", "uid", "gid", "uname", "gname", "modtime", "accesstime", "changetime", "devmajor", "devminor", "paxrecords", "format"}
+	headerAllColumns            = []string{"record", "lastknownrecord", "block", "lastknownblock", "deleted", "typeflag", "name", "linkname", "size", "mode", "uid", "gid", "uname", "gname", "modtime", "accesstime", "changetime", "devmajor", "devminor", "paxrecords", "format"}
+	headerColumnsWithoutDefault = []string{"record", "lastknownrecord", "block", "lastknownblock", "deleted", "typeflag", "name", "linkname", "size", "mode", "uid", "gid", "uname", "gname", "modtime", "accesstime", "changetime", "devmajor", "devminor", "paxrecords", "format"}
 	headerColumnsWithDefault    = []string{}
-	headerPrimaryKeyColumns     = []string{"name"}
+	headerPrimaryKeyColumns     = []string{"name", "linkname"}
 )
 
 type (
@@ -532,7 +539,7 @@ func Headers(mods ...qm.QueryMod) headerQuery {
 
 // FindHeader retrieves a single record by ID with an executor.
 // If selectCols is empty Find will return all columns.
-func FindHeader(ctx context.Context, exec boil.ContextExecutor, name string, selectCols ...string) (*Header, error) {
+func FindHeader(ctx context.Context, exec boil.ContextExecutor, name string, linkname string, selectCols ...string) (*Header, error) {
 	headerObj := &Header{}
 
 	sel := "*"
@@ -540,10 +547,10 @@ func FindHeader(ctx context.Context, exec boil.ContextExecutor, name string, sel
 		sel = strings.Join(strmangle.IdentQuoteSlice(dialect.LQ, dialect.RQ, selectCols), ",")
 	}
 	query := fmt.Sprintf(
-		"select %s from \"headers\" where \"name\"=?", sel,
+		"select %s from \"headers\" where \"name\"=? AND \"linkname\"=?", sel,
 	)
 
-	q := queries.Raw(query, name)
+	q := queries.Raw(query, name, linkname)
 
 	err := q.Bind(ctx, exec, headerObj)
 	if err != nil {
@@ -779,7 +786,7 @@ func (o *Header) Delete(ctx context.Context, exec boil.ContextExecutor) (int64, 
 	}
 
 	args := queries.ValuesFromMapping(reflect.Indirect(reflect.ValueOf(o)), headerPrimaryKeyMapping)
-	sql := "DELETE FROM \"headers\" WHERE \"name\"=?"
+	sql := "DELETE FROM \"headers\" WHERE \"name\"=? AND \"linkname\"=?"
 
 	if boil.IsDebug(ctx) {
 		writer := boil.DebugWriterFrom(ctx)
@@ -876,7 +883,7 @@ func (o HeaderSlice) DeleteAll(ctx context.Context, exec boil.ContextExecutor) (
 // Reload refetches the object from the database
 // using the primary keys with an executor.
 func (o *Header) Reload(ctx context.Context, exec boil.ContextExecutor) error {
-	ret, err := FindHeader(ctx, exec, o.Name)
+	ret, err := FindHeader(ctx, exec, o.Name, o.Linkname)
 	if err != nil {
 		return err
 	}
@@ -915,16 +922,16 @@ func (o *HeaderSlice) ReloadAll(ctx context.Context, exec boil.ContextExecutor) 
 }
 
 // HeaderExists checks if the Header row exists.
-func HeaderExists(ctx context.Context, exec boil.ContextExecutor, name string) (bool, error) {
+func HeaderExists(ctx context.Context, exec boil.ContextExecutor, name string, linkname string) (bool, error) {
 	var exists bool
-	sql := "select exists(select 1 from \"headers\" where \"name\"=? limit 1)"
+	sql := "select exists(select 1 from \"headers\" where \"name\"=? AND \"linkname\"=? limit 1)"
 
 	if boil.IsDebug(ctx) {
 		writer := boil.DebugWriterFrom(ctx)
 		fmt.Fprintln(writer, sql)
-		fmt.Fprintln(writer, name)
+		fmt.Fprintln(writer, name, linkname)
 	}
-	row := exec.QueryRowContext(ctx, sql, name)
+	row := exec.QueryRowContext(ctx, sql, name, linkname)
 
 	err := row.Scan(&exists)
 	if err != nil {
