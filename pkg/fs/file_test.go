@@ -1132,14 +1132,15 @@ func TestFile_Readdirnames(t *testing.T) {
 }
 
 var readTests = []struct {
-	name      string
-	open      string
-	wantErr   bool
-	prepare   func(afero.Fs) error
-	check     func(afero.File) error
-	withCache bool
-	withOsFs  bool
-	large     bool
+	name           string
+	open           string
+	wantErr        bool
+	prepare        func(afero.Fs) error
+	check          func(afero.File) error
+	withCache      bool
+	withOsFs       bool
+	large          bool
+	followSymlinks bool
 }{
 	{
 		"Can read / into empty buffer",
@@ -1168,6 +1169,7 @@ var readTests = []struct {
 		},
 		true,
 		true,
+		false,
 		false,
 	},
 	{
@@ -1204,6 +1206,7 @@ var readTests = []struct {
 		true,
 		true,
 		false,
+		false,
 	},
 	{
 		"Can not read / into non-empty buffer",
@@ -1221,6 +1224,7 @@ var readTests = []struct {
 		},
 		true,
 		true,
+		false,
 		false,
 	},
 	{
@@ -1245,6 +1249,7 @@ var readTests = []struct {
 		},
 		true,
 		true,
+		false,
 		false,
 	},
 	{
@@ -1280,6 +1285,7 @@ var readTests = []struct {
 		},
 		true,
 		true,
+		false,
 		false,
 	},
 	{
@@ -1320,6 +1326,7 @@ var readTests = []struct {
 		},
 		true,
 		true,
+		false,
 		false,
 	},
 	{
@@ -1364,6 +1371,7 @@ var readTests = []struct {
 		true,
 		true,
 		false,
+		false,
 	},
 	{
 		"Can read /test.txt if it exists and contains 300 MB of data",
@@ -1407,6 +1415,7 @@ var readTests = []struct {
 		true,
 		true,
 		true,
+		false,
 	},
 	{
 		"Can read /test.txt sequentially if it exists and contains 30 MB amount of data",
@@ -1461,6 +1470,94 @@ var readTests = []struct {
 		true,
 		true,
 		false,
+		false,
+	},
+	{
+		"Can not read /brokensymlink into non-empty buffer",
+		"/brokensymlink",
+		true,
+		func(f afero.Fs) error {
+			symFs, ok := f.(symFs)
+			if !ok {
+				return nil
+			}
+
+			if err := symFs.SymlinkIfPossible("/mydir", "/brokensymlink"); err != nil {
+				return err
+			}
+
+			return nil
+		},
+		func(f afero.File) error {
+			gotContent := make([]byte, 10)
+
+			if _, err := f.Read(gotContent); err != io.EOF {
+				return err
+			}
+
+			return nil
+		},
+		true,
+		true,
+		false,
+		false,
+	},
+	{
+		"Can read /existingsymlink into non-empty buffer without readlink",
+		"/existingsymlink",
+		false,
+		func(f afero.Fs) error {
+			symFs, ok := f.(symFs)
+			if !ok {
+				return nil
+			}
+
+			file, err := f.Create("/test.txt")
+			if err != nil {
+				return err
+			}
+
+			r := newDeterministicReader(1000)
+
+			if _, err := io.Copy(file, r); err != nil {
+				return err
+			}
+
+			if err := file.Close(); err != nil {
+				return err
+			}
+
+			if err := symFs.SymlinkIfPossible("/test.txt", "/existingsymlink"); err != nil {
+				return err
+			}
+
+			return nil
+		},
+		func(f afero.File) error {
+			wantHash := "HTUi7GuNreHASha4hhl1xwuYk03pyTJ0IJbFLv04UdccT9m_NA2oBFTrnMxJhEu3VMGxDYk_04Th9C0zOj5MyA=="
+			wantLength := int64(32800768)
+
+			hasher := sha512.New()
+			gotLength, err := io.Copy(hasher, f)
+			if err != nil {
+				return err
+			}
+			gotHash := base64.URLEncoding.EncodeToString(hasher.Sum(nil))
+
+			if gotLength != wantLength {
+				return fmt.Errorf("invalid read length, got %v, want %v", gotLength, wantLength)
+			}
+
+			if gotHash != wantHash {
+				return fmt.Errorf("invalid read hash, got %v, want %v", gotHash, wantHash)
+			}
+
+			return nil
+		},
+		true,
+		false, // FIXME: This should not be required and BasePathFs fails if it is used
+		false, // FIXME: Allow resolving symlinks without using readlink`, which is what `BasePathFs` supports`
+		true,
 	},
 }
 
@@ -1484,7 +1581,22 @@ func TestFile_Read(t *testing.T) {
 				return
 			}
 
-			file, err := symFs.Open(tt.open)
+			open := tt.open
+			if tt.followSymlinks {
+				var err error
+				open, err = symFs.ReadlinkIfPossible(tt.open)
+				if err != nil {
+					t.Errorf("%v readling() error = %v", symFs.Name(), err)
+
+					return
+				}
+			}
+
+			file, err := symFs.Open(open)
+			if (err != nil) == tt.wantErr {
+				return
+			}
+
 			if err != nil {
 				t.Errorf("%v open() error = %v", symFs.Name(), err)
 
