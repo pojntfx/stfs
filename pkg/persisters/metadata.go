@@ -6,6 +6,7 @@ package persisters
 import (
 	"context"
 	"database/sql"
+	"errors"
 	"fmt"
 	"path"
 	"path/filepath"
@@ -218,17 +219,21 @@ func (p *MetadataPersister) GetHeader(ctx context.Context, name string) (*config
 }
 
 func (p *MetadataPersister) GetHeaderByLinkname(ctx context.Context, linkname string) (*config.Header, error) {
-	linkname = p.getSanitizedPath(ctx, linkname)
+	return nil, errors.New("not implemented")
 
-	hdr, err := models.Headers(
-		qm.Where(models.HeaderColumns.Linkname+" = ?", linkname),
-		qm.Where(models.HeaderColumns.Deleted+" != 1"),
-	).One(ctx, p.sqlite.DB)
-	if err != nil {
-		return nil, err
-	}
+	// FIXME: Handle linkname
 
-	return converters.DBHeaderToConfigHeader(hdr), nil
+	// linkname = p.getSanitizedPath(ctx, linkname)
+
+	// hdr, err := models.Headers(
+	// 	qm.Where(models.HeaderColumns.Linkname+" = ?", linkname),
+	// 	qm.Where(models.HeaderColumns.Deleted+" != 1"),
+	// ).One(ctx, p.sqlite.DB)
+	// if err != nil {
+	// 	return nil, err
+	// }
+
+	// return converters.DBHeaderToConfigHeader(hdr), nil
 }
 
 func (p *MetadataPersister) GetHeaderChildren(ctx context.Context, name string) ([]*config.Header, error) {
@@ -290,7 +295,7 @@ func (p *MetadataPersister) GetHeaderDirectChildren(ctx context.Context, name st
 
 	getHeaders := func(prefix string) ([]*config.Header, error) {
 		query := fmt.Sprintf(
-			`select %v, %v, %v, %v, %v, %v, %v, %v, %v, %v, %v, %v, %v, %v, %v, %v, %v, %v, %v, %v, %v,
+			`select %v, %v, %v, %v, %v, %v, %v, %v, %v, %v, %v, %v, %v, %v, %v, %v, %v, %v, %v, %v,
     length(replace(%v, ?, '')) - length(replace(replace(%v, ?, ''), '/', '')) as depth
 from %v
 where %v like ?
@@ -310,7 +315,7 @@ where %v like ?
 			models.HeaderColumns.Deleted,
 			models.HeaderColumns.Typeflag,
 			models.HeaderColumns.Name,
-			models.HeaderColumns.Linkname,
+			// models.HeaderColumns.Linkname, // FIXME: Handle linkname
 			models.HeaderColumns.Size,
 			models.HeaderColumns.Mode,
 			models.HeaderColumns.UID,

@@ -17,7 +17,7 @@ create table headers (
     -- Name of file entry
     name text not null primary key,
     -- Target name of link (valid for TypeLink or TypeSymlink)
-    linkname text not null,
+    -- linkname text not null, -- FIXME: Handle linkname
     -- Logical file size in bytes
     size integer not null,
     -- Permission and mode bits
