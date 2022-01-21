@@ -656,36 +656,103 @@ var createTests = []struct {
 	name    string
 	args    createArgs
 	wantErr bool
+	prepare func(symFs) error
 }{
 	{
 		"Can create file /test.txt",
 		createArgs{"/test.txt"},
 		false,
+		func(sf symFs) error { return nil },
 	},
 	{
 		"Can create file /test.txt/",
 		createArgs{"/test.txt/"},
 		false,
+		func(sf symFs) error { return nil },
 	},
 	{
-		"Can not create existing file/directory /",
+		"Can not create existing file /",
 		createArgs{"/"},
 		true,
+		func(sf symFs) error { return nil },
 	},
 	{
 		"Can create file ' '",
 		createArgs{" "},
 		false,
+		func(sf symFs) error { return nil },
 	},
 	{
 		"Can create file ''",
 		createArgs{""},
 		true,
+		func(sf symFs) error { return nil },
 	},
 	{
 		"Can not create /nonexistent/test.txt",
 		createArgs{"/nonexistent/test.txt"},
 		true,
+		func(sf symFs) error { return nil },
+	},
+	{
+		"Can not create file in place of symlink to root",
+		createArgs{"/existingsymlink"},
+		true,
+		func(sf symFs) error {
+			if err := sf.SymlinkIfPossible("/", "/existingsymlink"); err != nil {
+				return nil
+			}
+
+			return nil
+		},
+	},
+	{
+		"Can create file in place of broken symlink /brokensymlink",
+		createArgs{"/brokensymlink"},
+		false,
+		func(sf symFs) error {
+			if err := sf.SymlinkIfPossible("/test.txt", "/brokensymlink"); err != nil {
+				return nil
+			}
+
+			return nil
+		},
+	},
+	{
+		"Can create file in place of existing symlink /existingsymlink to file",
+		createArgs{"/existingsymlink"},
+		false,
+		func(sf symFs) error {
+			file, err := sf.Create("/test.txt")
+			if err != nil {
+				return err
+			}
+			if err := file.Close(); err != nil {
+				return err
+			}
+
+			if err := sf.SymlinkIfPossible("/test.txt", "/existingsymlink"); err != nil {
+				return nil
+			}
+
+			return nil
+		},
+	},
+	{
+		"Can not create file in place of existing symlink /existingsymlink to directory",
+		createArgs{"/existingsymlink"},
+		true,
+		func(sf symFs) error {
+			if err := sf.Mkdir("/mydir", os.ModePerm); err != nil {
+				return err
+			}
+
+			if err := sf.SymlinkIfPossible("/mydir", "/existingsymlink"); err != nil {
+				return nil
+			}
+
+			return nil
+		},
 	},
 }
 
@@ -694,36 +761,47 @@ func TestSTFS_Create(t *testing.T) {
 		tt := tt
 
 		runTestForAllFss(t, tt.name, true, true, true, func(t *testing.T, fs fsConfig) {
-			file, err := fs.fs.Create(tt.args.name)
+			symFs, ok := fs.fs.(symFs)
+			if !ok {
+				return
+			}
+
+			if err := tt.prepare(symFs); err != nil {
+				t.Errorf("%v prepare() error = %v", symFs.Name(), err)
+
+				return
+			}
+
+			file, err := symFs.Create(tt.args.name)
 			if (err != nil) != tt.wantErr {
-				t.Errorf("%v.Create() error = %v, wantErr %v", fs.fs.Name(), err, tt.wantErr)
+				t.Errorf("%v.Create() error = %v, wantErr %v", symFs.Name(), err, tt.wantErr)
 
 				return
 			}
 
 			if !tt.wantErr {
-				want, err := fs.fs.Stat(tt.args.name)
+				want, err := symFs.Stat(tt.args.name)
 				if err != nil {
-					t.Errorf("%v.Stat() error = %v, wantErr %v", fs.fs.Name(), err, tt.wantErr)
+					t.Errorf("%v.Stat() error = %v, wantErr %v", symFs.Name(), err, tt.wantErr)
 
 					return
 				}
 
 				if file == nil {
-					t.Errorf("%v.Create() error = %v, wantErr %v", fs.fs.Name(), err, tt.wantErr)
+					t.Errorf("%v.Create() error = %v, wantErr %v", symFs.Name(), err, tt.wantErr)
 
 					return
 				}
 
-				got, err := fs.fs.Stat(file.Name())
+				got, err := symFs.Stat(file.Name())
 				if err != nil {
-					t.Errorf("%v.Stat() error = %v, wantErr %v", fs.fs.Name(), err, tt.wantErr)
+					t.Errorf("%v.Stat() error = %v, wantErr %v", symFs.Name(), err, tt.wantErr)
 
 					return
 				}
 
 				if !reflect.DeepEqual(got, want) {
-					t.Errorf("%v.Create().Name() = %v, want %v", fs.fs.Name(), got, want)
+					t.Errorf("%v.Create().Name() = %v, want %v", symFs.Name(), got, want)
 
 					return
 				}

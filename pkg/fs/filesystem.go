@@ -78,9 +78,6 @@ func (f *STFS) Name() string {
 		"name": config.FileSystemNameSTFS,
 	})
 
-	f.ioLock.Lock()
-	defer f.ioLock.Unlock()
-
 	return config.FileSystemNameSTFS
 }
 
@@ -440,6 +437,19 @@ func (f *STFS) OpenFile(name string, flag int, perm os.FileMode) (afero.File, er
 					}
 
 					return nil, err
+				}
+
+				if target, err := inventory.Stat(
+					f.metadata,
+
+					name,
+					true,
+
+					f.onHeader,
+				); err == nil {
+					if target.Typeflag == tar.TypeDir {
+						return nil, config.ErrIsDirectory
+					}
 				}
 
 				if err := f.mknodeWithoutLocking(false, name, perm, false, "", false); err != nil {
