@@ -619,13 +619,27 @@ func (f *STFS) removeWithoutLocking(name string) error {
 	)
 	if err != nil {
 		if err == sql.ErrNoRows {
-			return os.ErrNotExist
-		}
+			hdr, err = inventory.Stat(
+				f.metadata,
 
-		return err
+				name,
+				true,
+
+				f.onHeader,
+			)
+			if err != nil {
+				if err == sql.ErrNoRows {
+					return os.ErrNotExist
+				} else {
+					return err
+				}
+			}
+		} else {
+			return err
+		}
 	}
 
-	if hdr.Typeflag == tar.TypeDir {
+	if hdr.Typeflag == tar.TypeDir && hdr.Linkname == "" {
 		hdrs, err := inventory.List(
 			f.metadata,
 
