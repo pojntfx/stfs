@@ -451,52 +451,66 @@ func (f *STFS) OpenFile(name string, flag int, perm os.FileMode) (afero.File, er
 	)
 	if err != nil {
 		if err == sql.ErrNoRows {
-			if !f.readOnly && flag&os.O_CREATE != 0 && flag&os.O_EXCL == 0 {
-				if _, err := inventory.Stat(
-					f.metadata,
+			hdr, err = inventory.Stat(
+				f.metadata,
 
-					filepath.Dir(name),
-					false,
+				name,
+				true,
 
-					f.onHeader,
-				); err != nil {
-					if err == sql.ErrNoRows {
+				f.onHeader,
+			)
+			if err != nil {
+				if err == sql.ErrNoRows {
+					if !f.readOnly && flag&os.O_CREATE != 0 && flag&os.O_EXCL == 0 {
+						if _, err := inventory.Stat(
+							f.metadata,
+
+							filepath.Dir(name),
+							false,
+
+							f.onHeader,
+						); err != nil {
+							if err == sql.ErrNoRows {
+								return nil, os.ErrNotExist
+							}
+
+							return nil, err
+						}
+
+						if target, err := inventory.Stat(
+							f.metadata,
+
+							name,
+							true,
+
+							f.onHeader,
+						); err == nil {
+							if target.Typeflag == tar.TypeDir {
+								return nil, config.ErrIsDirectory
+							}
+						}
+
+						if err := f.mknodeWithoutLocking(false, name, perm, false, "", false); err != nil {
+							return nil, err
+						}
+
+						hdr, err = inventory.Stat(
+							f.metadata,
+
+							name,
+							false,
+
+							f.onHeader,
+						)
+						if err != nil {
+							return nil, err
+						}
+					} else {
 						return nil, os.ErrNotExist
 					}
-
+				} else {
 					return nil, err
 				}
-
-				if target, err := inventory.Stat(
-					f.metadata,
-
-					name,
-					true,
-
-					f.onHeader,
-				); err == nil {
-					if target.Typeflag == tar.TypeDir {
-						return nil, config.ErrIsDirectory
-					}
-				}
-
-				if err := f.mknodeWithoutLocking(false, name, perm, false, "", false); err != nil {
-					return nil, err
-				}
-
-				hdr, err = inventory.Stat(
-					f.metadata,
-
-					name,
-					false,
-
-					f.onHeader,
-				)
-				if err != nil {
-					return nil, err
-				}
-			} else {
-				return nil, os.ErrNotExist
 			}
 		} else {
 			return nil, err
@@ -717,10 +731,24 @@ func (f *STFS) Stat(name string) (os.FileInfo, error) {
 	)
 	if err != nil {
 		if err == sql.ErrNoRows {
-			return nil, os.ErrNotExist
-		}
+			hdr, err = inventory.Stat(
+				f.metadata,
 
-		return nil, err
+				name,
+				true,
+
+				f.onHeader,
+			)
+			if err != nil {
+				if err == sql.ErrNoRows {
+					return nil, os.ErrNotExist
+				}
+
+				return nil, err
+			}
+		} else {
+			return nil, err
+		}
 	}
 
 	return NewFileInfoFromTarHeader(hdr, f.log), nil
