@@ -1388,20 +1388,19 @@ var openTests = []struct {
 		},
 		func(f afero.File) error { return nil },
 	},
-	// FIXME: Since we can't differentiate between broken and non-broken symlinks, this does not work yet
-	// {
-	// 	"Can not broken symlink to /brokensymlink",
-	// 	openArgs{"/brokensymlink"},
-	// 	true,
-	// 	func(sf symFs) error {
-	// 		if err := sf.SymlinkIfPossible("/test.txt", "/brokensymlink"); err != nil {
-	// 			return nil
-	// 		}
+	{
+		"Can not open broken symlink to /test.txt",
+		openArgs{"/brokensymlink"},
+		true,
+		func(sf symFs) error {
+			if err := sf.SymlinkIfPossible("/test.txt", "/brokensymlink"); err != nil {
+				return nil
+			}
 
-	// 		return nil
-	// 	},
-	// 	func(f afero.File) error { return nil },
-	// },
+			return nil
+		},
+		func(f afero.File) error { return nil },
+	},
 	{
 		"Can open symlink /existingsymlink to directory",
 		openArgs{"/existingsymlink"},
