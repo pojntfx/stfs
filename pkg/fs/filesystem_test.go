@@ -695,6 +695,18 @@ var createTests = []struct {
 		func(sf symFs) error { return nil },
 	},
 	{
+		"Can not create file in place of existing directory /mydir",
+		createArgs{"/mydir"},
+		true,
+		func(sf symFs) error {
+			if err := sf.Mkdir("/mydir", os.ModePerm); err != nil {
+				return err
+			}
+
+			return nil
+		},
+	},
+	{
 		"Can not create file in place of symlink to root",
 		createArgs{"/existingsymlink"},
 		true,
@@ -910,36 +922,108 @@ var mkdirTests = []struct {
 	name    string
 	args    mkdirArgs
 	wantErr bool
+	prepare func(symFs) error
 }{
 	{
 		"Can create directory /test",
 		mkdirArgs{"/test", os.ModePerm},
 		false,
+		func(sf symFs) error { return nil },
 	},
 	{
 		"Can create directory /test with different permissions",
 		mkdirArgs{"/test", 0666},
 		false,
+		func(sf symFs) error { return nil },
 	},
 	{
 		"Can not create existing directory /",
 		mkdirArgs{"/", os.ModePerm},
 		true,
+		func(sf symFs) error { return nil },
 	},
 	{
 		"Can create directory ' '",
 		mkdirArgs{" ", os.ModePerm},
 		false,
+		func(sf symFs) error { return nil },
 	},
 	{
 		"Can create directory ''",
 		mkdirArgs{"", os.ModePerm},
 		true,
+		func(sf symFs) error { return nil },
 	},
 	{
 		"Can not create /nonexistent/test",
 		mkdirArgs{"/nonexistent/test", os.ModePerm},
 		true,
+		func(sf symFs) error { return nil },
+	},
+	{
+		"Can not create directory in place of existing directory /mydir",
+		mkdirArgs{"/mydir", os.ModePerm},
+		true,
+		func(sf symFs) error {
+			if err := sf.Mkdir("/mydir", os.ModePerm); err != nil {
+				return err
+			}
+
+			return nil
+		},
+	},
+	{
+		"Can not create directory in place of existing existing file /myfile",
+		mkdirArgs{"/myfile", os.ModePerm},
+		true,
+		func(sf symFs) error {
+			file, err := sf.Create("/myfile")
+			if err != nil {
+				return err
+			}
+
+			return file.Close()
+		},
+	},
+	{
+		"Can not create directory in place of symlink to root",
+		mkdirArgs{"/existingsymlink", os.ModePerm},
+		true,
+		func(sf symFs) error {
+			if err := sf.SymlinkIfPossible("/", "/existingsymlink"); err != nil {
+				return nil
+			}
+
+			return nil
+		},
+	},
+	{
+		"Can not create directory in place of broken symlink /brokensymlink",
+		mkdirArgs{"/brokensymlink", os.ModePerm},
+		true,
+		func(sf symFs) error {
+			if err := sf.SymlinkIfPossible("/test.txt", "/brokensymlink"); err != nil {
+				return nil
+			}
+
+			return nil
+		},
+	},
+	{
+		"Can not create directory in place of existing symlink /existingsymlink to directory",
+		mkdirArgs{"/existingsymlink", os.ModePerm},
+		true,
+		func(sf symFs) error {
+			if err := sf.Mkdir("/mydir", os.ModePerm); err != nil {
+				return err
+			}
+
+			if err := sf.SymlinkIfPossible("/mydir", "/existingsymlink"); err != nil {
+				return nil
+			}
+
+			return nil
+		},
 	},
 }
 
@@ -948,20 +1032,31 @@ func TestSTFS_Mkdir(t *testing.T) {
 		tt := tt
 
 		runTestForAllFss(t, tt.name, true, true, true, func(t *testing.T, fs fsConfig) {
-			if err := fs.fs.Mkdir(tt.args.name, tt.args.perm); (err != nil) != tt.wantErr {
-				t.Errorf("%v.Mkdir() error = %v, wantErr %v", fs.fs.Name(), err, tt.wantErr)
+			symFs, ok := fs.fs.(symFs)
+			if !ok {
+				return
+			}
+
+			if err := tt.prepare(symFs); err != nil {
+				t.Errorf("%v prepare() error = %v", symFs.Name(), err)
+
+				return
+			}
+
+			if err := symFs.Mkdir(tt.args.name, tt.args.perm); (err != nil) != tt.wantErr {
+				t.Errorf("%v.Mkdir() error = %v, wantErr %v", symFs.Name(), err, tt.wantErr)
 			}
 
 			if !tt.wantErr {
-				want, err := fs.fs.Stat(tt.args.name)
+				want, err := symFs.Stat(tt.args.name)
 				if err != nil {
-					t.Errorf("%v.Stat() error = %v, wantErr %v", fs.fs.Name(), err, tt.wantErr)
+					t.Errorf("%v.Stat() error = %v, wantErr %v", symFs.Name(), err, tt.wantErr)
 
 					return
 				}
 
 				if want == nil {
-					t.Errorf("%v.Stat() returned %v, want !nil", fs.fs.Name(), want)
+					t.Errorf("%v.Stat() returned %v, want !nil", symFs.Name(), want)
 				}
 			}
 		})

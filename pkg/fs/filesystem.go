@@ -310,6 +310,17 @@ func (f *STFS) Mkdir(name string, perm os.FileMode) error {
 		return os.ErrExist
 	}
 
+	if hdr, err := inventory.Stat(
+		f.metadata,
+
+		name,
+		true,
+
+		f.onHeader,
+	); err == nil && hdr != nil {
+		return os.ErrExist
+	}
+
 	return f.mknodeWithoutLocking(true, name, perm, false, "", false)
 }
 
