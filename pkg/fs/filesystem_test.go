@@ -1072,51 +1072,141 @@ var mkdirAllTests = []struct {
 	name    string
 	args    mkdirAllArgs
 	wantErr bool
+	prepare func(symFs) error
+	lstat   bool
 }{
 	{
 		"Can create directory /test.txt",
 		mkdirAllArgs{"/test.txt", os.ModePerm},
+		false,
+		func(sf symFs) error { return nil },
 		false,
 	},
 	{
 		"Can create directory /test.txt with different permissions",
 		mkdirAllArgs{"/test.txt", 0666},
 		false,
+		func(sf symFs) error { return nil },
+		false,
 	},
 	{
 		"Can create existing directory /",
 		mkdirAllArgs{"/", os.ModePerm},
+		false,
+		func(sf symFs) error { return nil },
 		false,
 	},
 	{
 		"Can create directory ' '",
 		mkdirAllArgs{" ", os.ModePerm},
 		false,
+		func(sf symFs) error { return nil },
+		false,
 	},
 	{
 		"Can create directory ''",
 		mkdirAllArgs{"", os.ModePerm},
+		false,
+		func(sf symFs) error { return nil },
 		false,
 	},
 	{
 		"Can create /nonexistent/test.txt",
 		mkdirAllArgs{"/nonexistent/test.txt", os.ModePerm},
 		false,
+		func(sf symFs) error { return nil },
+		false,
 	},
 	{
 		"Can create /nested/second/test.txt",
 		mkdirAllArgs{"/nested/second/test.txt", os.ModePerm},
+		false,
+		func(sf symFs) error { return nil },
 		false,
 	},
 	{
 		"Can create /nested//test.txt",
 		mkdirAllArgs{"/nested//test.txt", os.ModePerm},
 		false,
+		func(sf symFs) error { return nil },
+		false,
 	},
 	{
 		"Can create ///test.txt",
 		mkdirAllArgs{"///test.txt", os.ModePerm},
 		false,
+		func(sf symFs) error { return nil },
+		false,
+	},
+	{
+		"Can not create directory in place of existing existing file /myfile",
+		mkdirAllArgs{"/myfile", os.ModePerm},
+		true,
+		func(sf symFs) error {
+			file, err := sf.Create("/myfile")
+			if err != nil {
+				return err
+			}
+
+			return file.Close()
+		},
+		false,
+	},
+	{
+		"Can create directory in place of existing directory /mydir",
+		mkdirAllArgs{"/mydir", os.ModePerm},
+		false,
+		func(sf symFs) error {
+			if err := sf.Mkdir("/mydir", os.ModePerm); err != nil {
+				return err
+			}
+
+			return nil
+		},
+		false,
+	},
+	{
+		"Can create directory in place of symlink to root",
+		mkdirAllArgs{"/existingsymlink", os.ModePerm},
+		false,
+		func(sf symFs) error {
+			if err := sf.SymlinkIfPossible("/", "/existingsymlink"); err != nil {
+				return nil
+			}
+
+			return nil
+		},
+		true,
+	},
+	{
+		"Can not create directory in place of broken symlink /brokensymlink",
+		mkdirAllArgs{"/brokensymlink", os.ModePerm},
+		true,
+		func(sf symFs) error {
+			if err := sf.SymlinkIfPossible("/test.txt", "/brokensymlink"); err != nil {
+				return nil
+			}
+
+			return nil
+		},
+		true,
+	},
+	{
+		"Can not create directory in place of existing symlink /existingsymlink to directory",
+		mkdirAllArgs{"/existingsymlink", os.ModePerm},
+		false,
+		func(sf symFs) error {
+			if err := sf.Mkdir("/mydir", os.ModePerm); err != nil {
+				return err
+			}
+
+			if err := sf.SymlinkIfPossible("/mydir", "/existingsymlink"); err != nil {
+				return nil
+			}
+
+			return nil
+		},
+		true,
 	},
 }
 
@@ -1125,20 +1215,44 @@ func TestSTFS_MkdirAll(t *testing.T) {
 		tt := tt
 
 		runTestForAllFss(t, tt.name, true, true, true, func(t *testing.T, fs fsConfig) {
-			if err := fs.fs.MkdirAll(tt.args.name, tt.args.perm); (err != nil) != tt.wantErr {
-				t.Errorf("%v.MkdirAll() error = %v, wantErr %v", fs.fs.Name(), err, tt.wantErr)
+			symFs, ok := fs.fs.(symFs)
+			if !ok {
+				return
+			}
+
+			if err := tt.prepare(symFs); err != nil {
+				t.Errorf("%v prepare() error = %v", symFs.Name(), err)
+
+				return
+			}
+
+			if err := symFs.MkdirAll(tt.args.name, tt.args.perm); (err != nil) != tt.wantErr {
+				t.Errorf("%v.MkdirAll() error = %v, wantErr %v", symFs.Name(), err, tt.wantErr)
 			}
 
 			if !tt.wantErr {
-				want, err := fs.fs.Stat(tt.args.name)
-				if err != nil {
-					t.Errorf("%v.Stat() error = %v, wantErr %v", fs.fs.Name(), err, tt.wantErr)
+				if tt.lstat {
+					want, _, err := symFs.LstatIfPossible(tt.args.name)
+					if err != nil {
+						t.Errorf("%v.LstatIfPossible() error = %v, wantErr %v", symFs.Name(), err, tt.wantErr)
 
-					return
-				}
+						return
+					}
 
-				if want == nil {
-					t.Errorf("%v.Stat() returned %v, want !nil", fs.fs.Name(), want)
+					if want == nil {
+						t.Errorf("%v.LstatIfPossible() returned %v, want !nil", symFs.Name(), want)
+					}
+				} else {
+					want, err := symFs.Stat(tt.args.name)
+					if err != nil {
+						t.Errorf("%v.Stat() error = %v, wantErr %v", symFs.Name(), err, tt.wantErr)
+
+						return
+					}
+
+					if want == nil {
+						t.Errorf("%v.Stat() returned %v, want !nil", symFs.Name(), want)
+					}
 				}
 			}
 		})

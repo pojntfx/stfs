@@ -349,7 +349,7 @@ func (f *STFS) MkdirAll(path string, perm os.FileMode) error {
 			currentPath = filepath.Join(currentPath, part)
 		}
 
-		if _, err := inventory.Stat(
+		if hdr, err := inventory.Stat(
 			f.metadata,
 
 			currentPath,
@@ -358,12 +358,29 @@ func (f *STFS) MkdirAll(path string, perm os.FileMode) error {
 			f.onHeader,
 		); err != nil {
 			if err == sql.ErrNoRows {
-				if err := f.mknodeWithoutLocking(true, currentPath, perm, false, "", false); err != nil {
-					return err
+				if hdr, err := inventory.Stat(
+					f.metadata,
+
+					currentPath,
+					true,
+
+					f.onHeader,
+				); err != nil {
+					if err == sql.ErrNoRows {
+						if err := f.mknodeWithoutLocking(true, currentPath, perm, false, "", false); err != nil {
+							return err
+						}
+					} else {
+						return err
+					}
+				} else if hdr.Typeflag != tar.TypeDir {
+					return config.ErrIsFile
 				}
 			} else {
 				return err
 			}
+		} else if hdr.Typeflag != tar.TypeDir {
+			return config.ErrIsFile
 		}
 	}
 
