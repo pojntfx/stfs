@@ -1267,42 +1267,42 @@ var openTests = []struct {
 	name    string
 	args    openArgs
 	wantErr bool
-	prepare func(afero.Fs) error
+	prepare func(symFs) error
 	check   func(afero.File) error
 }{
 	{
 		"Can open /",
 		openArgs{"/"},
 		false,
-		func(f afero.Fs) error { return nil },
+		func(f symFs) error { return nil },
 		func(f afero.File) error { return nil },
 	},
 	{
 		"Can not open ' '",
 		openArgs{" "},
 		true,
-		func(f afero.Fs) error { return nil },
+		func(f symFs) error { return nil },
 		func(f afero.File) error { return nil },
 	},
 	{
 		"Can open ''",
 		openArgs{""},
 		false,
-		func(f afero.Fs) error { return nil },
+		func(f symFs) error { return nil },
 		func(f afero.File) error { return nil },
 	},
 	{
 		"Can not open /test.txt without creating it",
 		openArgs{"/test.txt"},
 		true,
-		func(f afero.Fs) error { return nil },
+		func(f symFs) error { return nil },
 		func(f afero.File) error { return nil },
 	},
 	{
 		"Can open /test.txt after creating it",
 		openArgs{"/test.txt"},
 		false,
-		func(f afero.Fs) error {
+		func(f symFs) error {
 			if _, err := f.Create("/test.txt"); err != nil {
 				return err
 			}
@@ -1324,14 +1324,36 @@ var openTests = []struct {
 		"Can not open /mydir/test.txt without creating it",
 		openArgs{"/mydir/test.txt"},
 		true,
-		func(f afero.Fs) error { return nil },
+		func(f symFs) error { return nil },
 		func(f afero.File) error { return nil },
+	},
+	{
+		"Can open /mydir after creating it",
+		openArgs{"/mydir"},
+		false,
+		func(f symFs) error {
+			if err := f.Mkdir("/mydir", os.ModePerm); err != nil {
+				return err
+			}
+
+			return nil
+		},
+		func(f afero.File) error {
+			want := "/mydir"
+			got := f.Name()
+
+			if want != got {
+				return fmt.Errorf("invalid name, got %v, want %v", got, want)
+			}
+
+			return nil
+		},
 	},
 	{
 		"Can open /mydir/test.txt after creating it",
 		openArgs{"/mydir/test.txt"},
 		false,
-		func(f afero.Fs) error {
+		func(f symFs) error {
 			if err := f.Mkdir("/mydir", os.ModePerm); err != nil {
 				return err
 			}
@@ -1353,6 +1375,50 @@ var openTests = []struct {
 			return nil
 		},
 	},
+	{
+		"Can open symlink to root",
+		openArgs{"/existingsymlink"},
+		false,
+		func(sf symFs) error {
+			if err := sf.SymlinkIfPossible("/", "/existingsymlink"); err != nil {
+				return nil
+			}
+
+			return nil
+		},
+		func(f afero.File) error { return nil },
+	},
+	// FIXME: Since we can't differentiate between broken and non-broken symlinks, this does not work yet
+	// {
+	// 	"Can not broken symlink to /brokensymlink",
+	// 	openArgs{"/brokensymlink"},
+	// 	true,
+	// 	func(sf symFs) error {
+	// 		if err := sf.SymlinkIfPossible("/test.txt", "/brokensymlink"); err != nil {
+	// 			return nil
+	// 		}
+
+	// 		return nil
+	// 	},
+	// 	func(f afero.File) error { return nil },
+	// },
+	{
+		"Can open symlink /existingsymlink to directory",
+		openArgs{"/existingsymlink"},
+		false,
+		func(sf symFs) error {
+			if err := sf.Mkdir("/mydir", os.ModePerm); err != nil {
+				return err
+			}
+
+			if err := sf.SymlinkIfPossible("/mydir", "/existingsymlink"); err != nil {
+				return nil
+			}
+
+			return nil
+		},
+		func(f afero.File) error { return nil },
+	},
 }
 
 func TestSTFS_Open(t *testing.T) {
@@ -1360,21 +1426,26 @@ func TestSTFS_Open(t *testing.T) {
 		tt := tt
 
 		runTestForAllFss(t, tt.name, true, true, true, func(t *testing.T, fs fsConfig) {
-			if err := tt.prepare(fs.fs); err != nil {
-				t.Errorf("%v prepare() error = %v", fs.fs.Name(), err)
+			symFs, ok := fs.fs.(symFs)
+			if !ok {
+				return
+			}
+
+			if err := tt.prepare(symFs); err != nil {
+				t.Errorf("%v prepare() error = %v", symFs.Name(), err)
 
 				return
 			}
 
-			got, err := fs.fs.Open(tt.args.name)
+			got, err := symFs.Open(tt.args.name)
 			if (err != nil) != tt.wantErr {
-				t.Errorf("%v.Open() error = %v, wantErr %v", fs.fs.Name(), err, tt.wantErr)
+				t.Errorf("%v.Open() error = %v, wantErr %v", symFs.Name(), err, tt.wantErr)
 
 				return
 			}
 
 			if err := tt.check(got); err != nil {
-				t.Errorf("%v check() error = %v", fs.fs.Name(), err)
+				t.Errorf("%v check() error = %v", symFs.Name(), err)
 
 				return
 			}
