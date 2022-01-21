@@ -1737,7 +1737,7 @@ var openFileTests = []struct {
 		openFileArgs{"/existingsymlink", os.O_RDONLY, 0},
 		false,
 		func(sf symFs) error {
-			file, err := sf.Create("test.txt")
+			file, err := sf.Create("/test.txt")
 			if err != nil {
 				return err
 			}
@@ -1745,7 +1745,7 @@ var openFileTests = []struct {
 				return err
 			}
 
-			if err := sf.SymlinkIfPossible("test.txt", "/existingsymlink"); err != nil {
+			if err := sf.SymlinkIfPossible("/test.txt", "/existingsymlink"); err != nil {
 				return nil
 			}
 
@@ -1800,54 +1800,54 @@ var removeTests = []struct {
 	name            string
 	args            removeArgs
 	wantErr         bool
-	prepare         func(afero.Fs) error
-	check           func(afero.Fs) error
+	prepare         func(symFs) error
+	check           func(symFs) error
 	checkAfterError bool
 }{
 	{
 		"Can remove /",
 		removeArgs{"/"},
 		false,
-		func(f afero.Fs) error { return nil },
-		func(f afero.Fs) error { return nil },
+		func(f symFs) error { return nil },
+		func(f symFs) error { return nil },
 		false,
 	},
 	{
 		"Can remove ''",
 		removeArgs{""},
 		false,
-		func(f afero.Fs) error { return nil },
-		func(f afero.Fs) error { return nil },
+		func(f symFs) error { return nil },
+		func(f symFs) error { return nil },
 		false,
 	},
 	{
 		"Can not remove ' '",
 		removeArgs{" "},
 		true,
-		func(f afero.Fs) error { return nil },
-		func(f afero.Fs) error { return nil },
+		func(f symFs) error { return nil },
+		func(f symFs) error { return nil },
 		false,
 	},
 	{
 		"Can not remove /test.txt if does not exist",
 		removeArgs{"/test.txt"},
 		true,
-		func(f afero.Fs) error { return nil },
-		func(f afero.Fs) error { return nil },
+		func(f symFs) error { return nil },
+		func(f symFs) error { return nil },
 		false,
 	},
 	{
 		"Can remove /test.txt if does exist",
 		removeArgs{"/test.txt"},
 		false,
-		func(f afero.Fs) error {
+		func(f symFs) error {
 			if _, err := f.Create("/test.txt"); err != nil {
 				return err
 			}
 
 			return nil
 		},
-		func(f afero.Fs) error {
+		func(f symFs) error {
 			if _, err := f.Stat("/test.txt"); !errors.Is(err, os.ErrNotExist) {
 				return err
 			}
@@ -1860,25 +1860,25 @@ var removeTests = []struct {
 		"Can not remove /mydir/test.txt if does not exist",
 		removeArgs{"/mydir/test.txt"},
 		true,
-		func(f afero.Fs) error { return nil },
-		func(f afero.Fs) error { return nil },
+		func(f symFs) error { return nil },
+		func(f symFs) error { return nil },
 		false,
 	},
 	{
 		"Can not remove /mydir/test.txt if does not exist, but the parent exists",
 		removeArgs{"/mydir/test.txt"},
 		true,
-		func(f afero.Fs) error {
+		func(f symFs) error {
 			return f.Mkdir("/mydir", os.ModePerm)
 		},
-		func(f afero.Fs) error { return nil },
+		func(f symFs) error { return nil },
 		false,
 	},
 	{
 		"Can remove /mydir/test.txt if does exist",
 		removeArgs{"/mydir/test.txt"},
 		false,
-		func(f afero.Fs) error {
+		func(f symFs) error {
 			if err := f.Mkdir("/mydir", os.ModePerm); err != nil {
 				return err
 			}
@@ -1889,7 +1889,7 @@ var removeTests = []struct {
 
 			return nil
 		},
-		func(f afero.Fs) error {
+		func(f symFs) error {
 			if _, err := f.Stat("/mydir/test.txt"); !errors.Is(err, os.ErrNotExist) {
 				return err
 			}
@@ -1902,14 +1902,14 @@ var removeTests = []struct {
 		"Can remove /mydir if it is a directory and empty",
 		removeArgs{"/mydir"},
 		false,
-		func(f afero.Fs) error {
+		func(f symFs) error {
 			if err := f.Mkdir("/mydir", os.ModePerm); err != nil {
 				return err
 			}
 
 			return nil
 		},
-		func(f afero.Fs) error {
+		func(f symFs) error {
 			return nil
 		},
 		false,
@@ -1918,7 +1918,7 @@ var removeTests = []struct {
 		"Can not remove /mydir if it is a directory and not empty",
 		removeArgs{"/mydir"},
 		true,
-		func(f afero.Fs) error {
+		func(f symFs) error {
 			if err := f.Mkdir("/mydir", os.ModePerm); err != nil {
 				return err
 			}
@@ -1929,7 +1929,7 @@ var removeTests = []struct {
 
 			return nil
 		},
-		func(f afero.Fs) error {
+		func(f symFs) error {
 			return nil
 		},
 		false,
@@ -1938,7 +1938,7 @@ var removeTests = []struct {
 		"Can not remove /mydir/subdir if it is a directory and not empty",
 		removeArgs{"/mydir/subdir"},
 		true,
-		func(f afero.Fs) error {
+		func(f symFs) error {
 			if err := f.Mkdir("/mydir", os.ModePerm); err != nil {
 				return err
 			}
@@ -1953,7 +1953,7 @@ var removeTests = []struct {
 
 			return nil
 		},
-		func(f afero.Fs) error {
+		func(f symFs) error {
 			if _, err := f.Stat("/mydir/subdir/test.txt"); !errors.Is(err, os.ErrNotExist) {
 				return err
 			}
@@ -1970,7 +1970,7 @@ var removeTests = []struct {
 		"Can remove /mydir/subdir if it is a directory and empty",
 		removeArgs{"/mydir/subdir"},
 		false,
-		func(f afero.Fs) error {
+		func(f symFs) error {
 			if err := f.Mkdir("/mydir", os.ModePerm); err != nil {
 				return err
 			}
@@ -1981,8 +1981,112 @@ var removeTests = []struct {
 
 			return nil
 		},
-		func(f afero.Fs) error {
+		func(f symFs) error {
 			if _, err := f.Stat("/mydir/subdir"); !errors.Is(err, os.ErrNotExist) {
+				return err
+			}
+
+			return nil
+		},
+		false,
+	},
+	{
+		"Can remove symlink to root",
+		removeArgs{"/existingsymlink"},
+		false,
+		func(sf symFs) error {
+			if err := sf.SymlinkIfPossible("/", "/existingsymlink"); err != nil {
+				return nil
+			}
+
+			return nil
+		},
+		func(f symFs) error {
+			if _, _, err := f.LstatIfPossible("/existingsymlink"); !errors.Is(err, os.ErrNotExist) {
+				return err
+			}
+
+			if _, err := f.Stat("/"); err != nil {
+				return err
+			}
+
+			return nil
+		},
+		false,
+	},
+	{
+		"Can remove broken symlink to /test.txt",
+		removeArgs{"/brokensymlink"},
+		false,
+		func(sf symFs) error {
+			if err := sf.SymlinkIfPossible("/test.txt", "/brokensymlink"); err != nil {
+				return nil
+			}
+
+			return nil
+		},
+		func(f symFs) error {
+			if _, _, err := f.LstatIfPossible("/brokensymlink"); !errors.Is(err, os.ErrNotExist) {
+				return err
+			}
+
+			return nil
+		},
+		false,
+	},
+	{
+		"Can remove symlink /existingsymlink to directory without removing the link's target",
+		removeArgs{"/existingsymlink"},
+		false,
+		func(sf symFs) error {
+			if err := sf.Mkdir("/mydir", os.ModePerm); err != nil {
+				return err
+			}
+
+			if err := sf.SymlinkIfPossible("/mydir", "/existingsymlink"); err != nil {
+				return nil
+			}
+
+			return nil
+		},
+		func(f symFs) error {
+			if _, _, err := f.LstatIfPossible("/existingsymlink"); !errors.Is(err, os.ErrNotExist) {
+				return err
+			}
+
+			if _, err := f.Stat("/mydir"); err != nil {
+				return err
+			}
+
+			return nil
+		},
+		false,
+	},
+	{
+		"Can remove symlink /existingsymlink to file without removing the link's target",
+		removeArgs{"/existingsymlink"},
+		false,
+		func(sf symFs) error {
+			file, err := sf.Create("/test.txt")
+			if err != nil {
+				return err
+			}
+			if err := file.Close(); err != nil {
+				return err
+			}
+
+			if err := sf.SymlinkIfPossible("/test.txt", "/existingsymlink"); err != nil {
+				return nil
+			}
+
+			return nil
+		},
+		func(f symFs) error {
+			if _, _, err := f.LstatIfPossible("/existingsymlink"); !errors.Is(err, os.ErrNotExist) {
+				return err
+			}
+
+			if _, err := f.Stat("/test.txt"); err != nil {
 				return err
 			}
 
@@ -1997,22 +2101,27 @@ func TestSTFS_Remove(t *testing.T) {
 		tt := tt
 
 		runTestForAllFss(t, tt.name, true, true, true, func(t *testing.T, fs fsConfig) {
-			if err := tt.prepare(fs.fs); err != nil {
-				t.Errorf("%v prepare() error = %v", fs.fs.Name(), err)
+			symFs, ok := fs.fs.(symFs)
+			if !ok {
+				return
+			}
+
+			if err := tt.prepare(symFs); err != nil {
+				t.Errorf("%v prepare() error = %v", symFs.Name(), err)
 
 				return
 			}
 
-			if err := fs.fs.Remove(tt.args.name); (err != nil) != tt.wantErr {
+			if err := symFs.Remove(tt.args.name); (err != nil) != tt.wantErr {
 				if !tt.checkAfterError {
-					t.Errorf("%v.Remove() error = %v, wantErr %v", fs.fs.Name(), err, tt.wantErr)
+					t.Errorf("%v.Remove() error = %v, wantErr %v", symFs.Name(), err, tt.wantErr)
 
 					return
 				}
 			}
 
-			if err := tt.check(fs.fs); err != nil {
-				t.Errorf("%v check() error = %v", fs.fs.Name(), err)
+			if err := tt.check(symFs); err != nil {
+				t.Errorf("%v check() error = %v", symFs.Name(), err)
 
 				return
 			}

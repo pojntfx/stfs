@@ -3,6 +3,7 @@ package operations
 import (
 	"archive/tar"
 	"context"
+	"database/sql"
 	"path/filepath"
 
 	"github.com/pojntfx/stfs/internal/converters"
@@ -39,12 +40,19 @@ func (o *Operations) Delete(name string) error {
 	headersToDelete := []*config.Header{}
 	dbhdr, err := o.metadata.Metadata.GetHeader(context.Background(), name)
 	if err != nil {
-		return err
+		if err == sql.ErrNoRows {
+			dbhdr, err = o.metadata.Metadata.GetHeaderByLinkname(context.Background(), name)
+			if err != nil {
+				return err
+			}
+		} else {
+			return err
+		}
 	}
 	headersToDelete = append(headersToDelete, dbhdr)
 
 	// If the header refers to a directory, get it's children
-	if dbhdr.Typeflag == tar.TypeDir {
+	if dbhdr.Typeflag == tar.TypeDir && dbhdr.Linkname == "" {
 		dbhdrs, err := o.metadata.Metadata.GetHeaderChildren(context.Background(), name)
 		if err != nil {
 			return err
