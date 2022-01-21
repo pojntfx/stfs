@@ -459,57 +459,96 @@ func (f *STFS) OpenFile(name string, flag int, perm os.FileMode) (afero.File, er
 
 				f.onHeader,
 			)
+
+			createFile := func() error {
+				if !f.readOnly && flag&os.O_CREATE != 0 && flag&os.O_EXCL == 0 {
+					if _, err := inventory.Stat(
+						f.metadata,
+
+						filepath.Dir(name),
+						false,
+
+						f.onHeader,
+					); err != nil {
+						if err == sql.ErrNoRows {
+							return os.ErrNotExist
+						}
+
+						return err
+					}
+
+					if target, err := inventory.Stat(
+						f.metadata,
+
+						name,
+						true,
+
+						f.onHeader,
+					); err == nil {
+						if target.Typeflag == tar.TypeDir {
+							return config.ErrIsDirectory
+						}
+					}
+
+					if err := f.mknodeWithoutLocking(false, name, perm, false, "", false); err != nil {
+						return err
+					}
+
+					hdr, err = inventory.Stat(
+						f.metadata,
+
+						name,
+						false,
+
+						f.onHeader,
+					)
+					if err != nil {
+						return err
+					}
+				} else {
+					return os.ErrNotExist
+				}
+
+				return nil
+			}
+
 			if err != nil {
 				if err == sql.ErrNoRows {
-					if !f.readOnly && flag&os.O_CREATE != 0 && flag&os.O_EXCL == 0 {
-						if _, err := inventory.Stat(
-							f.metadata,
-
-							filepath.Dir(name),
-							false,
-
-							f.onHeader,
-						); err != nil {
-							if err == sql.ErrNoRows {
-								return nil, os.ErrNotExist
-							}
-
-							return nil, err
-						}
-
-						if target, err := inventory.Stat(
-							f.metadata,
-
-							name,
-							true,
-
-							f.onHeader,
-						); err == nil {
-							if target.Typeflag == tar.TypeDir {
-								return nil, config.ErrIsDirectory
-							}
-						}
-
-						if err := f.mknodeWithoutLocking(false, name, perm, false, "", false); err != nil {
-							return nil, err
-						}
-
-						hdr, err = inventory.Stat(
-							f.metadata,
-
-							name,
-							false,
-
-							f.onHeader,
-						)
-						if err != nil {
-							return nil, err
-						}
-					} else {
-						return nil, os.ErrNotExist
+					if err := createFile(); err != nil {
+						return nil, err
 					}
 				} else {
 					return nil, err
+				}
+			} else {
+				hdr, err = inventory.Stat(
+					f.metadata,
+
+					hdr.Linkname,
+					false,
+
+					f.onHeader,
+				)
+
+				if err == nil && !f.readOnly && flag&os.O_CREATE != 0 && flag&os.O_EXCL == 0 {
+					hdr, err = inventory.Stat(
+						f.metadata,
+
+						hdr.Linkname,
+						true,
+
+						f.onHeader,
+					)
+				}
+
+				if err != nil {
+					if err == sql.ErrNoRows {
+						if err := createFile(); err != nil {
+							return nil, err
+						}
+					} else {
+						return nil, err
+					}
 				}
 			}
 		} else {

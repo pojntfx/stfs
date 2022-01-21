@@ -51,6 +51,12 @@ func Stat(
 			return nil, err
 		}
 	}
+
+	// Prevent returning broken symlinks as headers
+	if !symlink && dbhdr.Linkname != "" {
+		return nil, sql.ErrNoRows
+	}
+
 	if symlink {
 		dbhdr.Name = linkname
 		dbhdr.Linkname = name
