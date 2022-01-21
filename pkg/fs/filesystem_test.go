@@ -1418,6 +1418,27 @@ var openTests = []struct {
 		},
 		func(f afero.File) error { return nil },
 	},
+	{
+		"Can open symlink /existingsymlink to file",
+		openArgs{"/existingsymlink"},
+		false,
+		func(sf symFs) error {
+			file, err := sf.Create("test.txt")
+			if err != nil {
+				return err
+			}
+			if err := file.Close(); err != nil {
+				return err
+			}
+
+			if err := sf.SymlinkIfPossible("test.txt", "/existingsymlink"); err != nil {
+				return nil
+			}
+
+			return nil
+		},
+		func(f afero.File) error { return nil },
+	},
 }
 
 func TestSTFS_Open(t *testing.T) {
@@ -1462,7 +1483,7 @@ var openFileTests = []struct {
 	name            string
 	args            openFileArgs
 	wantErr         bool
-	prepare         func(afero.Fs) error
+	prepare         func(symFs) error
 	check           func(afero.File) error
 	checkAfterError bool
 	withCache       bool
@@ -1472,7 +1493,7 @@ var openFileTests = []struct {
 		"Can open /",
 		openFileArgs{"/", os.O_RDONLY, 0},
 		false,
-		func(f afero.Fs) error { return nil },
+		func(f symFs) error { return nil },
 		func(f afero.File) error { return nil },
 		false,
 		false, // FIXME: Can't open this with in-memory or file cache (will need a upstream fix in CacheOnReadFs)
@@ -1482,7 +1503,7 @@ var openFileTests = []struct {
 		"Can not open /test.txt without creating it",
 		openFileArgs{"/test.txt", os.O_RDONLY, 0},
 		true,
-		func(f afero.Fs) error { return nil },
+		func(f symFs) error { return nil },
 		func(f afero.File) error { return nil },
 		false,
 		true,
@@ -1492,7 +1513,7 @@ var openFileTests = []struct {
 		"Can open /test.txt if O_CREATE is set",
 		openFileArgs{"/test.txt", os.O_CREATE, os.ModePerm},
 		false,
-		func(f afero.Fs) error { return nil },
+		func(f symFs) error { return nil },
 		func(f afero.File) error { return nil },
 		false,
 		true,
@@ -1502,7 +1523,7 @@ var openFileTests = []struct {
 		"Can open /test.txt after creating it",
 		openFileArgs{"/test.txt", os.O_RDONLY, 0},
 		false,
-		func(f afero.Fs) error {
+		func(f symFs) error {
 			if _, err := f.Create("/test.txt"); err != nil {
 				return err
 			}
@@ -1527,7 +1548,7 @@ var openFileTests = []struct {
 		"Can not open /mydir/test.txt without creating it",
 		openFileArgs{"/mydir/test.txt", os.O_RDONLY, 0},
 		true,
-		func(f afero.Fs) error { return nil },
+		func(f symFs) error { return nil },
 		func(f afero.File) error { return nil },
 		false,
 		true,
@@ -1537,7 +1558,7 @@ var openFileTests = []struct {
 		"Can not open /mydir/test.txt if O_CREATE is set",
 		openFileArgs{"/mydir/test.txt", os.O_CREATE, os.ModePerm},
 		true,
-		func(f afero.Fs) error { return nil },
+		func(f symFs) error { return nil },
 		func(f afero.File) error { return nil },
 		false,
 		true,
@@ -1547,7 +1568,7 @@ var openFileTests = []struct {
 		"Can open /mydir/test.txt after creating it",
 		openFileArgs{"/mydir/test.txt", os.O_RDONLY, 0},
 		false,
-		func(f afero.Fs) error {
+		func(f symFs) error {
 			if err := f.Mkdir("/mydir", os.ModePerm); err != nil {
 				return err
 			}
@@ -1576,7 +1597,7 @@ var openFileTests = []struct {
 		"Can not write to /test.txt if O_RDONLY is set",
 		openFileArgs{"/test.txt", os.O_RDONLY, 0},
 		true,
-		func(f afero.Fs) error {
+		func(f symFs) error {
 			if _, err := f.Create("/test.txt"); err != nil {
 				return err
 			}
@@ -1605,7 +1626,7 @@ var openFileTests = []struct {
 		"Can write to /test.txt if O_WRONLY is set",
 		openFileArgs{"/test.txt", os.O_WRONLY, 0},
 		true,
-		func(f afero.Fs) error {
+		func(f symFs) error {
 			if _, err := f.Create("/test.txt"); err != nil {
 				return err
 			}
@@ -1634,7 +1655,7 @@ var openFileTests = []struct {
 		"Can write to /test.txt if O_RDWR is set",
 		openFileArgs{"/test.txt", os.O_RDWR, 0},
 		true,
-		func(f afero.Fs) error {
+		func(f symFs) error {
 			if _, err := f.Create("/test.txt"); err != nil {
 				return err
 			}
@@ -1659,6 +1680,82 @@ var openFileTests = []struct {
 		true,
 		true,
 	},
+	{
+		"Can open symlink to root",
+		openFileArgs{"/existingsymlink", os.O_RDONLY, 0},
+		false,
+		func(sf symFs) error {
+			if err := sf.SymlinkIfPossible("/", "/existingsymlink"); err != nil {
+				return nil
+			}
+
+			return nil
+		},
+		func(f afero.File) error { return nil },
+		true,
+		true,
+		true,
+	},
+	{
+		"Can not open broken symlink to /test.txt",
+		openFileArgs{"/brokensymlink", os.O_RDONLY, 0},
+		true,
+		func(sf symFs) error {
+			if err := sf.SymlinkIfPossible("/test.txt", "/brokensymlink"); err != nil {
+				return nil
+			}
+
+			return nil
+		},
+		func(f afero.File) error { return nil },
+		true,
+		true,
+		true,
+	},
+	{
+		"Can open symlink /existingsymlink to directory",
+		openFileArgs{"/existingsymlink", os.O_RDONLY, 0},
+		false,
+		func(sf symFs) error {
+			if err := sf.Mkdir("/mydir", os.ModePerm); err != nil {
+				return err
+			}
+
+			if err := sf.SymlinkIfPossible("/mydir", "/existingsymlink"); err != nil {
+				return nil
+			}
+
+			return nil
+		},
+		func(f afero.File) error { return nil },
+		true,
+		true,
+		true,
+	},
+	{
+		"Can open symlink /existingsymlink to file",
+		openFileArgs{"/existingsymlink", os.O_RDONLY, 0},
+		false,
+		func(sf symFs) error {
+			file, err := sf.Create("test.txt")
+			if err != nil {
+				return err
+			}
+			if err := file.Close(); err != nil {
+				return err
+			}
+
+			if err := sf.SymlinkIfPossible("test.txt", "/existingsymlink"); err != nil {
+				return nil
+			}
+
+			return nil
+		},
+		func(f afero.File) error { return nil },
+		true,
+		true,
+		true,
+	},
 }
 
 func TestSTFS_OpenFile(t *testing.T) {
@@ -1666,23 +1763,28 @@ func TestSTFS_OpenFile(t *testing.T) {
 		tt := tt
 
 		runTestForAllFss(t, tt.name, true, tt.withCache, tt.withOsFs, func(t *testing.T, fs fsConfig) {
-			if err := tt.prepare(fs.fs); err != nil {
-				t.Errorf("%v prepare() error = %v", fs.fs.Name(), err)
+			symFs, ok := fs.fs.(symFs)
+			if !ok {
+				return
+			}
+
+			if err := tt.prepare(symFs); err != nil {
+				t.Errorf("%v prepare() error = %v", symFs.Name(), err)
 
 				return
 			}
 
-			got, err := fs.fs.OpenFile(tt.args.name, tt.args.flag, tt.args.perm)
+			got, err := symFs.OpenFile(tt.args.name, tt.args.flag, tt.args.perm)
 			if (err != nil) != tt.wantErr {
 				if !tt.checkAfterError {
-					t.Errorf("%v.OpenFile() error = %v, wantErr %v", fs.fs.Name(), err, tt.wantErr)
+					t.Errorf("%v.OpenFile() error = %v, wantErr %v", symFs.Name(), err, tt.wantErr)
 
 					return
 				}
 			}
 
 			if err := tt.check(got); err != nil {
-				t.Errorf("%v check() error = %v", fs.fs.Name(), err)
+				t.Errorf("%v check() error = %v", symFs.Name(), err)
 
 				return
 			}
