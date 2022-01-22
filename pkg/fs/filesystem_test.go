@@ -2475,8 +2475,8 @@ var renameTests = []struct {
 	name            string
 	args            renameArgs
 	wantErr         bool
-	prepare         func(afero.Fs) error
-	check           func(afero.Fs) error
+	prepare         func(symFs) error
+	check           func(symFs) error
 	checkAfterError bool
 	withCache       bool
 	withOsFs        bool
@@ -2485,8 +2485,8 @@ var renameTests = []struct {
 		"Can not rename / to /mydir",
 		renameArgs{"/", "/mydri"},
 		true,
-		func(f afero.Fs) error { return nil },
-		func(f afero.Fs) error { return nil },
+		func(f symFs) error { return nil },
+		func(f symFs) error { return nil },
 		false,
 		true,
 		true,
@@ -2495,8 +2495,8 @@ var renameTests = []struct {
 		"Can not rename / to /",
 		renameArgs{"/", "/"},
 		true,
-		func(f afero.Fs) error { return nil },
-		func(f afero.Fs) error { return nil },
+		func(f symFs) error { return nil },
+		func(f symFs) error { return nil },
 		false,
 		true,
 		true,
@@ -2505,8 +2505,8 @@ var renameTests = []struct {
 		"Can not rename '' to ''",
 		renameArgs{"", ""},
 		true,
-		func(f afero.Fs) error { return nil },
-		func(f afero.Fs) error { return nil },
+		func(f symFs) error { return nil },
+		func(f symFs) error { return nil },
 		false,
 		true,
 		true,
@@ -2515,8 +2515,8 @@ var renameTests = []struct {
 		"Can not rename remove ' ' to ' '",
 		renameArgs{" ", " "},
 		true,
-		func(f afero.Fs) error { return nil },
-		func(f afero.Fs) error { return nil },
+		func(f symFs) error { return nil },
+		func(f symFs) error { return nil },
 		false,
 		true,
 		true,
@@ -2525,14 +2525,14 @@ var renameTests = []struct {
 		"Can rename /test.txt to /new.txt if does exist",
 		renameArgs{"/test.txt", "/new.txt"},
 		false,
-		func(f afero.Fs) error {
+		func(f symFs) error {
 			if _, err := f.Create("/test.txt"); err != nil {
 				return err
 			}
 
 			return nil
 		},
-		func(f afero.Fs) error {
+		func(f symFs) error {
 			if _, err := f.Stat("/test.txt"); !errors.Is(err, os.ErrNotExist) {
 				return err
 			}
@@ -2559,10 +2559,10 @@ var renameTests = []struct {
 		"Can not rename /test.txt to /new.txt if does exist",
 		renameArgs{"/test.txt", "/new.txt"},
 		true,
-		func(f afero.Fs) error {
+		func(f symFs) error {
 			return nil
 		},
-		func(f afero.Fs) error {
+		func(f symFs) error {
 			if _, err := f.Stat("/new.txt"); !errors.Is(err, os.ErrNotExist) {
 				return err
 			}
@@ -2577,14 +2577,14 @@ var renameTests = []struct {
 		"Can move empty directory /myolddir to /mydir",
 		renameArgs{"/myolddir", "/mydir"},
 		false,
-		func(f afero.Fs) error {
+		func(f symFs) error {
 			if err := f.Mkdir("/myolddir", os.ModePerm); err != nil {
 				return err
 			}
 
 			return nil
 		},
-		func(f afero.Fs) error {
+		func(f symFs) error {
 			if _, err := f.Stat("/mydir"); !errors.Is(err, os.ErrNotExist) {
 				return err
 			}
@@ -2599,7 +2599,7 @@ var renameTests = []struct {
 		"Can move non-empty directory /myolddir to /mydir",
 		renameArgs{"/myolddir", "/mydir"},
 		false,
-		func(f afero.Fs) error {
+		func(f symFs) error {
 			if err := f.Mkdir("/myolddir", os.ModePerm); err != nil {
 				return err
 			}
@@ -2610,7 +2610,7 @@ var renameTests = []struct {
 
 			return nil
 		},
-		func(f afero.Fs) error {
+		func(f symFs) error {
 			if _, err := f.Stat("/mydir"); !errors.Is(err, os.ErrNotExist) {
 				return err
 			}
@@ -2625,14 +2625,14 @@ var renameTests = []struct {
 		"Can not rename /test.txt to /mydir/new.txt if new parent drectory does not exist",
 		renameArgs{"/test.txt", "/mydir/new.txt"},
 		true,
-		func(f afero.Fs) error {
+		func(f symFs) error {
 			if _, err := f.Create("/test.txt"); err != nil {
 				return err
 			}
 
 			return nil
 		},
-		func(f afero.Fs) error {
+		func(f symFs) error {
 			if _, err := f.Stat("/mydir/new.txt"); !errors.Is(err, os.ErrNotExist) {
 				return err
 			}
@@ -2647,7 +2647,7 @@ var renameTests = []struct {
 		"Can rename /test.txt to /mydir/new.txt if new parent drectory does exist",
 		renameArgs{"/test.txt", "/mydir/new.txt"},
 		false,
-		func(f afero.Fs) error {
+		func(f symFs) error {
 			if _, err := f.Create("/test.txt"); err != nil {
 				return err
 			}
@@ -2658,7 +2658,7 @@ var renameTests = []struct {
 
 			return nil
 		},
-		func(f afero.Fs) error {
+		func(f symFs) error {
 			if _, err := f.Stat("/test.txt"); !errors.Is(err, os.ErrNotExist) {
 				return err
 			}
@@ -2685,14 +2685,14 @@ var renameTests = []struct {
 		"Can rename /test.txt to /test.txt if does exist",
 		renameArgs{"/test.txt", "/test.txt"},
 		false,
-		func(f afero.Fs) error {
+		func(f symFs) error {
 			if _, err := f.Create("/test.txt"); err != nil {
 				return err
 			}
 
 			return nil
 		},
-		func(f afero.Fs) error {
+		func(f symFs) error {
 			if _, err := f.Stat("/test.txt"); !errors.Is(err, os.ErrNotExist) {
 				return err
 			}
@@ -2707,10 +2707,10 @@ var renameTests = []struct {
 		"Can not rename move /test.txt to /test.txt if does not exist",
 		renameArgs{"/test.txt", "/test.txt"},
 		true,
-		func(f afero.Fs) error {
+		func(f symFs) error {
 			return nil
 		},
-		func(f afero.Fs) error {
+		func(f symFs) error {
 			if _, err := f.Stat("/test.txt"); !errors.Is(err, os.ErrNotExist) {
 				return err
 			}
@@ -2725,7 +2725,7 @@ var renameTests = []struct {
 		"Can rename /test.txt to /existing.txt if source and target both exist",
 		renameArgs{"/test.txt", "/existing.txt"},
 		false,
-		func(f afero.Fs) error {
+		func(f symFs) error {
 			if _, err := f.Create("/test.txt"); err != nil {
 				return err
 			}
@@ -2736,7 +2736,7 @@ var renameTests = []struct {
 
 			return nil
 		},
-		func(f afero.Fs) error {
+		func(f symFs) error {
 			if _, err := f.Stat("/test.txt"); !errors.Is(err, os.ErrNotExist) {
 				return err
 			}
@@ -2755,7 +2755,7 @@ var renameTests = []struct {
 		"Can not rename /test.txt to /mydir if source is file and target is directory",
 		renameArgs{"/test.txt", "/mydir"},
 		true,
-		func(f afero.Fs) error {
+		func(f symFs) error {
 			if _, err := f.Create("/test.txt"); err != nil {
 				return err
 			}
@@ -2766,7 +2766,7 @@ var renameTests = []struct {
 
 			return nil
 		},
-		func(f afero.Fs) error {
+		func(f symFs) error {
 			return nil
 		},
 		false,
@@ -2777,7 +2777,7 @@ var renameTests = []struct {
 		"Can not rename /mydir to /test.txt if source is directory and target is file",
 		renameArgs{"/mydir", "/test.txt"},
 		true,
-		func(f afero.Fs) error {
+		func(f symFs) error {
 			if _, err := f.Create("/test.txt"); err != nil {
 				return err
 			}
@@ -2788,7 +2788,7 @@ var renameTests = []struct {
 
 			return nil
 		},
-		func(f afero.Fs) error {
+		func(f symFs) error {
 			return nil
 		},
 		false,
@@ -2799,14 +2799,142 @@ var renameTests = []struct {
 		"Can rename /test.txt to /test.txt/",
 		renameArgs{"/test.txt", "/test.txt/"},
 		false,
-		func(f afero.Fs) error {
+		func(f symFs) error {
 			if _, err := f.Create("/test.txt"); err != nil {
 				return err
 			}
 
 			return nil
 		},
-		func(f afero.Fs) error {
+		func(f symFs) error {
+			return nil
+		},
+		false,
+		true,
+		true,
+	},
+	{
+		"Can rename symlink /existingsymlink to root to /newexistingsymlink",
+		renameArgs{"/existingsymlink", "/newexistingsymlink"},
+		false,
+		func(sf symFs) error {
+			if err := sf.SymlinkIfPossible("/", "/existingsymlink"); err != nil {
+				return nil
+			}
+
+			return nil
+		},
+		func(f symFs) error {
+			if _, _, err := f.LstatIfPossible("/existingsymlink"); !errors.Is(err, os.ErrNotExist) {
+				return err
+			}
+
+			if _, err := f.Stat("/"); err != nil {
+				return err
+			}
+
+			if _, _, err := f.LstatIfPossible("/newexistingsymlink"); err != nil {
+				return err
+			}
+
+			return nil
+		},
+		false,
+		true,
+		true,
+	},
+	{
+		"Can rename broken symlink /brokensymlink to /test.txt to /newbrokensymlink",
+		renameArgs{"/brokensymlink", "/newbrokensymlink"},
+		false,
+		func(sf symFs) error {
+			if err := sf.SymlinkIfPossible("/test.txt", "/brokensymlink"); err != nil {
+				return nil
+			}
+
+			return nil
+		},
+		func(f symFs) error {
+			if _, _, err := f.LstatIfPossible("/brokensymlink"); !errors.Is(err, os.ErrNotExist) {
+				return err
+			}
+
+			if _, _, err := f.LstatIfPossible("/newbrokensymlink"); err != nil {
+				return err
+			}
+
+			return nil
+		},
+		false,
+		true,
+		true,
+	},
+	{
+		"Can rename symlink /existingsymlink to directory to /newexistingsymlink without removing the link's target",
+		renameArgs{"/existingsymlink", "/newexistingsymlink"},
+		false,
+		func(sf symFs) error {
+			if err := sf.Mkdir("/mydir", os.ModePerm); err != nil {
+				return err
+			}
+
+			if err := sf.SymlinkIfPossible("/mydir", "/existingsymlink"); err != nil {
+				return nil
+			}
+
+			return nil
+		},
+		func(f symFs) error {
+			if _, _, err := f.LstatIfPossible("/existingsymlink"); !errors.Is(err, os.ErrNotExist) {
+				return err
+			}
+
+			if _, err := f.Stat("/mydir"); err != nil {
+				return err
+			}
+
+			if _, _, err := f.LstatIfPossible("/newexistingsymlink"); err != nil {
+				return err
+			}
+
+			return nil
+		},
+		false,
+		true,
+		true,
+	},
+	{
+		"Can rename symlink /existingsymlink to file to /newexistingsymlink without removing the link's target",
+		renameArgs{"/existingsymlink", "/newexistingsymlink"},
+		false,
+		func(sf symFs) error {
+			file, err := sf.Create("/test.txt")
+			if err != nil {
+				return err
+			}
+			if err := file.Close(); err != nil {
+				return err
+			}
+
+			if err := sf.SymlinkIfPossible("/test.txt", "/existingsymlink"); err != nil {
+				return nil
+			}
+
+			return nil
+		},
+		func(f symFs) error {
+			if _, _, err := f.LstatIfPossible("/existingsymlink"); !errors.Is(err, os.ErrNotExist) {
+				return err
+			}
+
+			if _, err := f.Stat("/test.txt"); err != nil {
+				return err
+			}
+
+			if _, _, err := f.LstatIfPossible("/newexistingsymlink"); err != nil {
+				return err
+			}
+
 			return nil
 		},
 		false,
@@ -2820,22 +2948,27 @@ func TestSTFS_Rename(t *testing.T) {
 		tt := tt
 
 		runTestForAllFss(t, tt.name, true, tt.withCache, tt.withOsFs, func(t *testing.T, fs fsConfig) {
-			if err := tt.prepare(fs.fs); err != nil {
-				t.Errorf("%v prepare() error = %v", fs.fs.Name(), err)
+			symFs, ok := fs.fs.(symFs)
+			if !ok {
+				return
+			}
+
+			if err := tt.prepare(symFs); err != nil {
+				t.Errorf("%v prepare() error = %v", symFs.Name(), err)
 
 				return
 			}
 
-			if err := fs.fs.Rename(tt.args.oldname, tt.args.newname); (err != nil) != tt.wantErr {
+			if err := symFs.Rename(tt.args.oldname, tt.args.newname); (err != nil) != tt.wantErr {
 				if !tt.checkAfterError {
-					t.Errorf("%v.Rename() error = %v, wantErr %v", fs.fs.Name(), err, tt.wantErr)
+					t.Errorf("%v.Rename() error = %v, wantErr %v", symFs.Name(), err, tt.wantErr)
 
 					return
 				}
 			}
 
-			if err := tt.check(fs.fs); err != nil {
-				t.Errorf("%v check() error = %v", fs.fs.Name(), err)
+			if err := tt.check(symFs); err != nil {
+				t.Errorf("%v check() error = %v", symFs.Name(), err)
 
 				return
 			}
