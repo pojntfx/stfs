@@ -3300,8 +3300,8 @@ var chmodTests = []struct {
 	name      string
 	args      chmodArgs
 	wantErr   bool
-	prepare   func(afero.Fs) error
-	check     func(f os.FileInfo) error
+	prepare   func(symFs) error
+	check     func(f os.FileInfo, l os.FileInfo) error
 	withCache bool
 	withOsFs  bool
 }{
@@ -3309,8 +3309,8 @@ var chmodTests = []struct {
 		"Can chmod / to 0666",
 		chmodArgs{"/", 0666},
 		false,
-		func(f afero.Fs) error { return nil },
-		func(f os.FileInfo) error {
+		func(f symFs) error { return nil },
+		func(f os.FileInfo, l os.FileInfo) error {
 			if dir, _ := path.Split(f.Name()); !(dir == "/" || dir == "") {
 				return fmt.Errorf("invalid dir part of path %v, should be ''", dir)
 
@@ -3332,14 +3332,14 @@ var chmodTests = []struct {
 		"Can chmod /test.txt to 0666 if it exists",
 		chmodArgs{"/test.txt", 0666},
 		false,
-		func(f afero.Fs) error {
+		func(f symFs) error {
 			if _, err := f.Create("/test.txt"); err != nil {
 				return err
 			}
 
 			return nil
 		},
-		func(f os.FileInfo) error {
+		func(f os.FileInfo, l os.FileInfo) error {
 			want := "test.txt"
 			got := f.Name()
 
@@ -3363,14 +3363,14 @@ var chmodTests = []struct {
 		"Can chmod /test.txt to 0777 if it exists",
 		chmodArgs{"/test.txt", 0777},
 		false,
-		func(f afero.Fs) error {
+		func(f symFs) error {
 			if _, err := f.Create("/test.txt"); err != nil {
 				return err
 			}
 
 			return nil
 		},
-		func(f os.FileInfo) error {
+		func(f os.FileInfo, l os.FileInfo) error {
 			want := "test.txt"
 			got := f.Name()
 
@@ -3394,8 +3394,8 @@ var chmodTests = []struct {
 		"Can not chmod /test.txt without creating it",
 		chmodArgs{"/test.txt", 0666},
 		true,
-		func(f afero.Fs) error { return nil },
-		func(f os.FileInfo) error { return nil },
+		func(f symFs) error { return nil },
+		func(f os.FileInfo, l os.FileInfo) error { return nil },
 		true,
 		true,
 	},
@@ -3403,8 +3403,8 @@ var chmodTests = []struct {
 		"Can not chmod /mydir/test.txt without creating it",
 		chmodArgs{"/mydir/test.txt", 0666},
 		true,
-		func(f afero.Fs) error { return nil },
-		func(f os.FileInfo) error { return nil },
+		func(f symFs) error { return nil },
+		func(f os.FileInfo, l os.FileInfo) error { return nil },
 		true,
 		true,
 	},
@@ -3412,7 +3412,7 @@ var chmodTests = []struct {
 		"Can chmod /mydir/test.txt to 0666 after creating it",
 		chmodArgs{"/mydir/test.txt", 0666},
 		false,
-		func(f afero.Fs) error {
+		func(f symFs) error {
 			if err := f.Mkdir("/mydir", os.ModePerm); err != nil {
 				return err
 			}
@@ -3423,7 +3423,7 @@ var chmodTests = []struct {
 
 			return nil
 		},
-		func(f os.FileInfo) error {
+		func(f os.FileInfo, l os.FileInfo) error {
 			want := "test.txt"
 			got := f.Name()
 
@@ -3443,6 +3443,408 @@ var chmodTests = []struct {
 		true,
 		true,
 	},
+	{
+		"Can chmod /mydir/test.txt to 0774 after creating it",
+		chmodArgs{"/mydir/test.txt", 0774},
+		false,
+		func(f symFs) error {
+			if err := f.Mkdir("/mydir", os.ModePerm); err != nil {
+				return err
+			}
+
+			if _, err := f.Create("/mydir/test.txt"); err != nil {
+				return err
+			}
+
+			return nil
+		},
+		func(f os.FileInfo, l os.FileInfo) error {
+			want := "test.txt"
+			got := f.Name()
+
+			if want != got {
+				return fmt.Errorf("invalid name, got %v, want %v", got, want)
+			}
+
+			wantPerm := fs.FileMode(0774)
+			gotPerm := f.Mode().Perm()
+
+			if wantPerm != gotPerm {
+				return fmt.Errorf("invalid perm, got %v, want %v", gotPerm, wantPerm)
+			}
+
+			return nil
+		},
+		true,
+		true,
+	},
+	{
+		"Can chmod symlink to root to 0777 after creating it",
+		chmodArgs{"/existingsymlink", 0777},
+		false,
+		func(f symFs) error {
+			if err := f.SymlinkIfPossible("/", "/existingsymlink"); err != nil {
+				return nil
+			}
+
+			return nil
+		},
+		func(f os.FileInfo, l os.FileInfo) error {
+			if dir, _ := path.Split(f.Name()); !(dir == "/" || dir == "") {
+				return fmt.Errorf("invalid dir part of path %v, should be ''", dir)
+
+			}
+
+			wantSourcePerm := fs.FileMode(0777)
+			gotSourcePerm := f.Mode().Perm()
+
+			if wantSourcePerm != gotSourcePerm {
+				return fmt.Errorf("invalid source perm, got %v, want %v", gotSourcePerm, wantSourcePerm)
+			}
+
+			wantTargetPerm := fs.FileMode(0777)
+			gotTargetPerm := f.Mode().Perm()
+
+			if wantTargetPerm != gotTargetPerm {
+				return fmt.Errorf("invalid target perm, got %v, want %v", gotTargetPerm, wantTargetPerm)
+			}
+
+			return nil
+		},
+		false, // FIXME: With cache enabled, directories can't be `chmod`ed
+		true,
+	},
+	{
+		"Can chmod symlink to root to 0774 after creating it",
+		chmodArgs{"/existingsymlink", 0774},
+		false,
+		func(f symFs) error {
+			if err := f.SymlinkIfPossible("/", "/existingsymlink"); err != nil {
+				return nil
+			}
+
+			return nil
+		},
+		func(f os.FileInfo, l os.FileInfo) error {
+			if dir, _ := path.Split(f.Name()); !(dir == "/" || dir == "") {
+				return fmt.Errorf("invalid dir part of path %v, should be ''", dir)
+
+			}
+
+			wantSourcePerm := fs.FileMode(0774)
+			gotSourcePerm := f.Mode().Perm()
+
+			if wantSourcePerm != gotSourcePerm {
+				return fmt.Errorf("invalid source perm, got %v, want %v", gotSourcePerm, wantSourcePerm)
+			}
+
+			wantTargetPerm := fs.FileMode(0774)
+			gotTargetPerm := f.Mode().Perm()
+
+			if wantTargetPerm != gotTargetPerm {
+				return fmt.Errorf("invalid target perm, got %v, want %v", gotTargetPerm, wantTargetPerm)
+			}
+
+			return nil
+		},
+		false, // FIXME: With cache enabled, directories can't be `chmod`ed
+		true,
+	},
+	{
+		"Can not chmod broken symlink to /test.txt to 0777 after creating it",
+		chmodArgs{"/brokensymlink", 0777},
+		true,
+		func(f symFs) error {
+			if err := f.SymlinkIfPossible("/test.txt", "/brokensymlink"); err != nil {
+				return nil
+			}
+
+			return nil
+		},
+		func(f os.FileInfo, l os.FileInfo) error { return nil },
+		false, // FIXME: With cache enabled, directories can't be `chmod`ed
+		true,
+	},
+	{
+		"Can not chmod broken symlink to /mydir to 0777 after creating it",
+		chmodArgs{"/brokensymlink", 0777},
+		true,
+		func(f symFs) error {
+			if err := f.SymlinkIfPossible("/mydir", "/brokensymlink"); err != nil {
+				return nil
+			}
+
+			return nil
+		},
+		func(f os.FileInfo, l os.FileInfo) error { return nil },
+		false, // FIXME: With cache enabled, directories can't be `chmod`ed
+		true,
+	},
+	{
+		"Can chmod symlink to /test.txt to 0777 after creating it",
+		chmodArgs{"/existingsymlink", 0777},
+		false,
+		func(f symFs) error {
+			file, err := f.Create("/test.txt")
+			if err != nil {
+				return err
+			}
+			if err := file.Close(); err != nil {
+				return err
+			}
+
+			if err := f.SymlinkIfPossible("/test.txt", "/existingsymlink"); err != nil {
+				return nil
+			}
+
+			return nil
+		},
+		func(f os.FileInfo, l os.FileInfo) error {
+			wantSource := "existingsymlink"
+			gotSource := f.Name()
+
+			if wantSource != gotSource {
+				return fmt.Errorf("invalid source name, got %v, want %v", gotSource, wantSource)
+			}
+
+			wantTarget := "existingsymlink"
+			gotTarget := f.Name()
+
+			if wantTarget != gotTarget {
+				return fmt.Errorf("invalid target name, got %v, want %v", gotTarget, wantTarget)
+			}
+
+			wantSourcePerm := fs.FileMode(0777)
+			gotSourcePerm := f.Mode().Perm()
+
+			if wantSourcePerm != gotSourcePerm {
+				return fmt.Errorf("invalid source perm, got %v, want %v", gotSourcePerm, wantSourcePerm)
+			}
+
+			wantTargetPerm := fs.FileMode(0777)
+			gotTargetPerm := f.Mode().Perm()
+
+			if wantTargetPerm != gotTargetPerm {
+				return fmt.Errorf("invalid target perm, got %v, want %v", gotTargetPerm, wantTargetPerm)
+			}
+
+			return nil
+		},
+		true,
+		true,
+	},
+	{
+		"Can chmod symlink to /test.txt to 0666 after creating it",
+		chmodArgs{"/existingsymlink", 0666},
+		false,
+		func(f symFs) error {
+			file, err := f.Create("/test.txt")
+			if err != nil {
+				return err
+			}
+			if err := file.Close(); err != nil {
+				return err
+			}
+
+			if err := f.SymlinkIfPossible("/test.txt", "/existingsymlink"); err != nil {
+				return nil
+			}
+
+			return nil
+		},
+		func(f os.FileInfo, l os.FileInfo) error {
+			wantSource := "existingsymlink"
+			gotSource := f.Name()
+
+			if wantSource != gotSource {
+				return fmt.Errorf("invalid source name, got %v, want %v", gotSource, wantSource)
+			}
+
+			wantTarget := "existingsymlink"
+			gotTarget := f.Name()
+
+			if wantTarget != gotTarget {
+				return fmt.Errorf("invalid target name, got %v, want %v", gotTarget, wantTarget)
+			}
+
+			wantSourcePerm := fs.FileMode(0666)
+			gotSourcePerm := f.Mode().Perm()
+
+			if wantSourcePerm != gotSourcePerm {
+				return fmt.Errorf("invalid source perm, got %v, want %v", gotSourcePerm, wantSourcePerm)
+			}
+
+			wantTargetPerm := fs.FileMode(0666)
+			gotTargetPerm := f.Mode().Perm()
+
+			if wantTargetPerm != gotTargetPerm {
+				return fmt.Errorf("invalid target perm, got %v, want %v", gotTargetPerm, wantTargetPerm)
+			}
+
+			return nil
+		},
+		true,
+		true,
+	},
+	{
+		"Can chmod symlink to /test.txt to 0774 after creating it",
+		chmodArgs{"/existingsymlink", 0774},
+		false,
+		func(f symFs) error {
+			file, err := f.Create("/test.txt")
+			if err != nil {
+				return err
+			}
+			if err := file.Close(); err != nil {
+				return err
+			}
+
+			if err := f.SymlinkIfPossible("/test.txt", "/existingsymlink"); err != nil {
+				return nil
+			}
+
+			return nil
+		},
+		func(f os.FileInfo, l os.FileInfo) error {
+			wantSource := "existingsymlink"
+			gotSource := f.Name()
+
+			if wantSource != gotSource {
+				return fmt.Errorf("invalid source name, got %v, want %v", gotSource, wantSource)
+			}
+
+			wantTarget := "existingsymlink"
+			gotTarget := f.Name()
+
+			if wantTarget != gotTarget {
+				return fmt.Errorf("invalid target name, got %v, want %v", gotTarget, wantTarget)
+			}
+
+			wantSourcePerm := fs.FileMode(0774)
+			gotSourcePerm := f.Mode().Perm()
+
+			if wantSourcePerm != gotSourcePerm {
+				return fmt.Errorf("invalid source perm, got %v, want %v", gotSourcePerm, wantSourcePerm)
+			}
+
+			wantTargetPerm := fs.FileMode(0774)
+			gotTargetPerm := f.Mode().Perm()
+
+			if wantTargetPerm != gotTargetPerm {
+				return fmt.Errorf("invalid target perm, got %v, want %v", gotTargetPerm, wantTargetPerm)
+			}
+
+			return nil
+		},
+		true,
+		true,
+	},
+	{
+		"Can chmod symlink to empty directory /mydir to 0774 after creating it",
+		chmodArgs{"/existingsymlink", 0774},
+		false,
+		func(f symFs) error {
+			if err := f.Mkdir("/mydir", os.ModePerm); err != nil {
+				return err
+			}
+
+			if err := f.SymlinkIfPossible("/mydir", "/existingsymlink"); err != nil {
+				return nil
+			}
+
+			return nil
+		},
+		func(f os.FileInfo, l os.FileInfo) error {
+			wantSource := "existingsymlink"
+			gotSource := f.Name()
+
+			if wantSource != gotSource {
+				return fmt.Errorf("invalid source name, got %v, want %v", gotSource, wantSource)
+			}
+
+			wantTarget := "existingsymlink"
+			gotTarget := f.Name()
+
+			if wantTarget != gotTarget {
+				return fmt.Errorf("invalid target name, got %v, want %v", gotTarget, wantTarget)
+			}
+
+			wantSourcePerm := fs.FileMode(0774)
+			gotSourcePerm := f.Mode().Perm()
+
+			if wantSourcePerm != gotSourcePerm {
+				return fmt.Errorf("invalid source perm, got %v, want %v", gotSourcePerm, wantSourcePerm)
+			}
+
+			wantTargetPerm := fs.FileMode(0774)
+			gotTargetPerm := f.Mode().Perm()
+
+			if wantTargetPerm != gotTargetPerm {
+				return fmt.Errorf("invalid target perm, got %v, want %v", gotTargetPerm, wantTargetPerm)
+			}
+
+			return nil
+		},
+		true,
+		true,
+	},
+	{
+		"Can chmod symlink to non-empty directory /mydir to 0774 after creating it",
+		chmodArgs{"/existingsymlink", 0774},
+		false,
+		func(f symFs) error {
+			if err := f.Mkdir("/mydir", os.ModePerm); err != nil {
+				return err
+			}
+
+			if err := f.Mkdir("/mydir/subdir", os.ModePerm); err != nil {
+				return err
+			}
+
+			if _, err := f.Create("/mydir/subdir/test.txt"); err != nil {
+				return err
+			}
+
+			if err := f.SymlinkIfPossible("/mydir", "/existingsymlink"); err != nil {
+				return nil
+			}
+
+			return nil
+		},
+		func(f os.FileInfo, l os.FileInfo) error {
+			wantSource := "existingsymlink"
+			gotSource := f.Name()
+
+			if wantSource != gotSource {
+				return fmt.Errorf("invalid source name, got %v, want %v", gotSource, wantSource)
+			}
+
+			wantTarget := "existingsymlink"
+			gotTarget := f.Name()
+
+			if wantTarget != gotTarget {
+				return fmt.Errorf("invalid target name, got %v, want %v", gotTarget, wantTarget)
+			}
+
+			wantSourcePerm := fs.FileMode(0774)
+			gotSourcePerm := f.Mode().Perm()
+
+			if wantSourcePerm != gotSourcePerm {
+				return fmt.Errorf("invalid source perm, got %v, want %v", gotSourcePerm, wantSourcePerm)
+			}
+
+			wantTargetPerm := fs.FileMode(0774)
+			gotTargetPerm := f.Mode().Perm()
+
+			if wantTargetPerm != gotTargetPerm {
+				return fmt.Errorf("invalid target perm, got %v, want %v", gotTargetPerm, wantTargetPerm)
+			}
+
+			return nil
+		},
+		true,
+		true,
+	},
 }
 
 func TestSTFS_Chmod(t *testing.T) {
@@ -3450,29 +3852,38 @@ func TestSTFS_Chmod(t *testing.T) {
 		tt := tt
 
 		runTestForAllFss(t, tt.name, true, tt.withCache, tt.withOsFs, func(t *testing.T, fs fsConfig) {
-			if err := tt.prepare(fs.fs); err != nil {
-				t.Errorf("%v prepare() error = %v", fs.fs.Name(), err)
+			symFs, ok := fs.fs.(symFs)
+			if !ok {
+				return
+			}
+
+			if err := tt.prepare(symFs); err != nil {
+				t.Errorf("%v prepare() error = %v", symFs.Name(), err)
 
 				return
 			}
 
-			if err := fs.fs.Chmod(tt.args.name, tt.args.mode); (err != nil) != tt.wantErr {
-				t.Errorf("%v.Chmod() error = %v, wantErr %v", fs.fs.Name(), err, tt.wantErr)
-
-				return
-			}
-
-			got, err := fs.fs.Stat(tt.args.name)
+			err := symFs.Chmod(tt.args.name, tt.args.mode)
 			if (err != nil) != tt.wantErr {
-				t.Errorf("%v.Stat() error = %v, wantErr %v", fs.fs.Name(), err, tt.wantErr)
+				t.Errorf("%v.Chmod() error = %v, wantErr %v", symFs.Name(), err, tt.wantErr)
 
 				return
 			}
 
-			if err := tt.check(got); err != nil {
-				t.Errorf("%v check() error = %v", fs.fs.Name(), err)
+			if err == nil {
+				gotStat, errStat := symFs.Stat(tt.args.name)
+				gotLstat, _, errLstat := symFs.LstatIfPossible(tt.args.name)
+				if (errStat != nil && errLstat != nil) != tt.wantErr {
+					t.Errorf("%v.Stat() error = %v, %v.LstatIfPossible() error = %v, wantErr %v", symFs.Name(), errStat, symFs.Name(), errLstat, tt.wantErr)
 
-				return
+					return
+				}
+
+				if err := tt.check(gotStat, gotLstat); err != nil {
+					t.Errorf("%v check() error = %v", symFs.Name(), err)
+
+					return
+				}
 			}
 		})
 	}
