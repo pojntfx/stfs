@@ -3,6 +3,7 @@ package operations
 import (
 	"archive/tar"
 	"context"
+	"database/sql"
 	"path"
 	"path/filepath"
 	"strings"
@@ -46,7 +47,14 @@ func (o *Operations) Move(from string, to string) error {
 	headersToMove := []*config.Header{}
 	dbhdr, err := o.metadata.Metadata.GetHeader(context.Background(), from)
 	if err != nil {
-		return err
+		if err == sql.ErrNoRows {
+			dbhdr, err = o.metadata.Metadata.GetHeaderByLinkname(context.Background(), from)
+			if err != nil {
+				return err
+			}
+		} else {
+			return err
+		}
 	}
 	headersToMove = append(headersToMove, dbhdr)
 

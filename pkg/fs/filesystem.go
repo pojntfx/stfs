@@ -720,10 +720,24 @@ func (f *STFS) Rename(oldname, newname string) error {
 	)
 	if err != nil {
 		if err == sql.ErrNoRows {
-			return os.ErrNotExist
-		}
+			source, err = inventory.Stat(
+				f.metadata,
 
-		return err
+				oldname,
+				true,
+
+				f.onHeader,
+			)
+			if err != nil {
+				if err == sql.ErrNoRows {
+					return os.ErrNotExist
+				} else {
+					return err
+				}
+			}
+		} else {
+			return err
+		}
 	}
 
 	if _, err := inventory.Stat(
