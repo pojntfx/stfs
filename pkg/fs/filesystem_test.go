@@ -2984,7 +2984,7 @@ var statTests = []struct {
 	name      string
 	args      statArgs
 	wantErr   bool
-	prepare   func(afero.Fs) error
+	prepare   func(symFs) error
 	check     func(os.FileInfo) error
 	withCache bool
 	withOsFs  bool
@@ -2993,7 +2993,7 @@ var statTests = []struct {
 		"Can stat /",
 		statArgs{"/"},
 		false,
-		func(f afero.Fs) error { return nil },
+		func(f symFs) error { return nil },
 		func(f os.FileInfo) error {
 			if dir, _ := path.Split(f.Name()); !(dir == "/" || dir == "") {
 				return fmt.Errorf("invalid dir part of path %v, should be ''", dir)
@@ -3009,7 +3009,7 @@ var statTests = []struct {
 		"Can not stat /test.txt without creating it",
 		statArgs{"/test.txt"},
 		true,
-		func(f afero.Fs) error { return nil },
+		func(f symFs) error { return nil },
 		func(f os.FileInfo) error { return nil },
 		true,
 		true,
@@ -3018,7 +3018,7 @@ var statTests = []struct {
 		"Can stat /test.txt after creating it",
 		statArgs{"/test.txt"},
 		false,
-		func(f afero.Fs) error {
+		func(f symFs) error {
 			if _, err := f.Create("/test.txt"); err != nil {
 				return err
 			}
@@ -3042,7 +3042,7 @@ var statTests = []struct {
 		"Can not stat /mydir/test.txt without creating it",
 		statArgs{"/mydir/test.txt"},
 		true,
-		func(f afero.Fs) error { return nil },
+		func(f symFs) error { return nil },
 		func(f os.FileInfo) error { return nil },
 		true,
 		true,
@@ -3051,7 +3051,7 @@ var statTests = []struct {
 		"Can stat /mydir/test.txt after creating it",
 		statArgs{"/mydir/test.txt"},
 		false,
-		func(f afero.Fs) error {
+		func(f symFs) error {
 			if err := f.Mkdir("/mydir", os.ModePerm); err != nil {
 				return err
 			}
@@ -3079,7 +3079,7 @@ var statTests = []struct {
 		"Result of stat /test.txt after creating it matches provided values",
 		statArgs{"/test.txt"},
 		false,
-		func(f afero.Fs) error {
+		func(f symFs) error {
 			file, err := f.OpenFile("/test.txt", os.O_CREATE, os.ModePerm)
 			if err != nil {
 				return err
@@ -3107,6 +3107,156 @@ var statTests = []struct {
 		false, // FIXME: With cache enabled, the permissions don't match
 		false, // FIXME: With the OsFs, the permissions don't match
 	},
+	{
+		"Can stat symlink to root",
+		statArgs{"/existingsymlink"},
+		false,
+		func(f symFs) error {
+			if err := f.SymlinkIfPossible("/", "/existingsymlink"); err != nil {
+				return nil
+			}
+
+			return nil
+		},
+		func(f os.FileInfo) error {
+			want := "existingsymlink"
+			got := f.Name()
+
+			if want != got {
+				return fmt.Errorf("invalid name, got %v, want %v", got, want)
+			}
+
+			return nil
+		},
+		true,
+		true,
+	},
+	{
+		"Result of stat symlink to root after creating it matches provided values",
+		statArgs{"/existingsymlink"},
+		false,
+		func(f symFs) error {
+			if err := f.SymlinkIfPossible("/", "/existingsymlink"); err != nil {
+				return nil
+			}
+
+			return nil
+		},
+		func(f os.FileInfo) error {
+			wantName := "existingsymlink"
+			gotName := f.Name()
+
+			if wantName != gotName {
+				return fmt.Errorf("invalid name, got %v, want %v", gotName, wantName)
+			}
+
+			wantPerm := os.ModePerm
+			gotPerm := f.Mode().Perm()
+
+			if wantPerm != gotPerm {
+				return fmt.Errorf("invalid perm, got %v, want %v", gotPerm, wantPerm)
+			}
+
+			wantDir := true
+			gotDir := f.IsDir()
+
+			if wantDir != gotDir {
+				return fmt.Errorf("invalid wantDir, got %v, want %v", gotDir, wantDir)
+			}
+
+			return nil
+		},
+		false, // FIXME: With cache enabled, the permissions don't match
+		false, // FIXME: With the OsFs, the permissions don't match
+	},
+	{
+		"Result of stat symlink to directory after creating it matches provided values",
+		statArgs{"/existingsymlink"},
+		false,
+		func(f symFs) error {
+			if err := f.Mkdir("/mydir", os.ModePerm); err != nil {
+				return err
+			}
+
+			if err := f.SymlinkIfPossible("/mydir", "/existingsymlink"); err != nil {
+				return nil
+			}
+
+			return nil
+		},
+		func(f os.FileInfo) error {
+			wantName := "existingsymlink"
+			gotName := f.Name()
+
+			if wantName != gotName {
+				return fmt.Errorf("invalid name, got %v, want %v", gotName, wantName)
+			}
+
+			wantPerm := os.ModePerm
+			gotPerm := f.Mode().Perm()
+
+			if wantPerm != gotPerm {
+				return fmt.Errorf("invalid perm, got %v, want %v", gotPerm, wantPerm)
+			}
+
+			wantDir := true
+			gotDir := f.IsDir()
+
+			if wantDir != gotDir {
+				return fmt.Errorf("invalid wantDir, got %v, want %v", gotDir, wantDir)
+			}
+
+			return nil
+		},
+		false, // FIXME: With cache enabled, the permissions don't match
+		false, // FIXME: With the OsFs, the permissions don't match
+	},
+	{
+		"Result of stat symlink to file after creating it matches provided values",
+		statArgs{"/existingsymlink"},
+		false,
+		func(f symFs) error {
+			file, err := f.Create("/test.txt")
+			if err != nil {
+				return err
+			}
+			if err := file.Close(); err != nil {
+				return err
+			}
+
+			if err := f.SymlinkIfPossible("/test.txt", "/existingsymlink"); err != nil {
+				return nil
+			}
+
+			return nil
+		},
+		func(f os.FileInfo) error {
+			wantName := "existingsymlink"
+			gotName := f.Name()
+
+			if wantName != gotName {
+				return fmt.Errorf("invalid name, got %v, want %v", gotName, wantName)
+			}
+
+			wantPerm := fs.FileMode(0666)
+			gotPerm := f.Mode().Perm()
+
+			if wantPerm != gotPerm {
+				return fmt.Errorf("invalid perm, got %v, want %v", gotPerm, wantPerm)
+			}
+
+			wantDir := false
+			gotDir := f.IsDir()
+
+			if wantDir != gotDir {
+				return fmt.Errorf("invalid wantDir, got %v, want %v", gotDir, wantDir)
+			}
+
+			return nil
+		},
+		false, // FIXME: With cache enabled, the permissions don't match
+		false, // FIXME: With the OsFs, the permissions don't match
+	},
 }
 
 func TestSTFS_Stat(t *testing.T) {
@@ -3114,21 +3264,26 @@ func TestSTFS_Stat(t *testing.T) {
 		tt := tt
 
 		runTestForAllFss(t, tt.name, true, tt.withCache, tt.withOsFs, func(t *testing.T, fs fsConfig) {
-			if err := tt.prepare(fs.fs); err != nil {
-				t.Errorf("%v prepare() error = %v", fs.fs.Name(), err)
+			symFs, ok := fs.fs.(symFs)
+			if !ok {
+				return
+			}
+
+			if err := tt.prepare(symFs); err != nil {
+				t.Errorf("%v prepare() error = %v", symFs.Name(), err)
 
 				return
 			}
 
-			got, err := fs.fs.Stat(tt.args.name)
+			got, err := symFs.Stat(tt.args.name)
 			if (err != nil) != tt.wantErr {
-				t.Errorf("%v.Stat() error = %v, wantErr %v", fs.fs.Name(), err, tt.wantErr)
+				t.Errorf("%v.Stat() error = %v, wantErr %v", symFs.Name(), err, tt.wantErr)
 
 				return
 			}
 
 			if err := tt.check(got); err != nil {
-				t.Errorf("%v check() error = %v", fs.fs.Name(), err)
+				t.Errorf("%v check() error = %v", symFs.Name(), err)
 
 				return
 			}
