@@ -4510,8 +4510,8 @@ var chtimesTests = []struct {
 	name      string
 	args      chtimesArgs
 	wantErr   bool
-	prepare   func(afero.Fs) error
-	check     func(f os.FileInfo) error
+	prepare   func(symFs) error
+	check     func(f os.FileInfo, l os.FileInfo) error
 	withCache bool
 	withOsFs  bool
 }{
@@ -4519,14 +4519,14 @@ var chtimesTests = []struct {
 		"Can chtimes /test.txt to 2021-12-23, 2022-01-14, if it exists",
 		chtimesArgs{"/test.txt", time.Date(2021, 12, 23, 0, 0, 0, 0, time.UTC), time.Date(2022, 01, 14, 0, 0, 0, 0, time.UTC)},
 		false,
-		func(f afero.Fs) error {
+		func(f symFs) error {
 			if _, err := f.Create("/test.txt"); err != nil {
 				return err
 			}
 
 			return nil
 		},
-		func(f os.FileInfo) error {
+		func(f os.FileInfo, l os.FileInfo) error {
 			want := "test.txt"
 			got := f.Name()
 
@@ -4562,7 +4562,7 @@ var chtimesTests = []struct {
 		"Can chtimes /mydir/test.txt to 2021-12-23, 2022-01-14, if it exists",
 		chtimesArgs{"/mydir/test.txt", time.Date(2021, 12, 23, 0, 0, 0, 0, time.UTC), time.Date(2022, 01, 14, 0, 0, 0, 0, time.UTC)},
 		false,
-		func(f afero.Fs) error {
+		func(f symFs) error {
 			if err := f.Mkdir("/mydir", os.ModePerm); err != nil {
 				return err
 			}
@@ -4573,7 +4573,7 @@ var chtimesTests = []struct {
 
 			return nil
 		},
-		func(f os.FileInfo) error {
+		func(f os.FileInfo, l os.FileInfo) error {
 			want := "test.txt"
 			got := f.Name()
 
@@ -4609,14 +4609,14 @@ var chtimesTests = []struct {
 		"Can chtimes /mydir to 2021-12-23, 2022-01-14, if it exists",
 		chtimesArgs{"/mydir", time.Date(2021, 12, 23, 0, 0, 0, 0, time.UTC), time.Date(2022, 01, 14, 0, 0, 0, 0, time.UTC)},
 		false,
-		func(f afero.Fs) error {
+		func(f symFs) error {
 			if err := f.Mkdir("/mydir", os.ModePerm); err != nil {
 				return err
 			}
 
 			return nil
 		},
-		func(f os.FileInfo) error {
+		func(f os.FileInfo, l os.FileInfo) error {
 			want := "mydir"
 			got := f.Name()
 
@@ -4652,8 +4652,8 @@ var chtimesTests = []struct {
 		"Can not chtimes /test.txt without creating it",
 		chtimesArgs{"/test.txt", time.Date(2021, 12, 23, 0, 0, 0, 0, time.UTC), time.Date(2022, 01, 14, 0, 0, 0, 0, time.UTC)},
 		true,
-		func(f afero.Fs) error { return nil },
-		func(f os.FileInfo) error { return nil },
+		func(f symFs) error { return nil },
+		func(f os.FileInfo, l os.FileInfo) error { return nil },
 		true,
 		true,
 	},
@@ -4661,8 +4661,73 @@ var chtimesTests = []struct {
 		"Can not chtimes /mydir/test.txt without creating it",
 		chtimesArgs{"/mydir/test.txt", time.Date(2021, 12, 23, 0, 0, 0, 0, time.UTC), time.Date(2022, 01, 14, 0, 0, 0, 0, time.UTC)},
 		true,
-		func(f afero.Fs) error { return nil },
-		func(f os.FileInfo) error { return nil },
+		func(f symFs) error { return nil },
+		func(f os.FileInfo, l os.FileInfo) error { return nil },
+		true,
+		true,
+	},
+	{
+		"Can chtimes symlink to root to 2021-12-23, 2022-01-14 after creating it",
+		chtimesArgs{"/existingsymlink", time.Date(2021, 12, 23, 0, 0, 0, 0, time.UTC), time.Date(2022, 01, 14, 0, 0, 0, 0, time.UTC)},
+		false,
+		func(f symFs) error {
+			if err := f.SymlinkIfPossible("/", "/existingsymlink"); err != nil {
+				return nil
+			}
+
+			return nil
+		},
+		func(f os.FileInfo, l os.FileInfo) error {
+			wantSource := "existingsymlink"
+			gotSource := f.Name()
+
+			if wantSource != gotSource {
+				return fmt.Errorf("invalid source name, got %v, want %v", gotSource, wantSource)
+			}
+
+			wantTarget := "existingsymlink"
+			gotTarget := f.Name()
+
+			if wantTarget != gotTarget {
+				return fmt.Errorf("invalid target name, got %v, want %v", gotTarget, wantTarget)
+			}
+
+			wantAtime := time.Date(2021, 12, 23, 0, 0, 0, 0, time.UTC)
+			wantMtime := time.Date(2022, 01, 14, 0, 0, 0, 0, time.UTC)
+
+			gotSys, ok := f.Sys().(*Stat)
+			if !ok {
+				return errors.New("could not get fs.Stat from FileInfo.Sys()")
+			}
+
+			gotAtime := time.Unix(0, gotSys.Atim.Nano())
+			gotMtime := f.ModTime()
+
+			if !wantAtime.Equal(gotAtime) {
+				return fmt.Errorf("invalid Atime, got %v, want %v", gotAtime, wantAtime)
+			}
+
+			if !wantMtime.Equal(gotMtime) {
+				return fmt.Errorf("invalid Mtime, got %v, want %v", gotMtime, wantMtime)
+			}
+
+			return nil
+		},
+		false, // FIXME: Can't cast to `Stat` struct if cache is enabled
+		false, // FIXME: Can't cast to `Stat` struct if OsFs is enabled
+	},
+	{
+		"Can not chtimes broken symlink to /test.txt without creating it",
+		chtimesArgs{"/brokensymlink", time.Date(2021, 12, 23, 0, 0, 0, 0, time.UTC), time.Date(2022, 01, 14, 0, 0, 0, 0, time.UTC)},
+		true,
+		func(f symFs) error {
+			if err := f.SymlinkIfPossible("/test.txt", "/brokensymlink"); err != nil {
+				return nil
+			}
+
+			return nil
+		},
+		func(f os.FileInfo, l os.FileInfo) error { return nil },
 		true,
 		true,
 	},
@@ -4673,29 +4738,38 @@ func TestSTFS_Chtimes(t *testing.T) {
 		tt := tt
 
 		runTestForAllFss(t, tt.name, true, tt.withCache, tt.withOsFs, func(t *testing.T, fs fsConfig) {
-			if err := tt.prepare(fs.fs); err != nil {
-				t.Errorf("%v prepare() error = %v", fs.fs.Name(), err)
+			symFs, ok := fs.fs.(symFs)
+			if !ok {
+				return
+			}
+
+			if err := tt.prepare(symFs); err != nil {
+				t.Errorf("%v prepare() error = %v", symFs.Name(), err)
 
 				return
 			}
 
-			if err := fs.fs.Chtimes(tt.args.name, tt.args.atime, tt.args.mtime); (err != nil) != tt.wantErr {
-				t.Errorf("%v.Chtimes() error = %v, wantErr %v", fs.fs.Name(), err, tt.wantErr)
-
-				return
-			}
-
-			got, err := fs.fs.Stat(tt.args.name)
+			err := symFs.Chtimes(tt.args.name, tt.args.atime, tt.args.mtime)
 			if (err != nil) != tt.wantErr {
-				t.Errorf("%v.Stat() error = %v, wantErr %v", fs.fs.Name(), err, tt.wantErr)
+				t.Errorf("%v.Chtimes() error = %v, wantErr %v", symFs.Name(), err, tt.wantErr)
 
 				return
 			}
 
-			if err := tt.check(got); err != nil {
-				t.Errorf("%v check() error = %v", fs.fs.Name(), err)
+			if err == nil {
+				gotStat, errStat := symFs.Stat(tt.args.name)
+				gotLstat, _, errLstat := symFs.LstatIfPossible(tt.args.name)
+				if (errStat != nil && errLstat != nil) != tt.wantErr {
+					t.Errorf("%v.Stat() error = %v, %v.LstatIfPossible() error = %v, wantErr %v", symFs.Name(), errStat, symFs.Name(), errLstat, tt.wantErr)
 
-				return
+					return
+				}
+
+				if err := tt.check(gotStat, gotLstat); err != nil {
+					t.Errorf("%v check() error = %v", symFs.Name(), err)
+
+					return
+				}
 			}
 		})
 	}
