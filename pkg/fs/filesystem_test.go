@@ -4731,6 +4731,195 @@ var chtimesTests = []struct {
 		true,
 		true,
 	},
+	{
+		"Can not chtimes broken symlink to /mydir without creating it",
+		chtimesArgs{"/brokensymlink", time.Date(2021, 12, 23, 0, 0, 0, 0, time.UTC), time.Date(2022, 01, 14, 0, 0, 0, 0, time.UTC)},
+		true,
+		func(f symFs) error {
+			if err := f.SymlinkIfPossible("/mydir", "/brokensymlink"); err != nil {
+				return nil
+			}
+
+			return nil
+		},
+		func(f os.FileInfo, l os.FileInfo) error { return nil },
+		true,
+		true,
+	},
+	{
+		"Can chtimes symlink to /test.txt to 2021-12-23, 2022-01-14 after creating it",
+		chtimesArgs{"/existingsymlink", time.Date(2021, 12, 23, 0, 0, 0, 0, time.UTC), time.Date(2022, 01, 14, 0, 0, 0, 0, time.UTC)},
+		false,
+		func(f symFs) error {
+			file, err := f.Create("/test.txt")
+			if err != nil {
+				return err
+			}
+			if err := file.Close(); err != nil {
+				return err
+			}
+
+			if err := f.SymlinkIfPossible("/test.txt", "/existingsymlink"); err != nil {
+				return nil
+			}
+
+			return nil
+		},
+		func(f os.FileInfo, l os.FileInfo) error {
+			wantSource := "existingsymlink"
+			gotSource := f.Name()
+
+			if wantSource != gotSource {
+				return fmt.Errorf("invalid source name, got %v, want %v", gotSource, wantSource)
+			}
+
+			wantTarget := "existingsymlink"
+			gotTarget := f.Name()
+
+			if wantTarget != gotTarget {
+				return fmt.Errorf("invalid target name, got %v, want %v", gotTarget, wantTarget)
+			}
+
+			wantAtime := time.Date(2021, 12, 23, 0, 0, 0, 0, time.UTC)
+			wantMtime := time.Date(2022, 01, 14, 0, 0, 0, 0, time.UTC)
+
+			gotSys, ok := f.Sys().(*Stat)
+			if !ok {
+				return errors.New("could not get fs.Stat from FileInfo.Sys()")
+			}
+
+			gotAtime := time.Unix(0, gotSys.Atim.Nano())
+			gotMtime := f.ModTime()
+
+			if !wantAtime.Equal(gotAtime) {
+				return fmt.Errorf("invalid Atime, got %v, want %v", gotAtime, wantAtime)
+			}
+
+			if !wantMtime.Equal(gotMtime) {
+				return fmt.Errorf("invalid Mtime, got %v, want %v", gotMtime, wantMtime)
+			}
+
+			return nil
+		},
+		false, // FIXME: Can't cast to `Stat` struct if cache is enabled
+		false, // FIXME: Can't cast to `Stat` struct if OsFs is enabled
+	},
+	{
+		"Can chtimes symlink to empty directory /mydir to 2021-12-23, 2022-01-14 after creating it",
+		chtimesArgs{"/existingsymlink", time.Date(2021, 12, 23, 0, 0, 0, 0, time.UTC), time.Date(2022, 01, 14, 0, 0, 0, 0, time.UTC)},
+		false,
+		func(f symFs) error {
+			if err := f.Mkdir("/mydir", os.ModePerm); err != nil {
+				return err
+			}
+
+			if err := f.SymlinkIfPossible("/mydir", "/existingsymlink"); err != nil {
+				return nil
+			}
+
+			return nil
+		},
+		func(f os.FileInfo, l os.FileInfo) error {
+			wantSource := "existingsymlink"
+			gotSource := f.Name()
+
+			if wantSource != gotSource {
+				return fmt.Errorf("invalid source name, got %v, want %v", gotSource, wantSource)
+			}
+
+			wantTarget := "existingsymlink"
+			gotTarget := f.Name()
+
+			if wantTarget != gotTarget {
+				return fmt.Errorf("invalid target name, got %v, want %v", gotTarget, wantTarget)
+			}
+
+			wantAtime := time.Date(2021, 12, 23, 0, 0, 0, 0, time.UTC)
+			wantMtime := time.Date(2022, 01, 14, 0, 0, 0, 0, time.UTC)
+
+			gotSys, ok := f.Sys().(*Stat)
+			if !ok {
+				return errors.New("could not get fs.Stat from FileInfo.Sys()")
+			}
+
+			gotAtime := time.Unix(0, gotSys.Atim.Nano())
+			gotMtime := f.ModTime()
+
+			if !wantAtime.Equal(gotAtime) {
+				return fmt.Errorf("invalid Atime, got %v, want %v", gotAtime, wantAtime)
+			}
+
+			if !wantMtime.Equal(gotMtime) {
+				return fmt.Errorf("invalid Mtime, got %v, want %v", gotMtime, wantMtime)
+			}
+
+			return nil
+		},
+		false, // FIXME: Can't cast to `Stat` struct if cache is enabled
+		false, // FIXME: Can't cast to `Stat` struct if OsFs is enabled
+	},
+	{
+		"Can chtimes symlink non-empty directory /mydir to 2021-12-23, 2022-01-14 after creating it",
+		chtimesArgs{"/existingsymlink", time.Date(2021, 12, 23, 0, 0, 0, 0, time.UTC), time.Date(2022, 01, 14, 0, 0, 0, 0, time.UTC)},
+		false,
+		func(f symFs) error {
+			if err := f.Mkdir("/mydir", os.ModePerm); err != nil {
+				return err
+			}
+
+			if err := f.Mkdir("/mydir/subdir", os.ModePerm); err != nil {
+				return err
+			}
+
+			if _, err := f.Create("/mydir/subdir/test.txt"); err != nil {
+				return err
+			}
+
+			if err := f.SymlinkIfPossible("/mydir", "/existingsymlink"); err != nil {
+				return nil
+			}
+
+			return nil
+		},
+		func(f os.FileInfo, l os.FileInfo) error {
+			wantSource := "existingsymlink"
+			gotSource := f.Name()
+
+			if wantSource != gotSource {
+				return fmt.Errorf("invalid source name, got %v, want %v", gotSource, wantSource)
+			}
+
+			wantTarget := "existingsymlink"
+			gotTarget := f.Name()
+
+			if wantTarget != gotTarget {
+				return fmt.Errorf("invalid target name, got %v, want %v", gotTarget, wantTarget)
+			}
+
+			wantAtime := time.Date(2021, 12, 23, 0, 0, 0, 0, time.UTC)
+			wantMtime := time.Date(2022, 01, 14, 0, 0, 0, 0, time.UTC)
+
+			gotSys, ok := f.Sys().(*Stat)
+			if !ok {
+				return errors.New("could not get fs.Stat from FileInfo.Sys()")
+			}
+
+			gotAtime := time.Unix(0, gotSys.Atim.Nano())
+			gotMtime := f.ModTime()
+
+			if !wantAtime.Equal(gotAtime) {
+				return fmt.Errorf("invalid Atime, got %v, want %v", gotAtime, wantAtime)
+			}
+
+			if !wantMtime.Equal(gotMtime) {
+				return fmt.Errorf("invalid Mtime, got %v, want %v", gotMtime, wantMtime)
+			}
+
+			return nil
+		},
+		false, // FIXME: Can't cast to `Stat` struct if cache is enabled
+		false, // FIXME: Can't cast to `Stat` struct if OsFs is enabled
+	},
 }
 
 func TestSTFS_Chtimes(t *testing.T) {
