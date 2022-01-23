@@ -3899,8 +3899,8 @@ var chownTests = []struct {
 	name      string
 	args      chownArgs
 	wantErr   bool
-	prepare   func(afero.Fs) error
-	check     func(f os.FileInfo) error
+	prepare   func(symFs) error
+	check     func(f os.FileInfo, l os.FileInfo) error
 	withCache bool
 	withOsFs  bool
 }{
@@ -3908,14 +3908,14 @@ var chownTests = []struct {
 		"Can chown /test.txt to 11, 11 if it exists",
 		chownArgs{"/test.txt", 11, 11},
 		false,
-		func(f afero.Fs) error {
+		func(f symFs) error {
 			if _, err := f.Create("/test.txt"); err != nil {
 				return err
 			}
 
 			return nil
 		},
-		func(f os.FileInfo) error {
+		func(f os.FileInfo, l os.FileInfo) error {
 			want := "test.txt"
 			got := f.Name()
 
@@ -3945,13 +3945,13 @@ var chownTests = []struct {
 			return nil
 		},
 		false,
-		false, // FIXME: With cache enabled, files and directories can't be `chmod`ed
+		false, // FIXME: With cache enabled, files and directories can't be `chown`ed
 	},
 	{
 		"Can chown /mydir/test.txt to 11, 11 if it exists",
 		chownArgs{"/mydir/test.txt", 11, 11},
 		false,
-		func(f afero.Fs) error {
+		func(f symFs) error {
 			if err := f.Mkdir("/mydir", os.ModePerm); err != nil {
 				return err
 			}
@@ -3962,7 +3962,7 @@ var chownTests = []struct {
 
 			return nil
 		},
-		func(f os.FileInfo) error {
+		func(f os.FileInfo, l os.FileInfo) error {
 			want := "test.txt"
 			got := f.Name()
 
@@ -3992,20 +3992,20 @@ var chownTests = []struct {
 			return nil
 		},
 		false,
-		false, // FIXME: With cache enabled, files and directories can't be `chmod`ed
+		false, // FIXME: With cache enabled, files and directories can't be `chown`ed
 	},
 	{
 		"Can chown /mydir to 11, 11 if it exists",
 		chownArgs{"/mydir", 11, 11},
 		false,
-		func(f afero.Fs) error {
+		func(f symFs) error {
 			if err := f.Mkdir("/mydir", os.ModePerm); err != nil {
 				return err
 			}
 
 			return nil
 		},
-		func(f os.FileInfo) error {
+		func(f os.FileInfo, l os.FileInfo) error {
 			want := "mydir"
 			got := f.Name()
 
@@ -4035,14 +4035,14 @@ var chownTests = []struct {
 			return nil
 		},
 		false,
-		false, // FIXME: With cache enabled, files and directories can't be `chmod`ed
+		false, // FIXME: With cache enabled, files and directories can't be `chown`ed
 	},
 	{
 		"Can not chown /test.txt without creating it",
 		chownArgs{"/test.txt", 11, 11},
 		true,
-		func(f afero.Fs) error { return nil },
-		func(f os.FileInfo) error { return nil },
+		func(f symFs) error { return nil },
+		func(f os.FileInfo, l os.FileInfo) error { return nil },
 		true,
 		true,
 	},
@@ -4050,10 +4050,411 @@ var chownTests = []struct {
 		"Can not chown /mydir/test.txt without creating it",
 		chownArgs{"/mydir/test.txt", 11, 11},
 		true,
-		func(f afero.Fs) error { return nil },
-		func(f os.FileInfo) error { return nil },
+		func(f symFs) error { return nil },
+		func(f os.FileInfo, l os.FileInfo) error { return nil },
 		true,
 		true,
+	},
+	{
+		"Can chown symlink to root to 11, 11 after creating it",
+		chownArgs{"/existingsymlink", 11, 11},
+		false,
+		func(f symFs) error {
+			if err := f.SymlinkIfPossible("/", "/existingsymlink"); err != nil {
+				return nil
+			}
+
+			return nil
+		},
+		func(f os.FileInfo, l os.FileInfo) error {
+			wantSource := "existingsymlink"
+			gotSource := f.Name()
+
+			if wantSource != gotSource {
+				return fmt.Errorf("invalid source name, got %v, want %v", gotSource, wantSource)
+			}
+
+			wantTarget := "existingsymlink"
+			gotTarget := f.Name()
+
+			if wantTarget != gotTarget {
+				return fmt.Errorf("invalid target name, got %v, want %v", gotTarget, wantTarget)
+			}
+
+			wantSourceGID := 11
+			wantSourceUI := 11
+
+			gotSourceSys, ok := f.Sys().(*Stat)
+			if !ok {
+				return errors.New("could not get fs.Stat from FileInfo.Sys()")
+			}
+
+			gotSourceGID := int(gotSourceSys.Gid)
+			gotSourceUID := int(gotSourceSys.Uid)
+
+			if wantSourceGID != gotSourceGID {
+				return fmt.Errorf("invalid GID, got %v, want %v", gotSourceGID, wantSourceGID)
+			}
+
+			if wantSourceUI != gotSourceUID {
+				return fmt.Errorf("invalid UID, got %v, want %v", gotSourceUID, wantSourceUI)
+			}
+
+			wantTargetGID := 11
+			wantTargetUI := 11
+
+			gotTargetSys, ok := f.Sys().(*Stat)
+			if !ok {
+				return errors.New("could not get fs.Stat from FileInfo.Sys()")
+			}
+
+			gotTargetGID := int(gotTargetSys.Gid)
+			gotTargetUID := int(gotTargetSys.Uid)
+
+			if wantTargetGID != gotTargetGID {
+				return fmt.Errorf("invalid GID, got %v, want %v", gotTargetGID, wantTargetGID)
+			}
+
+			if wantTargetUI != gotTargetUID {
+				return fmt.Errorf("invalid UID, got %v, want %v", gotTargetUID, wantTargetUI)
+			}
+
+			return nil
+		},
+		false,
+		false, // FIXME: With cache enabled, files and directories can't be `chown`ed
+	},
+	{
+		"Can chown symlink to root to 1000, 1000 after creating it",
+		chownArgs{"/existingsymlink", 1000, 1000},
+		false,
+		func(f symFs) error {
+			if err := f.SymlinkIfPossible("/", "/existingsymlink"); err != nil {
+				return nil
+			}
+
+			return nil
+		},
+		func(f os.FileInfo, l os.FileInfo) error {
+			wantSource := "existingsymlink"
+			gotSource := f.Name()
+
+			if wantSource != gotSource {
+				return fmt.Errorf("invalid source name, got %v, want %v", gotSource, wantSource)
+			}
+
+			wantTarget := "existingsymlink"
+			gotTarget := f.Name()
+
+			if wantTarget != gotTarget {
+				return fmt.Errorf("invalid target name, got %v, want %v", gotTarget, wantTarget)
+			}
+
+			wantSourceGID := 1000
+			wantSourceUI := 1000
+
+			gotSourceSys, ok := f.Sys().(*Stat)
+			if !ok {
+				return errors.New("could not get fs.Stat from FileInfo.Sys()")
+			}
+
+			gotSourceGID := int(gotSourceSys.Gid)
+			gotSourceUID := int(gotSourceSys.Uid)
+
+			if wantSourceGID != gotSourceGID {
+				return fmt.Errorf("invalid GID, got %v, want %v", gotSourceGID, wantSourceGID)
+			}
+
+			if wantSourceUI != gotSourceUID {
+				return fmt.Errorf("invalid UID, got %v, want %v", gotSourceUID, wantSourceUI)
+			}
+
+			wantTargetGID := 1000
+			wantTargetUI := 1000
+
+			gotTargetSys, ok := f.Sys().(*Stat)
+			if !ok {
+				return errors.New("could not get fs.Stat from FileInfo.Sys()")
+			}
+
+			gotTargetGID := int(gotTargetSys.Gid)
+			gotTargetUID := int(gotTargetSys.Uid)
+
+			if wantTargetGID != gotTargetGID {
+				return fmt.Errorf("invalid GID, got %v, want %v", gotTargetGID, wantTargetGID)
+			}
+
+			if wantTargetUI != gotTargetUID {
+				return fmt.Errorf("invalid UID, got %v, want %v", gotTargetUID, wantTargetUI)
+			}
+
+			return nil
+		},
+		false,
+		false, // FIXME: With cache enabled, files and directories can't be `chown`ed
+	},
+	{
+		"Can not chmod broken symlink to /test.txt to 11, 11 after creating it",
+		chownArgs{"/brokensymlink", 11, 11},
+		true,
+		func(f symFs) error {
+			if err := f.SymlinkIfPossible("/test.txt", "/brokensymlink"); err != nil {
+				return nil
+			}
+
+			return nil
+		},
+
+		func(f os.FileInfo, l os.FileInfo) error { return nil },
+		false,
+		true,
+	},
+	{
+		"Can not chmod broken symlink to /mydir to 11, 11 after creating it",
+		chownArgs{"/brokensymlink", 11, 11},
+		true,
+		func(f symFs) error {
+			if err := f.SymlinkIfPossible("/mydir", "/brokensymlink"); err != nil {
+				return nil
+			}
+
+			return nil
+		},
+
+		func(f os.FileInfo, l os.FileInfo) error { return nil },
+		false,
+		true,
+	},
+	{
+		"Can chown symlink to /test.txt to 11, 11 after creating it",
+		chownArgs{"/existingsymlink", 11, 11},
+		false,
+		func(f symFs) error {
+			file, err := f.Create("/test.txt")
+			if err != nil {
+				return err
+			}
+			if err := file.Close(); err != nil {
+				return err
+			}
+
+			if err := f.SymlinkIfPossible("/test.txt", "/existingsymlink"); err != nil {
+				return nil
+			}
+
+			return nil
+		},
+		func(f os.FileInfo, l os.FileInfo) error {
+			wantSource := "existingsymlink"
+			gotSource := f.Name()
+
+			if wantSource != gotSource {
+				return fmt.Errorf("invalid source name, got %v, want %v", gotSource, wantSource)
+			}
+
+			wantTarget := "existingsymlink"
+			gotTarget := f.Name()
+
+			if wantTarget != gotTarget {
+				return fmt.Errorf("invalid target name, got %v, want %v", gotTarget, wantTarget)
+			}
+
+			wantSourceGID := 11
+			wantSourceUI := 11
+
+			gotSourceSys, ok := f.Sys().(*Stat)
+			if !ok {
+				return errors.New("could not get fs.Stat from FileInfo.Sys()")
+			}
+
+			gotSourceGID := int(gotSourceSys.Gid)
+			gotSourceUID := int(gotSourceSys.Uid)
+
+			if wantSourceGID != gotSourceGID {
+				return fmt.Errorf("invalid GID, got %v, want %v", gotSourceGID, wantSourceGID)
+			}
+
+			if wantSourceUI != gotSourceUID {
+				return fmt.Errorf("invalid UID, got %v, want %v", gotSourceUID, wantSourceUI)
+			}
+
+			wantTargetGID := 11
+			wantTargetUI := 11
+
+			gotTargetSys, ok := f.Sys().(*Stat)
+			if !ok {
+				return errors.New("could not get fs.Stat from FileInfo.Sys()")
+			}
+
+			gotTargetGID := int(gotTargetSys.Gid)
+			gotTargetUID := int(gotTargetSys.Uid)
+
+			if wantTargetGID != gotTargetGID {
+				return fmt.Errorf("invalid GID, got %v, want %v", gotTargetGID, wantTargetGID)
+			}
+
+			if wantTargetUI != gotTargetUID {
+				return fmt.Errorf("invalid UID, got %v, want %v", gotTargetUID, wantTargetUI)
+			}
+
+			return nil
+		},
+		false,
+		false, // FIXME: With cache enabled, files and directories can't be `chown`ed
+	},
+	{
+		"Can chown symlink to empty directory /mydir to 11, 11 after creating it",
+		chownArgs{"/existingsymlink", 11, 11},
+		false,
+		func(f symFs) error {
+			if err := f.Mkdir("/mydir", os.ModePerm); err != nil {
+				return err
+			}
+
+			if err := f.SymlinkIfPossible("/mydir", "/existingsymlink"); err != nil {
+				return nil
+			}
+
+			return nil
+		},
+		func(f os.FileInfo, l os.FileInfo) error {
+			wantSource := "existingsymlink"
+			gotSource := f.Name()
+
+			if wantSource != gotSource {
+				return fmt.Errorf("invalid source name, got %v, want %v", gotSource, wantSource)
+			}
+
+			wantTarget := "existingsymlink"
+			gotTarget := f.Name()
+
+			if wantTarget != gotTarget {
+				return fmt.Errorf("invalid target name, got %v, want %v", gotTarget, wantTarget)
+			}
+
+			wantSourceGID := 11
+			wantSourceUI := 11
+
+			gotSourceSys, ok := f.Sys().(*Stat)
+			if !ok {
+				return errors.New("could not get fs.Stat from FileInfo.Sys()")
+			}
+
+			gotSourceGID := int(gotSourceSys.Gid)
+			gotSourceUID := int(gotSourceSys.Uid)
+
+			if wantSourceGID != gotSourceGID {
+				return fmt.Errorf("invalid GID, got %v, want %v", gotSourceGID, wantSourceGID)
+			}
+
+			if wantSourceUI != gotSourceUID {
+				return fmt.Errorf("invalid UID, got %v, want %v", gotSourceUID, wantSourceUI)
+			}
+
+			wantTargetGID := 11
+			wantTargetUI := 11
+
+			gotTargetSys, ok := f.Sys().(*Stat)
+			if !ok {
+				return errors.New("could not get fs.Stat from FileInfo.Sys()")
+			}
+
+			gotTargetGID := int(gotTargetSys.Gid)
+			gotTargetUID := int(gotTargetSys.Uid)
+
+			if wantTargetGID != gotTargetGID {
+				return fmt.Errorf("invalid GID, got %v, want %v", gotTargetGID, wantTargetGID)
+			}
+
+			if wantTargetUI != gotTargetUID {
+				return fmt.Errorf("invalid UID, got %v, want %v", gotTargetUID, wantTargetUI)
+			}
+
+			return nil
+		},
+		false,
+		false, // FIXME: With cache enabled, files and directories can't be `chown`ed
+	},
+	{
+		"Can chown symlink to non-empty directory /mydir to 11, 11 after creating it",
+		chownArgs{"/existingsymlink", 11, 11},
+		false,
+		func(f symFs) error {
+			if err := f.Mkdir("/mydir", os.ModePerm); err != nil {
+				return err
+			}
+
+			if err := f.Mkdir("/mydir/subdir", os.ModePerm); err != nil {
+				return err
+			}
+
+			if _, err := f.Create("/mydir/subdir/test.txt"); err != nil {
+				return err
+			}
+
+			if err := f.SymlinkIfPossible("/mydir", "/existingsymlink"); err != nil {
+				return nil
+			}
+
+			return nil
+		},
+		func(f os.FileInfo, l os.FileInfo) error {
+			wantSource := "existingsymlink"
+			gotSource := f.Name()
+
+			if wantSource != gotSource {
+				return fmt.Errorf("invalid source name, got %v, want %v", gotSource, wantSource)
+			}
+
+			wantTarget := "existingsymlink"
+			gotTarget := f.Name()
+
+			if wantTarget != gotTarget {
+				return fmt.Errorf("invalid target name, got %v, want %v", gotTarget, wantTarget)
+			}
+
+			wantSourceGID := 11
+			wantSourceUI := 11
+
+			gotSourceSys, ok := f.Sys().(*Stat)
+			if !ok {
+				return errors.New("could not get fs.Stat from FileInfo.Sys()")
+			}
+
+			gotSourceGID := int(gotSourceSys.Gid)
+			gotSourceUID := int(gotSourceSys.Uid)
+
+			if wantSourceGID != gotSourceGID {
+				return fmt.Errorf("invalid GID, got %v, want %v", gotSourceGID, wantSourceGID)
+			}
+
+			if wantSourceUI != gotSourceUID {
+				return fmt.Errorf("invalid UID, got %v, want %v", gotSourceUID, wantSourceUI)
+			}
+
+			wantTargetGID := 11
+			wantTargetUI := 11
+
+			gotTargetSys, ok := f.Sys().(*Stat)
+			if !ok {
+				return errors.New("could not get fs.Stat from FileInfo.Sys()")
+			}
+
+			gotTargetGID := int(gotTargetSys.Gid)
+			gotTargetUID := int(gotTargetSys.Uid)
+
+			if wantTargetGID != gotTargetGID {
+				return fmt.Errorf("invalid GID, got %v, want %v", gotTargetGID, wantTargetGID)
+			}
+
+			if wantTargetUI != gotTargetUID {
+				return fmt.Errorf("invalid UID, got %v, want %v", gotTargetUID, wantTargetUI)
+			}
+
+			return nil
+		},
+		false,
+		false, // FIXME: With cache enabled, files and directories can't be `chown`ed
 	},
 }
 
@@ -4062,29 +4463,38 @@ func TestSTFS_Chown(t *testing.T) {
 		tt := tt
 
 		runTestForAllFss(t, tt.name, true, tt.withCache, tt.withOsFs, func(t *testing.T, fs fsConfig) {
-			if err := tt.prepare(fs.fs); err != nil {
-				t.Errorf("%v prepare() error = %v", fs.fs.Name(), err)
+			symFs, ok := fs.fs.(symFs)
+			if !ok {
+				return
+			}
+
+			if err := tt.prepare(symFs); err != nil {
+				t.Errorf("%v prepare() error = %v", symFs.Name(), err)
 
 				return
 			}
 
-			if err := fs.fs.Chown(tt.args.name, tt.args.uid, tt.args.gid); (err != nil) != tt.wantErr {
-				t.Errorf("%v.Chown() error = %v, wantErr %v", fs.fs.Name(), err, tt.wantErr)
-
-				return
-			}
-
-			got, err := fs.fs.Stat(tt.args.name)
+			err := symFs.Chown(tt.args.name, tt.args.uid, tt.args.gid)
 			if (err != nil) != tt.wantErr {
-				t.Errorf("%v.Stat() error = %v, wantErr %v", fs.fs.Name(), err, tt.wantErr)
+				t.Errorf("%v.Chown() error = %v, wantErr %v", symFs.Name(), err, tt.wantErr)
 
 				return
 			}
 
-			if err := tt.check(got); err != nil {
-				t.Errorf("%v check() error = %v", fs.fs.Name(), err)
+			if err == nil {
+				gotStat, errStat := symFs.Stat(tt.args.name)
+				gotLstat, _, errLstat := symFs.LstatIfPossible(tt.args.name)
+				if (errStat != nil && errLstat != nil) != tt.wantErr {
+					t.Errorf("%v.Stat() error = %v, %v.LstatIfPossible() error = %v, wantErr %v", symFs.Name(), errStat, symFs.Name(), errLstat, tt.wantErr)
 
-				return
+					return
+				}
+
+				if err := tt.check(gotStat, gotLstat); err != nil {
+					t.Errorf("%v check() error = %v", symFs.Name(), err)
+
+					return
+				}
 			}
 		})
 	}
