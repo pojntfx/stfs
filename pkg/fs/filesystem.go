@@ -1023,10 +1023,40 @@ func (f *STFS) Chtimes(name string, atime time.Time, mtime time.Time) error {
 	)
 	if err != nil {
 		if err == sql.ErrNoRows {
-			return os.ErrNotExist
-		}
+			hdr, err = inventory.Stat(
+				f.metadata,
 
-		return err
+				name,
+				true,
+
+				f.onHeader,
+			)
+			if err != nil {
+				if err == sql.ErrNoRows {
+					return os.ErrNotExist
+				} else {
+					return err
+				}
+			} else {
+				hdr, err = inventory.Stat(
+					f.metadata,
+
+					hdr.Linkname,
+					false,
+
+					f.onHeader,
+				)
+				if err != nil {
+					if err == sql.ErrNoRows {
+						return os.ErrNotExist
+					} else {
+						return err
+					}
+				}
+			}
+		} else {
+			return err
+		}
 	}
 
 	hdr.AccessTime = atime
