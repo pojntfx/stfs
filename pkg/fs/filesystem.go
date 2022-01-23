@@ -951,10 +951,40 @@ func (f *STFS) Chown(name string, uid, gid int) error {
 	)
 	if err != nil {
 		if err == sql.ErrNoRows {
-			return os.ErrNotExist
-		}
+			hdr, err = inventory.Stat(
+				f.metadata,
 
-		return err
+				name,
+				true,
+
+				f.onHeader,
+			)
+			if err != nil {
+				if err == sql.ErrNoRows {
+					return os.ErrNotExist
+				} else {
+					return err
+				}
+			} else {
+				hdr, err = inventory.Stat(
+					f.metadata,
+
+					hdr.Linkname,
+					false,
+
+					f.onHeader,
+				)
+				if err != nil {
+					if err == sql.ErrNoRows {
+						return os.ErrNotExist
+					} else {
+						return err
+					}
+				}
+			}
+		} else {
+			return err
+		}
 	}
 
 	hdr.Uid = uid
