@@ -130,6 +130,106 @@ var fileNameTests = []struct {
 		true,
 		true,
 	},
+	{
+		"Can get correct file name for symlink to /test.txt",
+		"/existingsymlink",
+		func(f symFs) error {
+			if _, err := f.Create("/test.txt"); err != nil {
+				return err
+			}
+
+			if err := f.SymlinkIfPossible("/test.txt", "/existingsymlink"); err != nil {
+				return nil
+			}
+
+			return nil
+		},
+		func(got string) error {
+			want := "/existingsymlink"
+
+			if got != want {
+				return fmt.Errorf("invalid name, got %v, want %v", got, want)
+			}
+
+			return nil
+		},
+		true,
+		true,
+	},
+	{
+		"Can get correct file name for symlink to /mydir",
+		"/existingsymlink",
+		func(f symFs) error {
+			if err := f.Mkdir("/mydir", os.ModePerm); err != nil {
+				return err
+			}
+
+			if err := f.SymlinkIfPossible("/mydir", "/existingsymlink"); err != nil {
+				return nil
+			}
+
+			return nil
+		},
+		func(got string) error {
+			want := "/existingsymlink"
+
+			if got != want {
+				return fmt.Errorf("invalid name, got %v, want %v", got, want)
+			}
+
+			return nil
+		},
+		true,
+		true,
+	},
+	{
+		"Can get correct file name for symlink to /mydir/nesteddir",
+		"/existingsymlink",
+		func(f symFs) error {
+			if err := f.MkdirAll("/mydir/nesteddir", os.ModePerm); err != nil {
+				return err
+			}
+
+			if err := f.SymlinkIfPossible("/mydir/nesteddir", "/existingsymlink"); err != nil {
+				return nil
+			}
+
+			return nil
+		},
+		func(got string) error {
+			want := "/existingsymlink"
+
+			if got != want {
+				return fmt.Errorf("invalid name, got %v, want %v", got, want)
+			}
+
+			return nil
+		},
+		true,
+		true,
+	},
+	{
+		"Can get correct file name for symlink to root",
+		"/existingsymlink",
+		func(f symFs) error {
+			if err := f.SymlinkIfPossible("/", "/existingsymlink"); err != nil {
+				return nil
+			}
+
+			return nil
+		},
+		func(got string) error {
+			want := "/existingsymlink"
+
+			if got != want {
+				return fmt.Errorf("invalid name, got %v, want %v", got, want)
+			}
+
+			return nil
+		},
+		true,
+		true,
+	},
 }
 
 func TestFile_Name(t *testing.T) {

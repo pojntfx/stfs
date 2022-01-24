@@ -371,6 +371,14 @@ func (f *File) Name() string {
 	f.ioLock.Lock()
 	defer f.ioLock.Unlock()
 
+	if f.link != "" {
+		if pathext.IsRoot(f.link, false) {
+			return ""
+		}
+
+		return f.link
+	}
+
 	if pathext.IsRoot(f.path, false) {
 		return ""
 	}
