@@ -749,6 +749,104 @@ var readdirTests = []struct {
 		true,
 	},
 	{
+		"Can readdir all with -1 in / if there are multiple children and non-broken symlinks",
+		"/",
+		readdirArgs{-1},
+		false,
+		func(f symFs) error {
+			if _, err := f.Create("/test.txt"); err != nil {
+				return err
+			}
+
+			if _, err := f.Create("/asdf.txt"); err != nil {
+				return err
+			}
+
+			if err := f.Mkdir("/mydir", os.ModePerm); err != nil {
+				return err
+			}
+
+			if err := f.SymlinkIfPossible("/test.txt", "/existingsymlink"); err != nil {
+				return nil
+			}
+
+			return nil
+		},
+		func(f []os.FileInfo) error {
+			wantNames := map[string]struct{}{
+				"test.txt":        {},
+				"asdf.txt":        {},
+				"mydir":           {},
+				"existingsymlink": {},
+			}
+
+			for _, info := range f {
+				if _, ok := wantNames[info.Name()]; !ok {
+					return fmt.Errorf("could not find file or directory with name %v", info.Name())
+				}
+			}
+
+			wantLength := len(wantNames)
+			gotLength := len(f)
+			if wantLength != gotLength {
+				return fmt.Errorf("invalid amount of children, got %v, want %v", gotLength, wantLength)
+			}
+
+			return nil
+		},
+		true,
+		true,
+	},
+	{
+		"Can readdir all with -1 in / if there are multiple children and broken symlinks",
+		"/",
+		readdirArgs{-1},
+		false,
+		func(f symFs) error {
+			if _, err := f.Create("/test.txt"); err != nil {
+				return err
+			}
+
+			if _, err := f.Create("/asdf.txt"); err != nil {
+				return err
+			}
+
+			if err := f.Mkdir("/mydir", os.ModePerm); err != nil {
+				return err
+			}
+
+			if err := f.SymlinkIfPossible("/test2.txt", "/brokensymlink"); err != nil {
+				return nil
+			}
+
+			return nil
+		},
+		func(f []os.FileInfo) error {
+			wantNames := map[string]struct{}{
+				"test.txt":      {},
+				"asdf.txt":      {},
+				"mydir":         {},
+				"brokensymlink": {},
+			}
+
+			for _, info := range f {
+				if _, ok := wantNames[info.Name()]; !ok {
+					return fmt.Errorf("could not find file or directory with name %v", info.Name())
+				}
+			}
+
+			wantLength := len(wantNames)
+			gotLength := len(f)
+			if wantLength != gotLength {
+				return fmt.Errorf("invalid amount of children, got %v, want %v", gotLength, wantLength)
+			}
+
+			return nil
+		},
+		true,
+		true,
+	},
+	{
 		"Can readdir all with 0 in / if there are multiple children",
 		"/",
 		readdirArgs{0},
@@ -1105,7 +1203,7 @@ var readdirnamesTests = []struct {
 	open      string
 	args      readdirnamesArgs
 	wantErr   bool
-	prepare   func(afero.Fs) error
+	prepare   func(symFs) error
 	check     func([]string) error
 	withCache bool
 	withOsFs  bool
@@ -1115,7 +1213,7 @@ var readdirnamesTests = []struct {
 		"/",
 		readdirnamesArgs{-1},
 		false,
-		func(f afero.Fs) error { return nil },
+		func(f symFs) error { return nil },
 		func(f []string) error {
 			if len(f) > 0 {
 				return errors.New("found unexpected children in empty directory")
@@ -1131,7 +1229,7 @@ var readdirnamesTests = []struct {
 		"",
 		readdirnamesArgs{-1},
 		false,
-		func(f afero.Fs) error { return nil },
+		func(f symFs) error { return nil },
 		func(f []string) error {
 			if len(f) > 0 {
 				return errors.New("found unexpected children in empty directory")
@@ -1147,7 +1245,7 @@ var readdirnamesTests = []struct {
 		"/",
 		readdirnamesArgs{-1},
 		false,
-		func(f afero.Fs) error {
+		func(f symFs) error {
 			if _, err := f.Create("/test.txt"); err != nil {
 				return err
 			}
@@ -1166,8 +1264,8 @@ var readdirnamesTests = []struct {
 				}
 			}
 
-			wantLength := len(f)
-			gotLength := 1
+			wantLength := len(wantNames)
+			gotLength := len(f)
 			if wantLength != gotLength {
 				return fmt.Errorf("invalid amount of children, got %v, want %v", gotLength, wantLength)
 			}
@@ -1182,7 +1280,7 @@ var readdirnamesTests = []struct {
 		"/",
 		readdirnamesArgs{-1},
 		false,
-		func(f afero.Fs) error {
+		func(f symFs) error {
 			if _, err := f.Create("/test.txt"); err != nil {
 				return err
 			}
@@ -1205,14 +1303,111 @@ var readdirnamesTests = []struct {
 			}
 
 			for _, info := range f {
-				name, ok := wantNames[info]
-				if !ok {
-					return fmt.Errorf("could not find file or directory with name %v", name)
+				if _, ok := wantNames[info]; !ok {
+					return fmt.Errorf("could not find file or directory with name %v", info)
 				}
 			}
 
-			wantLength := len(f)
-			gotLength := 3
+			wantLength := len(wantNames)
+			gotLength := len(f)
+			if wantLength != gotLength {
+				return fmt.Errorf("invalid amount of children, got %v, want %v", gotLength, wantLength)
+			}
+
+			return nil
+		},
+		true,
+		true,
+	},
+	{
+		"Can readdirnames all with -1 in / if there are multiple children and non-broken symlinks",
+		"/",
+		readdirnamesArgs{-1},
+		false,
+		func(f symFs) error {
+			if _, err := f.Create("/test.txt"); err != nil {
+				return err
+			}
+
+			if _, err := f.Create("/asdf.txt"); err != nil {
+				return err
+			}
+
+			if err := f.Mkdir("/mydir", os.ModePerm); err != nil {
+				return err
+			}
+
+			if err := f.SymlinkIfPossible("/test.txt", "/existingsymlink"); err != nil {
+				return nil
+			}
+
+			return nil
+		},
+		func(f []string) error {
+			wantNames := map[string]struct{}{
+				"test.txt":        {},
+				"asdf.txt":        {},
+				"mydir":           {},
+				"existingsymlink": {},
+			}
+
+			for _, info := range f {
+				if _, ok := wantNames[info]; !ok {
+					return fmt.Errorf("could not find file or directory with name %v", info)
+				}
+			}
+
+			wantLength := len(wantNames)
+			gotLength := len(f)
+			if wantLength != gotLength {
+				return fmt.Errorf("invalid amount of children, got %v, want %v", gotLength, wantLength)
+			}
+
+			return nil
+		},
+		true,
+		true,
+	},
+	{
+		"Can readdirnames all with -1 in / if there are multiple children and broken symlinks",
+		"/",
+		readdirnamesArgs{-1},
+		false,
+		func(f symFs) error {
+			if _, err := f.Create("/test.txt"); err != nil {
+				return err
+			}
+
+			if _, err := f.Create("/asdf.txt"); err != nil {
+				return err
+			}
+
+			if err := f.Mkdir("/mydir", os.ModePerm); err != nil {
+				return err
+			}
+
+			if err := f.SymlinkIfPossible("/test2.txt", "/brokensymlink"); err != nil {
+				return nil
+			}
+
+			return nil
+		},
+		func(f []string) error {
+			wantNames := map[string]struct{}{
+				"test.txt":      {},
+				"asdf.txt":      {},
+				"mydir":         {},
+				"brokensymlink": {},
+			}
+
+			for _, info := range f {
+				if _, ok := wantNames[info]; !ok {
+					return fmt.Errorf("could not find file or directory with name %v", info)
+				}
+			}
+
+			wantLength := len(wantNames)
+			gotLength := len(f)
 			if wantLength != gotLength {
 				return fmt.Errorf("invalid amount of children, got %v, want %v", gotLength, wantLength)
 			}
@@ -1227,7 +1422,7 @@ var readdirnamesTests = []struct {
 		"/",
 		readdirnamesArgs{0},
 		false,
-		func(f afero.Fs) error {
+		func(f symFs) error {
 			if _, err := f.Create("/test.txt"); err != nil {
 				return err
 			}
@@ -1250,14 +1445,13 @@ var readdirnamesTests = []struct {
 			}
 
 			for _, info := range f {
-				name, ok := wantNames[info]
-				if !ok {
-					return fmt.Errorf("could not find file or directory with name %v", name)
+				if _, ok := wantNames[info]; !ok {
+					return fmt.Errorf("could not find file or directory with name %v", info)
 				}
 			}
 
-			wantLength := len(f)
-			gotLength := 3
+			wantLength := len(wantNames)
+			gotLength := len(f)
 			if wantLength != gotLength {
 				return fmt.Errorf("invalid amount of children, got %v, want %v", gotLength, wantLength)
 			}
@@ -1272,7 +1466,7 @@ var readdirnamesTests = []struct {
 		"/",
 		readdirnamesArgs{2},
 		false,
-		func(f afero.Fs) error {
+		func(f symFs) error {
 			if _, err := f.Create("/test.txt"); err != nil {
 				return err
 			}
@@ -1295,14 +1489,13 @@ var readdirnamesTests = []struct {
 			}
 
 			for _, info := range f {
-				name, ok := wantNames[info]
-				if !ok {
-					return fmt.Errorf("could not find file or directory with name %v", name)
+				if _, ok := wantNames[info]; !ok {
+					return fmt.Errorf("could not find file or directory with name %v", info)
 				}
 			}
 
-			wantLength := len(f)
-			gotLength := 2
+			wantLength := 2
+			gotLength := len(f)
 			if wantLength != gotLength {
 				return fmt.Errorf("invalid amount of children, got %v, want %v", gotLength, wantLength)
 			}
@@ -1317,7 +1510,7 @@ var readdirnamesTests = []struct {
 		"/mydir",
 		readdirnamesArgs{2},
 		false,
-		func(f afero.Fs) error {
+		func(f symFs) error {
 			if _, err := f.Create("/test.txt"); err != nil {
 				return err
 			}
@@ -1343,14 +1536,13 @@ var readdirnamesTests = []struct {
 			}
 
 			for _, info := range f {
-				name, ok := wantNames[info]
-				if !ok {
-					return fmt.Errorf("could not find file or directory with name %v", name)
+				if _, ok := wantNames[info]; !ok {
+					return fmt.Errorf("could not find file or directory with name %v", info)
 				}
 			}
 
-			wantLength := len(f)
-			gotLength := 2
+			wantLength := 2
+			gotLength := len(f)
 			if wantLength != gotLength {
 				return fmt.Errorf("invalid amount of children, got %v, want %v", gotLength, wantLength)
 			}
@@ -1365,7 +1557,7 @@ var readdirnamesTests = []struct {
 		"/mydir/nested",
 		readdirnamesArgs{3},
 		false,
-		func(f afero.Fs) error {
+		func(f symFs) error {
 			if _, err := f.Create("/test.txt"); err != nil {
 				return err
 			}
@@ -1396,14 +1588,133 @@ var readdirnamesTests = []struct {
 			}
 
 			for _, info := range f {
-				name, ok := wantNames[info]
-				if !ok {
-					return fmt.Errorf("could not find file or directory with name %v", name)
+				if _, ok := wantNames[info]; !ok {
+					return fmt.Errorf("could not find file or directory with name %v", info)
 				}
 			}
 
 			wantLength := len(f)
 			gotLength := 3
+			if wantLength != gotLength {
+				return fmt.Errorf("invalid amount of children, got %v, want %v", gotLength, wantLength)
+			}
+
+			return nil
+		},
+		true,
+		true,
+	},
+	{
+		"Can readdirnames 5 in /mydir/nested if there are multiple children and non-broken symlinks",
+		"/mydir/nested",
+		readdirnamesArgs{5},
+		false,
+		func(f symFs) error {
+			if _, err := f.Create("/test.txt"); err != nil {
+				return err
+			}
+
+			if err := f.MkdirAll("/mydir/nested", os.ModePerm); err != nil {
+				return err
+			}
+
+			if _, err := f.Create("/mydir/nested/asdf.txt"); err != nil {
+				return err
+			}
+
+			if _, err := f.Create("/mydir/nested/hmm.txt"); err != nil {
+				return err
+			}
+
+			if _, err := f.Create("/mydir/nested/hmm2.txt"); err != nil {
+				return err
+			}
+
+			if err := f.SymlinkIfPossible("/test.txt", "/mydir/nested/existingsymlink"); err != nil {
+				return nil
+			}
+
+			if err := f.SymlinkIfPossible("/mydir/nested/hmm.txt", "/mydir/nested/existingsymlink2"); err != nil {
+				return nil
+			}
+
+			return nil
+		},
+		func(f []string) error {
+			wantNames := map[string]struct{}{
+				"asdf.txt":         {},
+				"hmm.txt":          {},
+				"hmm2.txt":         {},
+				"existingsymlink":  {},
+				"existingsymlink2": {},
+			}
+
+			for _, info := range f {
+				if _, ok := wantNames[info]; !ok {
+					return fmt.Errorf("could not find file or directory with name %v", info)
+				}
+			}
+
+			wantLength := len(wantNames)
+			gotLength := len(f)
+			if wantLength != gotLength {
+				return fmt.Errorf("invalid amount of children, got %v, want %v", gotLength, wantLength)
+			}
+
+			return nil
+		},
+		true,
+		true,
+	},
+	{
+		"Can readdirnames 5 in /mydir/nested if there are multiple children and broken symlinks",
+		"/mydir/nested",
+		readdirnamesArgs{5},
+		false,
+		func(f symFs) error {
+			if err := f.MkdirAll("/mydir/nested", os.ModePerm); err != nil {
+				return err
+			}
+
+			if _, err := f.Create("/mydir/nested/asdf.txt"); err != nil {
+				return err
+			}
+
+			if _, err := f.Create("/mydir/nested/hmm.txt"); err != nil {
+				return err
+			}
+
+			if _, err := f.Create("/mydir/nested/hmm2.txt"); err != nil {
+				return err
+			}
+
+			if err := f.SymlinkIfPossible("/test.txt", "/mydir/nested/existingsymlink"); err != nil {
+				return nil
+			}
+
+			if err := f.SymlinkIfPossible("/mydir/nested/hmm.txt", "/mydir/nested/existingsymlink2"); err != nil {
+				return nil
+			}
+
+			return nil
+		},
+		func(f []string) error {
+			wantNames := map[string]struct{}{
+				"asdf.txt":         {},
+				"hmm.txt":          {},
+				"hmm2.txt":         {},
+				"existingsymlink":  {},
+				"existingsymlink2": {},
+			}
+
+			for _, info := range f {
+				if _, ok := wantNames[info]; !ok {
+					return fmt.Errorf("could not find file or directory with name %v", info)
+				}
+			}
+
+			wantLength := len(wantNames)
+			gotLength := len(f)
 			if wantLength != gotLength {
 				return fmt.Errorf("invalid amount of children, got %v, want %v", gotLength, wantLength)
 			}
