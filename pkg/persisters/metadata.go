@@ -293,10 +293,10 @@ func (p *MetadataPersister) GetHeaderDirectChildren(ctx context.Context, name st
 
 	getHeaders := func(prefix string, useLinkname bool) ([]*config.Header, error) {
 		pk := models.HeaderColumns.Name
-		exclude := models.HeaderColumns.Linkname
+		exclude := fmt.Sprintf(`%v = ""`, models.HeaderColumns.Linkname)
 		if useLinkname {
 			pk = models.HeaderColumns.Linkname
-			exclude = models.HeaderColumns.Name
+			exclude = "1" // No need to exclude anything
 		}
 		headers := []*config.Header{}
 
@@ -313,7 +313,7 @@ where %v like ?
         )
     )
 	and %v != 1
-	and %v = ""
+	and %v
     and not %v in ('', '.', '/', './')`,
 			models.HeaderColumns.Record,
 			models.HeaderColumns.Lastknownrecord,
@@ -389,9 +389,34 @@ where %v like ?
 		return nil, err
 	}
 
-	linknameHeaders, err := getHeaders(prefix, true)
+	rawLinknameHeaders, err := getHeaders(prefix, true)
 	if err != nil {
 		return nil, err
+	}
+
+	linknameHeaders := []*config.Header{}
+	for _, link := range rawLinknameHeaders {
+		name := link.Name
+		linkname := link.Linkname
+
+		target, err := p.GetHeader(ctx, name)
+		if err != nil {
+			if err == sql.ErrNoRows {
+				link.Name = linkname
+				link.Linkname = name
+
+				linknameHeaders = append(linknameHeaders, link)
+
+				continue
+			} else {
+				return nil, err
+			}
+		}
+
+		target.Name = linkname
+		target.Linkname = name
+
+		linknameHeaders = append(linknameHeaders, target)
 	}
 
 	headers = append(headers, nameHeaders...)

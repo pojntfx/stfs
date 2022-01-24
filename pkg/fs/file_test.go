@@ -732,9 +732,8 @@ var readdirTests = []struct {
 			}
 
 			for _, info := range f {
-				name, ok := wantNames[info.Name()]
-				if !ok {
-					return fmt.Errorf("could not find file or directory with name %v", name)
+				if _, ok := wantNames[info.Name()]; !ok {
+					return fmt.Errorf("could not find file or directory with name %v", info.Name())
 				}
 			}
 
@@ -777,9 +776,8 @@ var readdirTests = []struct {
 			}
 
 			for _, info := range f {
-				name, ok := wantNames[info.Name()]
-				if !ok {
-					return fmt.Errorf("could not find file or directory with name %v", name)
+				if _, ok := wantNames[info.Name()]; !ok {
+					return fmt.Errorf("could not find file or directory with name %v", info.Name())
 				}
 			}
 
@@ -822,9 +820,8 @@ var readdirTests = []struct {
 			}
 
 			for _, info := range f {
-				name, ok := wantNames[info.Name()]
-				if !ok {
-					return fmt.Errorf("could not find file or directory with name %v", name)
+				if _, ok := wantNames[info.Name()]; !ok {
+					return fmt.Errorf("could not find file or directory with name %v", info.Name())
 				}
 			}
 
@@ -870,9 +867,8 @@ var readdirTests = []struct {
 			}
 
 			for _, info := range f {
-				name, ok := wantNames[info.Name()]
-				if !ok {
-					return fmt.Errorf("could not find file or directory with name %v", name)
+				if _, ok := wantNames[info.Name()]; !ok {
+					return fmt.Errorf("could not find file or directory with name %v", info.Name())
 				}
 			}
 
@@ -923,9 +919,8 @@ var readdirTests = []struct {
 			}
 
 			for _, info := range f {
-				name, ok := wantNames[info.Name()]
-				if !ok {
-					return fmt.Errorf("could not find file or directory with name %v", name)
+				if _, ok := wantNames[info.Name()]; !ok {
+					return fmt.Errorf("could not find file or directory with name %v", info.Name())
 				}
 			}
 
@@ -940,186 +935,126 @@ var readdirTests = []struct {
 		true,
 		true,
 	},
-	// {
-	// 	"Can readdir 5 in /mydir/nested if there are multiple children and non-broken symlinks",
-	// 	"/mydir/nested",
-	// 	readdirArgs{5},
-	// 	false,
-	// 	func(f symFs) error {
-	// 		if _, err := f.Create("/test.txt"); err != nil {
-	// 			return err
-	// 		}
+	{
+		"Can readdir 5 in /mydir/nested if there are multiple children and non-broken symlinks",
+		"/mydir/nested",
+		readdirArgs{5},
+		false,
+		func(f symFs) error {
+			if _, err := f.Create("/test.txt"); err != nil {
+				return err
+			}
 
-	// 		if err := f.MkdirAll("/mydir/nested", os.ModePerm); err != nil {
-	// 			return err
-	// 		}
+			if err := f.MkdirAll("/mydir/nested", os.ModePerm); err != nil {
+				return err
+			}
 
-	// 		if _, err := f.Create("/mydir/nested/asdf.txt"); err != nil {
-	// 			return err
-	// 		}
+			if _, err := f.Create("/mydir/nested/asdf.txt"); err != nil {
+				return err
+			}
 
-	// 		if _, err := f.Create("/mydir/nested/hmm.txt"); err != nil {
-	// 			return err
-	// 		}
+			if _, err := f.Create("/mydir/nested/hmm.txt"); err != nil {
+				return err
+			}
 
-	// 		if _, err := f.Create("/mydir/nested/hmm2.txt"); err != nil {
-	// 			return err
-	// 		}
+			if _, err := f.Create("/mydir/nested/hmm2.txt"); err != nil {
+				return err
+			}
 
-	// 		if err := f.SymlinkIfPossible("/test.txt", "/mydir/nested/existingsymlink"); err != nil {
-	// 			return nil
-	// 		}
+			if err := f.SymlinkIfPossible("/test.txt", "/mydir/nested/existingsymlink"); err != nil {
+				return nil
+			}
 
-	// 		if err := f.SymlinkIfPossible("/mydir/nested/hmm.txt", "/mydir/nested/existingsymlink2"); err != nil {
-	// 			return nil
-	// 		}
+			if err := f.SymlinkIfPossible("/mydir/nested/hmm.txt", "/mydir/nested/existingsymlink2"); err != nil {
+				return nil
+			}
 
-	// 		return nil
-	// 	},
-	// 	func(f []os.FileInfo) error {
-	// 		wantNames := map[string]struct{}{
-	// 			"asdf.txt":         {},
-	// 			"hmm.txt":          {},
-	// 			"hmm2.txt":         {},
-	// 			"existingsymlink":  {},
-	// 			"existingsymlink2": {},
-	// 		}
+			return nil
+		},
+		func(f []os.FileInfo) error {
+			wantNames := map[string]struct{}{
+				"asdf.txt":         {},
+				"hmm.txt":          {},
+				"hmm2.txt":         {},
+				"existingsymlink":  {},
+				"existingsymlink2": {},
+			}
 
-	// 		for _, info := range f {
-	// 			name, ok := wantNames[info.Name()]
-	// 			if !ok {
-	// 				return fmt.Errorf("could not find file or directory with name %v", name)
-	// 			}
-	// 		}
+			for _, info := range f {
+				if _, ok := wantNames[info.Name()]; !ok {
+					return fmt.Errorf("could not find file or directory with name %v", info.Name())
+				}
+			}
 
-	// 		wantLength := len(wantNames)
-	// 		gotLength := len(f)
-	// 		if wantLength != gotLength {
-	// 			return fmt.Errorf("invalid amount of children, got %v, want %v", gotLength, wantLength)
-	// 		}
+			wantLength := len(wantNames)
+			gotLength := len(f)
+			if wantLength != gotLength {
+				return fmt.Errorf("invalid amount of children, got %v, want %v", gotLength, wantLength)
+			}
 
-	// 		return nil
-	// 	},
-	// 	true,
-	// 	true,
-	// },
-	// {
-	// 	"Can readdir 5 in /mydir/nested if there are multiple children and broken symlinks",
-	// 	"/mydir/nested",
-	// 	readdirArgs{5},
-	// 	false,
-	// 	func(f symFs) error {
-	// 		if err := f.MkdirAll("/mydir/nested", os.ModePerm); err != nil {
-	// 			return err
-	// 		}
+			return nil
+		},
+		true,
+		true,
+	},
+	{
+		"Can readdir 5 in /mydir/nested if there are multiple children and broken symlinks",
+		"/mydir/nested",
+		readdirArgs{5},
+		false,
+		func(f symFs) error {
+			if err := f.MkdirAll("/mydir/nested", os.ModePerm); err != nil {
+				return err
+			}
 
-	// 		if _, err := f.Create("/mydir/nested/asdf.txt"); err != nil {
-	// 			return err
-	// 		}
+			if _, err := f.Create("/mydir/nested/asdf.txt"); err != nil {
+				return err
+			}
 
-	// 		if _, err := f.Create("/mydir/nested/hmm.txt"); err != nil {
-	// 			return err
-	// 		}
+			if _, err := f.Create("/mydir/nested/hmm.txt"); err != nil {
+				return err
+			}
 
-	// 		if _, err := f.Create("/mydir/nested/hmm2.txt"); err != nil {
-	// 			return err
-	// 		}
+			if _, err := f.Create("/mydir/nested/hmm2.txt"); err != nil {
+				return err
+			}
 
-	// 		if err := f.SymlinkIfPossible("/mydir/nested/hmm2.txt", "/mydir/nested/existingsymlink"); err != nil {
-	// 			return nil
-	// 		}
+			if err := f.SymlinkIfPossible("/test.txt", "/mydir/nested/existingsymlink"); err != nil {
+				return nil
+			}
 
-	// 		if err := f.SymlinkIfPossible("/test.txt", "/mydir/nested/brokensymlink"); err != nil {
-	// 			return nil
-	// 		}
+			if err := f.SymlinkIfPossible("/mydir/nested/hmm.txt", "/mydir/nested/existingsymlink2"); err != nil {
+				return nil
+			}
 
-	// 		return nil
-	// 	},
-	// 	func(f []os.FileInfo) error {
-	// 		wantNames := map[string]struct{}{
-	// 			"asdf.txt":        {},
-	// 			"hmm.txt":         {},
-	// 			"hmm2.txt":        {},
-	// 			"existingsymlink": {},
-	// 			"brokensymlink":   {},
-	// 		}
+			return nil
+		},
+		func(f []os.FileInfo) error {
+			wantNames := map[string]struct{}{
+				"asdf.txt":         {},
+				"hmm.txt":          {},
+				"hmm2.txt":         {},
+				"existingsymlink":  {},
+				"existingsymlink2": {},
+			}
 
-	// 		for _, info := range f {
-	// 			name, ok := wantNames[info.Name()]
-	// 			if !ok {
-	// 				return fmt.Errorf("could not find file or directory with name %v", name)
-	// 			}
-	// 		}
+			for _, info := range f {
+				if _, ok := wantNames[info.Name()]; !ok {
+					return fmt.Errorf("could not find file or directory with name %v", info.Name())
+				}
+			}
 
-	// 		wantLength := len(wantNames)
-	// 		gotLength := len(f)
-	// 		if wantLength != gotLength {
-	// 			return fmt.Errorf("invalid amount of children, got %v, want %v", gotLength, wantLength)
-	// 		}
+			wantLength := len(wantNames)
+			gotLength := len(f)
+			if wantLength != gotLength {
+				return fmt.Errorf("invalid amount of children, got %v, want %v", gotLength, wantLength)
+			}
 
-	// 		return nil
-	// 	},
-	// 	true,
-	// 	true,
-	// },
-	// {
-	// 	"Can readdir 4 in /existingsymlink if there are multiple children and symlinks",
-	// 	"/existingsymlink",
-	// 	readdirArgs{4},
-	// 	false,
-	// 	func(f symFs) error {
-	// 		if err := f.MkdirAll("/mydir/nested", os.ModePerm); err != nil {
-	// 			return err
-	// 		}
-
-	// 		if _, err := f.Create("/mydir/nested/asdf.txt"); err != nil {
-	// 			return err
-	// 		}
-
-	// 		if _, err := f.Create("/mydir/nested/hmm.txt"); err != nil {
-	// 			return err
-	// 		}
-
-	// 		if _, err := f.Create("/mydir/nested/hmm2.txt"); err != nil {
-	// 			return err
-	// 		}
-
-	// 		if err := f.SymlinkIfPossible("/test.txt", "/mydir/nested/brokensymlink"); err != nil {
-	// 			return nil
-	// 		}
-
-	// 		if err := f.SymlinkIfPossible("/mydir/nested", "/existingsymlink"); err != nil {
-	// 			return nil
-	// 		}
-
-	// 		return nil
-	// 	},
-	// 	func(f []os.FileInfo) error {
-	// 		wantNames := map[string]struct{}{
-	// 			"asdf.txt":      {},
-	// 			"hmm.txt":       {},
-	// 			"hmm2.txt":      {},
-	// 			"brokensymlink": {},
-	// 		}
-
-	// 		for _, info := range f {
-	// 			name, ok := wantNames[info.Name()]
-	// 			if !ok {
-	// 				return fmt.Errorf("could not find file or directory with name %v", name)
-	// 			}
-	// 		}
-
-	// 		wantLength := len(f)
-	// 		gotLength := 3
-	// 		if wantLength != gotLength {
-	// 			return fmt.Errorf("invalid amount of children, got %v, want %v", gotLength, wantLength)
-	// 		}
-
-	// 		return nil
-	// 	},
-	// 	true,
-	// 	true,
-	// },
+			return nil
+		},
+		true,
+		true,
+	},
 }
 
 func TestFile_Readdir(t *testing.T) {
