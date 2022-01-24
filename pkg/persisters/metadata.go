@@ -261,7 +261,6 @@ func (p *MetadataPersister) GetHeaderDirectChildren(ctx context.Context, name st
 	name = p.getSanitizedPath(ctx, name)
 	prefix := strings.TrimSuffix(name, "/") + "/"
 	rootDepth := 0
-	headers := []*config.Header{}
 
 	// We want <=, not <
 	if limit > 0 {
@@ -283,7 +282,7 @@ func (p *MetadataPersister) GetHeaderDirectChildren(ctx context.Context, name st
 			),
 		).Bind(ctx, p.sqlite.DB, &depth); err != nil {
 			if err == sql.ErrNoRows {
-				return headers, nil
+				return []*config.Header{}, nil
 			}
 
 			return nil, err
@@ -292,7 +291,15 @@ func (p *MetadataPersister) GetHeaderDirectChildren(ctx context.Context, name st
 		rootDepth = int(depth.Depth)
 	}
 
-	getHeaders := func(prefix string) ([]*config.Header, error) {
+	getHeaders := func(prefix string, useLinkname bool) ([]*config.Header, error) {
+		pk := models.HeaderColumns.Name
+		exclude := models.HeaderColumns.Linkname
+		if useLinkname {
+			pk = models.HeaderColumns.Linkname
+			exclude = models.HeaderColumns.Name
+		}
+		headers := []*config.Header{}
+
 		query := fmt.Sprintf(
 			`select %v, %v, %v, %v, %v, %v, %v, %v, %v, %v, %v, %v, %v, %v, %v, %v, %v, %v, %v, %v, %v,
     length(replace(%v, ?, '')) - length(replace(replace(%v, ?, ''), '/', '')) as depth
@@ -306,6 +313,7 @@ where %v like ?
         )
     )
 	and %v != 1
+	and %v = ""
     and not %v in ('', '.', '/', './')`,
 			models.HeaderColumns.Record,
 			models.HeaderColumns.Lastknownrecord,
@@ -313,8 +321,8 @@ where %v like ?
 			models.HeaderColumns.Lastknownblock,
 			models.HeaderColumns.Deleted,
 			models.HeaderColumns.Typeflag,
-			models.HeaderColumns.Name,
-			models.HeaderColumns.Linkname,
+			pk,
+			exclude,
 			models.HeaderColumns.Size,
 			models.HeaderColumns.Mode,
 			models.HeaderColumns.UID,
@@ -328,13 +336,14 @@ where %v like ?
 			models.HeaderColumns.Devminor,
 			models.HeaderColumns.Paxrecords,
 			models.HeaderColumns.Format,
-			models.HeaderColumns.Name,
-			models.HeaderColumns.Name,
+			pk,
+			pk,
 			models.TableNames.Headers,
-			models.HeaderColumns.Name,
-			models.HeaderColumns.Name,
+			pk,
+			pk,
 			models.HeaderColumns.Deleted,
-			models.HeaderColumns.Name,
+			exclude,
+			pk,
 		)
 
 		if limit > 0 {
@@ -373,10 +382,20 @@ where %v like ?
 		return headers, nil
 	}
 
-	headers, err := getHeaders(prefix)
+	headers := []*config.Header{}
+
+	nameHeaders, err := getHeaders(prefix, false)
 	if err != nil {
 		return nil, err
 	}
+
+	linknameHeaders, err := getHeaders(prefix, true)
+	if err != nil {
+		return nil, err
+	}
+
+	headers = append(headers, nameHeaders...)
+	headers = append(headers, linknameHeaders...)
 
 	outhdrs := []*config.Header{}
 	for _, hdr := range headers {
