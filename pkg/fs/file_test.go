@@ -270,7 +270,7 @@ var fileStatTests = []struct {
 	name      string
 	open      string
 	wantErr   bool
-	prepare   func(afero.Fs) error
+	prepare   func(symFs) error
 	check     func(os.FileInfo) error
 	withCache bool
 	withOsFs  bool
@@ -279,7 +279,7 @@ var fileStatTests = []struct {
 		"Can stat /",
 		"/",
 		false,
-		func(f afero.Fs) error { return nil },
+		func(f symFs) error { return nil },
 		func(f os.FileInfo) error {
 			dir, _ := path.Split(f.Name())
 			if !(dir == "/" || dir == "") {
@@ -300,7 +300,7 @@ var fileStatTests = []struct {
 		"Can stat /test.txt",
 		"/test.txt",
 		false,
-		func(f afero.Fs) error {
+		func(f symFs) error {
 			if _, err := f.Create("/test.txt"); err != nil {
 				return err
 			}
@@ -331,7 +331,7 @@ var fileStatTests = []struct {
 		"Can stat system-specific properties of /test.txt",
 		"/test.txt",
 		false,
-		func(f afero.Fs) error {
+		func(f symFs) error {
 			if _, err := f.Create("/test.txt"); err != nil {
 				return err
 			}
@@ -385,7 +385,7 @@ var fileStatTests = []struct {
 		"Can stat /mydir/test.txt",
 		"/mydir/test.txt",
 		false,
-		func(f afero.Fs) error {
+		func(f symFs) error {
 			if err := f.Mkdir("/mydir", os.ModePerm); err != nil {
 				return err
 			}
@@ -420,7 +420,7 @@ var fileStatTests = []struct {
 		"Can stat system-specific properties of /mydir/test.txt",
 		"/mydir/test.txt",
 		false,
-		func(f afero.Fs) error {
+		func(f symFs) error {
 			if err := f.Mkdir("/mydir", os.ModePerm); err != nil {
 				return err
 			}
@@ -473,6 +473,114 @@ var fileStatTests = []struct {
 		},
 		true,
 		false, // HACK: OsFs uses umask, which yields unexpected permission bits (see https://github.com/golang/go/issues/38282)
+	},
+	{
+		"Can stat symlink to /test.txt",
+		"/existingsymlink",
+		false,
+		func(f symFs) error {
+			if _, err := f.Create("/test.txt"); err != nil {
+				return err
+			}
+
+			if err := f.SymlinkIfPossible("/test.txt", "/existingsymlink"); err != nil {
+				return nil
+			}
+
+			return nil
+		},
+		func(f os.FileInfo) error {
+			wantName := "existingsymlink"
+			gotName := f.Name()
+
+			if wantName != gotName {
+				return fmt.Errorf("invalid name, got %v, want %v", gotName, wantName)
+			}
+
+			return nil
+		},
+		true,
+		true,
+	},
+	{
+		"Can stat symlink to /mydir",
+		"/existingsymlink",
+		false,
+		func(f symFs) error {
+			if err := f.Mkdir("/mydir", os.ModePerm); err != nil {
+				return err
+			}
+
+			if err := f.SymlinkIfPossible("/mydir", "/existingsymlink"); err != nil {
+				return nil
+			}
+
+			return nil
+		},
+		func(f os.FileInfo) error {
+			wantName := "existingsymlink"
+			gotName := f.Name()
+
+			if wantName != gotName {
+				return fmt.Errorf("invalid name, got %v, want %v", gotName, wantName)
+			}
+
+			return nil
+		},
+		true,
+		true,
+	},
+	{
+		"Can stat symlink to /mydir/nesteddir",
+		"/existingsymlink",
+		false,
+		func(f symFs) error {
+			if err := f.MkdirAll("/mydir/nesteddir", os.ModePerm); err != nil {
+				return err
+			}
+
+			if err := f.SymlinkIfPossible("/mydir/nesteddir", "/existingsymlink"); err != nil {
+				return nil
+			}
+
+			return nil
+		},
+		func(f os.FileInfo) error {
+			wantName := "existingsymlink"
+			gotName := f.Name()
+
+			if wantName != gotName {
+				return fmt.Errorf("invalid name, got %v, want %v", gotName, wantName)
+			}
+
+			return nil
+		},
+		true,
+		true,
+	},
+	{
+		"Can stat symlink to symlink to root",
+		"/existingsymlink",
+		false,
+		func(f symFs) error {
+			if err := f.SymlinkIfPossible("/", "/existingsymlink"); err != nil {
+				return nil
+			}
+
+			return nil
+		},
+		func(f os.FileInfo) error {
+			wantName := "existingsymlink"
+			gotName := f.Name()
+
+			if wantName != gotName {
+				return fmt.Errorf("invalid name, got %v, want %v", gotName, wantName)
+			}
+
+			return nil
+		},
+		true,
+		true,
 	},
 }
 
