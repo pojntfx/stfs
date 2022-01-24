@@ -6,6 +6,7 @@ import (
 	"io"
 	"io/fs"
 	"os"
+	"path"
 	"sync"
 	"time"
 
@@ -43,7 +44,7 @@ type File struct {
 	getFileBuffer    func() (cache.WriteCache, func() error, error)
 
 	name string
-	info os.FileInfo
+	info *FileInfo
 
 	ioLock *sync.Mutex
 
@@ -72,7 +73,7 @@ func NewFile(
 	ioLock *sync.Mutex,
 
 	name string,
-	info os.FileInfo,
+	info *FileInfo,
 
 	onHeader func(hdr *config.Header),
 	log logging.StructuredLogger,
@@ -393,6 +394,14 @@ func (f *File) Stat() (os.FileInfo, error) {
 
 	f.ioLock.Lock()
 	defer f.ioLock.Unlock()
+
+	if f.link != "" {
+		info := f.info
+
+		info.name = path.Base(f.link)
+
+		return info, nil
+	}
 
 	return f.info, nil
 }
