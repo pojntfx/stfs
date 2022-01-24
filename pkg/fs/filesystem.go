@@ -521,6 +521,8 @@ func (f *STFS) OpenFile(name string, flag int, perm os.FileMode) (afero.File, er
 					return nil, err
 				}
 			} else {
+				linkname := hdr.Name
+
 				hdr, err = inventory.Stat(
 					f.metadata,
 
@@ -550,6 +552,8 @@ func (f *STFS) OpenFile(name string, flag int, perm os.FileMode) (afero.File, er
 						return nil, err
 					}
 				}
+
+				hdr.Linkname = linkname
 			}
 		} else {
 			return nil, err
