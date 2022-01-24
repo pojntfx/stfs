@@ -100,7 +100,7 @@ func TestMain(m *testing.M) {
 	flag.Parse() // So that `testing.Short` can be called, see https://go-review.googlesource.com/c/go/+/7604/
 
 	if verbose {
-		boil.DebugMode = false
+		boil.DebugMode = true
 		boil.DebugWriter = os.Stderr
 	}
 
