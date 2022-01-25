@@ -292,7 +292,8 @@ func (f *File) seekWithoutLocking(offset int64, whence int) (int64, error) {
 	})
 
 	if f.info.IsDir() {
-		return -1, config.ErrIsDirectory
+		// Noop
+		return 0, nil
 	}
 
 	if f.writeBuf != nil {
@@ -353,7 +354,17 @@ func (f *File) seekWithoutLocking(offset int64, whence int) (int64, error) {
 
 	written, err := io.CopyN(io.Discard, f.readOpReader, dst-int64(f.readOpReader.BytesRead))
 	if err == io.EOF {
-		return written, io.EOF
+		// Noop
+		switch whence {
+		case io.SeekStart:
+			return offset, nil
+		case io.SeekCurrent:
+			return int64(f.readOpReader.BytesRead) + offset, nil
+		case io.SeekEnd:
+			return int64(f.info.Size()) - offset, nil
+		default:
+			return -1, config.ErrNotImplemented
+		}
 	}
 
 	if err != nil {
