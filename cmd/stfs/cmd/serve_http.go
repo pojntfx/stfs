@@ -1,9 +1,9 @@
 package cmd
 
 import (
-	"context"
 	"fmt"
 	"net/http"
+	"os"
 	"path/filepath"
 	"time"
 
@@ -84,11 +84,6 @@ var serveHTTPCmd = &cobra.Command{
 			return err
 		}
 
-		root, err := metadataPersister.GetRootPath(context.Background())
-		if err != nil {
-			return err
-		}
-
 		jsonLogger := logging.NewJSONLogger(viper.GetInt(verboseFlag))
 
 		readOps := operations.NewOperations(
@@ -140,6 +135,11 @@ var serveHTTPCmd = &cobra.Command{
 			},
 			jsonLogger,
 		)
+
+		root, err := stfs.Initialize("/", os.ModePerm)
+		if err != nil {
+			return err
+		}
 
 		fs, err := cache.NewCacheFilesystem(
 			stfs,
