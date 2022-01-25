@@ -2891,7 +2891,7 @@ var seekTests = []struct {
 	open      string
 	args      seekArgs
 	wantErr   bool
-	prepare   func(afero.Fs) error
+	prepare   func(symFs) error
 	check     func(afero.File, int64) error
 	withCache bool
 	withOsFs  bool
@@ -2901,7 +2901,7 @@ var seekTests = []struct {
 		"/",
 		seekArgs{1000, io.SeekStart},
 		false,
-		func(f afero.Fs) error { return nil },
+		func(f symFs) error { return nil },
 		func(f afero.File, i int64) error { return nil },
 		true,
 		true,
@@ -2911,7 +2911,7 @@ var seekTests = []struct {
 		"/mydir",
 		seekArgs{1000, io.SeekStart},
 		false,
-		func(f afero.Fs) error {
+		func(f symFs) error {
 			if err := f.Mkdir("/mydir", os.ModePerm); err != nil {
 				return err
 			}
@@ -2927,7 +2927,7 @@ var seekTests = []struct {
 		"/test.txt",
 		seekArgs{6, io.SeekStart},
 		false,
-		func(f afero.Fs) error {
+		func(f symFs) error {
 			file, err := f.Create("/test.txt")
 			if err != nil {
 				return err
@@ -2968,7 +2968,7 @@ var seekTests = []struct {
 		"/test.txt",
 		seekArgs{1000, io.SeekStart},
 		false,
-		func(f afero.Fs) error {
+		func(f symFs) error {
 			file, err := f.Create("/test.txt")
 			if err != nil {
 				return err
@@ -3004,7 +3004,7 @@ var seekTests = []struct {
 		"/test.txt",
 		seekArgs{1000, io.SeekStart},
 		false,
-		func(f afero.Fs) error {
+		func(f symFs) error {
 			file, err := f.Create("/test.txt")
 			if err != nil {
 				return err
@@ -3031,6 +3031,107 @@ var seekTests = []struct {
 		true,
 		true,
 	},
+	{
+		"Can seek on symlink to /",
+		"/existingsymlink",
+		seekArgs{1000, io.SeekStart},
+		false,
+		func(f symFs) error {
+			if err := f.SymlinkIfPossible("/", "/existingsymlink"); err != nil {
+				return err
+			}
+
+			return nil
+		},
+		func(f afero.File, i int64) error { return nil },
+		true,
+		true,
+	},
+	{
+		"Can seek on symlink to /mydir",
+		"/existingsymlink",
+		seekArgs{1000, io.SeekStart},
+		false,
+		func(f symFs) error {
+			if err := f.Mkdir("/mydir", os.ModePerm); err != nil {
+				return err
+			}
+
+			if err := f.SymlinkIfPossible("/mydir", "/existingsymlink"); err != nil {
+				return err
+			}
+
+			return nil
+		},
+		func(f afero.File, i int64) error { return nil },
+		true,
+		true,
+	},
+	{
+		"Can seek on symlink to /test.txt within limits",
+		"/existingsymlink",
+		seekArgs{6, io.SeekStart},
+		false,
+		func(f symFs) error {
+			file, err := f.Create("/test.txt")
+			if err != nil {
+				return err
+			}
+
+			if _, err := file.WriteString("Hello, world!"); err != nil {
+				return err
+			}
+
+			if err := file.Close(); err != nil {
+				return err
+			}
+
+			if err := f.SymlinkIfPossible("/test.txt", "/existingsymlink"); err != nil {
+				return err
+			}
+
+			return nil
+		},
+		func(f afero.File, i int64) error {
+			wantCount := int64(6)
+			gotCount := i
+
+			if wantCount != gotCount {
+				return fmt.Errorf("invalid count, got %v, want %v", gotCount, wantCount)
+			}
+
+			wantContent := " world!"
+			gotContent := make([]byte, 7)
+
+			if _, err := f.Read(gotContent); err != nil {
+				return err
+			}
+
+			if string(gotContent) != string(wantContent) {
+				return fmt.Errorf("invalid read content, got %v, want %v", string(gotContent), string(wantContent))
+			}
+
+			return nil
+		},
+		true,
+		true,
+	},
+	{
+		"Can not seek on broken symlink",
+		"/brokensymlink",
+		seekArgs{1000, io.SeekStart},
+		true,
+		func(f symFs) error {
+			if err := f.SymlinkIfPossible("/mydir", "/brokensymlink"); err != nil {
+				return err
+			}
+
+			return nil
+		},
+		func(f afero.File, i int64) error { return nil },
+		true,
+		true,
+	},
 }
 
 func TestFile_Seek(t *testing.T) {
@@ -3038,26 +3139,31 @@ func TestFile_Seek(t *testing.T) {
 		tt := tt
 
 		runTestForAllFss(t, tt.name, true, tt.withCache, tt.withOsFs, func(t *testing.T, fs fsConfig) {
-			if err := tt.prepare(fs.fs); err != nil {
-				t.Errorf("%v prepare() error = %v", fs.fs.Name(), err)
+			symFs, ok := fs.fs.(symFs)
+			if !ok {
+				return
+			}
+
+			if err := tt.prepare(symFs); err != nil {
+				t.Errorf("%v prepare() error = %v", symFs.Name(), err)
 
 				return
 			}
 
-			file, err := fs.fs.Open(tt.open)
+			file, err := symFs.Open(tt.open)
 			if err != nil && tt.wantErr {
 				return
 			}
 
 			if err != nil {
-				t.Errorf("%v open() error = %v", fs.fs.Name(), err)
+				t.Errorf("%v open() error = %v", symFs.Name(), err)
 
 				return
 			}
 
 			n, err := file.Seek(tt.args.offset, tt.args.whence)
 			if (err != nil) != tt.wantErr {
-				t.Errorf("%v.Seek() error = %v", fs.fs.Name(), err)
+				t.Errorf("%v.Seek() error = %v", symFs.Name(), err)
 
 				return
 			}
