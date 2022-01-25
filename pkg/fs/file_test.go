@@ -2227,7 +2227,641 @@ func TestFile_Read(t *testing.T) {
 			}
 
 			file, err := symFs.Open(open)
-			if (err != nil) == tt.wantErr {
+			if err != nil && tt.wantErr {
+				return
+			}
+
+			if err != nil {
+				t.Errorf("%v open() error = %v", symFs.Name(), err)
+
+				return
+			}
+
+			if err := tt.check(file); (err != nil) != tt.wantErr {
+				t.Errorf("%v check() error = %v", fs.fs.Name(), err)
+
+				return
+			}
+		})
+	}
+}
+
+var readAtTests = []struct {
+	name           string
+	open           string
+	wantErr        bool
+	prepare        func(afero.Fs) error
+	check          func(afero.File) error
+	withCache      bool
+	withOsFs       bool
+	large          bool
+	followSymlinks bool
+}{
+	{
+		"Can readAt / into empty buffer",
+		"/",
+		false,
+		func(f afero.Fs) error { return nil },
+		func(f afero.File) error {
+			wantContent := []byte{}
+			gotContent := make([]byte, len(wantContent))
+
+			wantLength := len(wantContent)
+			gotLength, err := f.ReadAt(gotContent, 0)
+			if err != io.EOF {
+				return err
+			}
+
+			if wantLength != gotLength {
+				return fmt.Errorf("invalid readAt length, got %v, want %v", gotLength, wantLength)
+			}
+
+			if string(wantContent) != string(gotContent) {
+				return fmt.Errorf("invalid readAt content, got %v, want %v", gotContent, wantContent)
+			}
+
+			return nil
+		},
+		true,
+		true,
+		false,
+		false,
+	},
+	{
+		"Can readAt /mydir into empty buffer",
+		"/mydir",
+		false,
+		func(f afero.Fs) error {
+			if err := f.Mkdir("/mydir", os.ModePerm); err != nil {
+				return err
+			}
+
+			return nil
+		},
+		func(f afero.File) error {
+			wantContent := []byte{}
+			gotContent := make([]byte, len(wantContent))
+
+			wantLength := len(wantContent)
+			gotLength, err := f.ReadAt(gotContent, 0)
+			if err != io.EOF {
+				return err
+			}
+
+			if wantLength != gotLength {
+				return fmt.Errorf("invalid readAt length, got %v, want %v", gotLength, wantLength)
+			}
+
+			if string(wantContent) != string(gotContent) {
+				return fmt.Errorf("invalid readAt content, got %v, want %v", gotContent, wantContent)
+			}
+
+			return nil
+		},
+		true,
+		true,
+		false,
+		false,
+	},
+	{
+		"Can not readAt / into non-empty buffer",
+		"/",
+		true,
+		func(f afero.Fs) error { return nil },
+		func(f afero.File) error {
+			gotContent := make([]byte, 10)
+
+			if _, err := f.ReadAt(gotContent, 0); err != io.EOF {
+				return err
+			}
+
+			return nil
+		},
+		true,
+		true,
+		false,
+		false,
+	},
+	{
+		"Can not readAt /mydir into non-empty buffer",
+		"/mydir",
+		true,
+		func(f afero.Fs) error {
+			if err := f.Mkdir("/mydir", os.ModePerm); err != nil {
+				return err
+			}
+
+			return nil
+		},
+		func(f afero.File) error {
+			gotContent := make([]byte, 10)
+
+			if _, err := f.ReadAt(gotContent, 0); err != io.EOF {
+				return err
+			}
+
+			return nil
+		},
+		true,
+		true,
+		false,
+		false,
+	},
+	{
+		"Can readAt /test.txt if it exists and is empty",
+		"/test.txt",
+		false,
+		func(f afero.Fs) error {
+			if _, err := f.Create("/test.txt"); err != nil {
+				return err
+			}
+
+			return nil
+		},
+		func(f afero.File) error {
+			wantContent := []byte{}
+			gotContent := make([]byte, len(wantContent))
+
+			wantLength := len(wantContent)
+			gotLength, err := f.ReadAt(gotContent, 0)
+			if err != io.EOF {
+				return err
+			}
+
+			if wantLength != gotLength {
+				return fmt.Errorf("invalid readAt length, got %v, want %v", gotLength, wantLength)
+			}
+
+			if string(wantContent) != string(gotContent) {
+				return fmt.Errorf("invalid readAt content, got %v, want %v", gotContent, wantContent)
+			}
+
+			return nil
+		},
+		true,
+		true,
+		false,
+		false,
+	},
+	{
+		"Can readAt /test.txt if it exists and contains small amount of data",
+		"/test.txt",
+		false,
+		func(f afero.Fs) error {
+			file, err := f.Create("/test.txt")
+			if err != nil {
+				return err
+			}
+
+			if _, err := file.Write([]byte("Hello, world")); err != nil {
+				return err
+			}
+
+			return file.Close()
+		},
+		func(f afero.File) error {
+			wantContent := []byte("Hello, world")
+			gotContent := make([]byte, len(wantContent))
+
+			wantLength := len(wantContent)
+			gotLength, err := f.ReadAt(gotContent, 0)
+			if err != io.EOF {
+				return err
+			}
+
+			if gotLength != wantLength {
+				return fmt.Errorf("invalid readAt length, got %v, want %v", gotLength, wantLength)
+			}
+
+			if string(gotContent) != string(wantContent) {
+				return fmt.Errorf("invalid readAt content, got %v, want %v", gotContent, wantContent)
+			}
+
+			return nil
+		},
+		true,
+		true,
+		false,
+		false,
+	},
+	{
+		"Can readAt /test.txt if it exists and contains 30 MB amount of data",
+		"/test.txt",
+		false,
+		func(f afero.Fs) error {
+			file, err := f.Create("/test.txt")
+			if err != nil {
+				return err
+			}
+
+			r := newDeterministicReader(1000)
+
+			if _, err := io.Copy(file, r); err != nil {
+				return err
+			}
+
+			return file.Close()
+		},
+		func(f afero.File) error {
+			wantHash := "HTUi7GuNreHASha4hhl1xwuYk03pyTJ0IJbFLv04UdccT9m_NA2oBFTrnMxJhEu3VMGxDYk_04Th9C0zOj5MyA=="
+			wantLength := int64(32800768)
+
+			hasher := sha512.New()
+			gotLength, err := io.Copy(hasher, f)
+			if err != nil {
+				return err
+			}
+			gotHash := base64.URLEncoding.EncodeToString(hasher.Sum(nil))
+
+			if gotLength != wantLength {
+				return fmt.Errorf("invalid readAt length, got %v, want %v", gotLength, wantLength)
+			}
+
+			if gotHash != wantHash {
+				return fmt.Errorf("invalid readAt hash, got %v, want %v", gotHash, wantHash)
+			}
+
+			return nil
+		},
+		true,
+		true,
+		false,
+		false,
+	},
+	{
+		"Can readAt /test.txt if it exists and contains 300 MB of data",
+		"/test.txt",
+		false,
+		func(f afero.Fs) error {
+			file, err := f.Create("/test.txt")
+			if err != nil {
+				return err
+			}
+
+			r := newDeterministicReader(10000)
+
+			if _, err := io.Copy(file, r); err != nil {
+				return err
+			}
+
+			return file.Close()
+		},
+		func(f afero.File) error {
+			wantHash := "3NXGfwSdGiFZjd-sdIcx4xrUnsOPOb4LeDBYGZFVPoRyMqGdqTEHsTbk1Ow3Vn-wIdFqaO8Zj6eXhYvWBakkuQ=="
+			wantLength := int64(327712768)
+
+			hasher := sha512.New()
+			gotLength, err := io.Copy(hasher, f)
+			if err != nil {
+				return err
+			}
+			gotHash := base64.URLEncoding.EncodeToString(hasher.Sum(nil))
+
+			if gotLength != wantLength {
+				return fmt.Errorf("invalid readAt length, got %v, want %v", gotLength, wantLength)
+			}
+
+			if gotHash != wantHash {
+				return fmt.Errorf("invalid readAt hash, got %v, want %v", gotHash, wantHash)
+			}
+
+			return nil
+		},
+		true,
+		true,
+		true,
+		false,
+	},
+	{
+		"Can readAt /test.txt sequentially if it exists and contains 30 MB amount of data",
+		"/test.txt",
+		false,
+		func(f afero.Fs) error {
+			file, err := f.Create("/test.txt")
+			if err != nil {
+				return err
+			}
+
+			r := newDeterministicReader(1000)
+
+			if _, err := io.Copy(file, r); err != nil {
+				return err
+			}
+
+			return file.Close()
+		},
+		func(f afero.File) error {
+			firstChunk := make([]byte, 32800768/2)
+			secondChunk := make([]byte, 32800768/2)
+
+			if _, err := f.ReadAt(firstChunk, 0); err != nil {
+				return err
+			}
+
+			if _, err := f.ReadAt(secondChunk, 32800768/2); err != nil {
+				return err
+			}
+
+			wantHash := "HTUi7GuNreHASha4hhl1xwuYk03pyTJ0IJbFLv04UdccT9m_NA2oBFTrnMxJhEu3VMGxDYk_04Th9C0zOj5MyA=="
+			wantLength := int64(32800768)
+
+			hasher := sha512.New()
+			gotLength, err := io.Copy(hasher, bytes.NewBuffer(append(firstChunk, secondChunk...)))
+			if err != nil {
+				return err
+			}
+			gotHash := base64.URLEncoding.EncodeToString(hasher.Sum(nil))
+
+			if gotLength != wantLength {
+				return fmt.Errorf("invalid readAt length, got %v, want %v", gotLength, wantLength)
+			}
+
+			if gotHash != wantHash {
+				return fmt.Errorf("invalid readAt hash, got %v, want %v", gotHash, wantHash)
+			}
+
+			return nil
+		},
+		true,
+		true,
+		false,
+		false,
+	},
+	{
+		"Can not readAt /brokensymlink into non-empty buffer",
+		"/brokensymlink",
+		true,
+		func(f afero.Fs) error {
+			symFs, ok := f.(symFs)
+			if !ok {
+				return nil
+			}
+
+			if err := symFs.SymlinkIfPossible("/mydir", "/brokensymlink"); err != nil {
+				return err
+			}
+
+			return nil
+		},
+		func(f afero.File) error {
+			gotContent := make([]byte, 10)
+
+			if _, err := f.ReadAt(gotContent, 0); err != io.EOF {
+				return err
+			}
+
+			return nil
+		},
+		true,
+		true,
+		false,
+		false,
+	},
+	{
+		"Can readAt /existingsymlink into non-empty buffer without readAtlink",
+		"/existingsymlink",
+		false,
+		func(f afero.Fs) error {
+			symFs, ok := f.(symFs)
+			if !ok {
+				return nil
+			}
+
+			file, err := f.Create("/test.txt")
+			if err != nil {
+				return err
+			}
+
+			r := newDeterministicReader(1000)
+
+			if _, err := io.Copy(file, r); err != nil {
+				return err
+			}
+
+			if err := file.Close(); err != nil {
+				return err
+			}
+
+			if err := symFs.SymlinkIfPossible("/test.txt", "/existingsymlink"); err != nil {
+				return err
+			}
+
+			return nil
+		},
+		func(f afero.File) error {
+			wantHash := "HTUi7GuNreHASha4hhl1xwuYk03pyTJ0IJbFLv04UdccT9m_NA2oBFTrnMxJhEu3VMGxDYk_04Th9C0zOj5MyA=="
+			wantLength := int64(32800768)
+
+			hasher := sha512.New()
+			gotLength, err := io.Copy(hasher, f)
+			if err != nil {
+				return err
+			}
+			gotHash := base64.URLEncoding.EncodeToString(hasher.Sum(nil))
+
+			if gotLength != wantLength {
+				return fmt.Errorf("invalid readAt length, got %v, want %v", gotLength, wantLength)
+			}
+
+			if gotHash != wantHash {
+				return fmt.Errorf("invalid readAt hash, got %v, want %v", gotHash, wantHash)
+			}
+
+			return nil
+		},
+		true,
+		true,
+		false,
+		false,
+	},
+	{
+		"Can readAt /test.txt sequentially, but not in order if it exists and contains 30 MB amount of data",
+		"/test.txt",
+		false,
+		func(f afero.Fs) error {
+			file, err := f.Create("/test.txt")
+			if err != nil {
+				return err
+			}
+
+			r := newDeterministicReader(1000)
+
+			if _, err := io.Copy(file, r); err != nil {
+				return err
+			}
+
+			return file.Close()
+		},
+		func(f afero.File) error {
+			firstChunk := make([]byte, 32800768/2)
+			secondChunk := make([]byte, 32800768/2)
+
+			if _, err := f.ReadAt(secondChunk, 32800768/2); err != nil {
+				return err
+			}
+
+			if _, err := f.ReadAt(firstChunk, 0); err != nil {
+				return err
+			}
+
+			wantHash := "HTUi7GuNreHASha4hhl1xwuYk03pyTJ0IJbFLv04UdccT9m_NA2oBFTrnMxJhEu3VMGxDYk_04Th9C0zOj5MyA=="
+			wantLength := int64(32800768)
+
+			hasher := sha512.New()
+			gotLength, err := io.Copy(hasher, bytes.NewBuffer(append(firstChunk, secondChunk...)))
+			if err != nil {
+				return err
+			}
+			gotHash := base64.URLEncoding.EncodeToString(hasher.Sum(nil))
+
+			if gotLength != wantLength {
+				return fmt.Errorf("invalid readAt length, got %v, want %v", gotLength, wantLength)
+			}
+
+			if gotHash != wantHash {
+				return fmt.Errorf("invalid readAt hash, got %v, want %v", gotHash, wantHash)
+			}
+
+			return nil
+		},
+		true,
+		true,
+		false,
+		false,
+	},
+	{
+		"Can readAt /test.txt sequentially if it exists and contains small amount of data",
+		"/test.txt",
+		false,
+		func(f afero.Fs) error {
+			file, err := f.Create("/test.txt")
+			if err != nil {
+				return err
+			}
+
+			if _, err := file.Write([]byte("Hello, world!")); err != nil {
+				return err
+			}
+
+			return file.Close()
+		},
+		func(f afero.File) error {
+			firstChunk := make([]byte, 6)
+			secondChunk := make([]byte, 7)
+
+			if _, err := f.ReadAt(firstChunk, 0); err != nil {
+				return err
+			}
+
+			if _, err := f.ReadAt(secondChunk, 6); err != io.EOF {
+				return err
+			}
+
+			wantContent := []byte("Hello, world!")
+			gotContent := append([]byte{}, append(firstChunk, secondChunk...)...)
+
+			wantLength := len(wantContent)
+			gotLength := len(gotContent)
+
+			if gotLength != wantLength {
+				return fmt.Errorf("invalid readAt length, got %v, want %v", gotLength, wantLength)
+			}
+
+			if string(gotContent) != string(wantContent) {
+				return fmt.Errorf("invalid readAt content, got %v, want %v", string(gotContent), string(wantContent))
+			}
+
+			return nil
+		},
+		true,
+		true,
+		false,
+		false,
+	},
+	{
+		"Can readAt /test.txt sequentially, but not in order if it exists and contains small amount of data",
+		"/test.txt",
+		false,
+		func(f afero.Fs) error {
+			file, err := f.Create("/test.txt")
+			if err != nil {
+				return err
+			}
+
+			if _, err := file.Write([]byte("Hello, world!")); err != nil {
+				return err
+			}
+
+			return file.Close()
+		},
+		func(f afero.File) error {
+			firstChunk := make([]byte, 6)
+			secondChunk := make([]byte, 7)
+
+			if _, err := f.ReadAt(secondChunk, 6); err != io.EOF {
+				return err
+			}
+
+			if _, err := f.ReadAt(firstChunk, 0); err != nil {
+				return err
+			}
+
+			wantContent := []byte("Hello, world!")
+			gotContent := append([]byte{}, append(firstChunk, secondChunk...)...)
+
+			wantLength := len(wantContent)
+			gotLength := len(gotContent)
+
+			if gotLength != wantLength {
+				return fmt.Errorf("invalid readAt length, got %v, want %v", gotLength, wantLength)
+			}
+
+			if string(gotContent) != string(wantContent) {
+				return fmt.Errorf("invalid readAt content, got %v, want %v", string(gotContent), string(wantContent))
+			}
+
+			return nil
+		},
+		true,
+		true,
+		false,
+		false,
+	},
+}
+
+func TestFile_ReadAt(t *testing.T) {
+	for _, tt := range readAtTests {
+		tt := tt
+
+		runTestForAllFss(t, tt.name, true, tt.withCache, tt.withOsFs, func(t *testing.T, fs fsConfig) {
+			if tt.large && testing.Short() {
+				return
+			}
+
+			symFs, ok := fs.fs.(symFs)
+			if !ok {
+				return
+			}
+
+			if err := tt.prepare(symFs); err != nil {
+				t.Errorf("%v prepare() error = %v", symFs.Name(), err)
+
+				return
+			}
+
+			open := tt.open
+			if tt.followSymlinks {
+				var err error
+				open, err = symFs.ReadlinkIfPossible(tt.open)
+				if err != nil {
+					t.Errorf("%v readAt() error = %v", symFs.Name(), err)
+
+					return
+				}
+			}
+
+			file, err := symFs.Open(open)
+			if err != nil && tt.wantErr {
 				return
 			}
 
