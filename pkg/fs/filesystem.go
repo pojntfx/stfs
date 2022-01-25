@@ -245,7 +245,7 @@ func (f *STFS) Initialize(rootProposal string, rootPerm os.FileMode) (root strin
 			0,
 			0,
 			true,
-			true,
+			false,
 			0,
 
 			func(hdr *tar.Header, i int) error {
