@@ -260,6 +260,10 @@ func (f *STFS) Initialize(rootProposal string, rootPerm os.FileMode) (root strin
 			return mkdirRoot()
 		}
 
+		if err := f.readOps.GetBackend().CloseReader(); err != nil {
+			return "", err
+		}
+
 		// Ensure that the new root path is being used
 		return f.metadata.Metadata.GetRootPath(context.Background())
 	} else if err != nil {
