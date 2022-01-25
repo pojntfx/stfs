@@ -511,7 +511,7 @@ func (p *MetadataPersister) headerExistsExact(ctx context.Context, name string) 
 
 func (p *MetadataPersister) getSanitizedPath(ctx context.Context, name string) string {
 	// If root is queried, return actual root
-	if pathext.IsRoot(name, false) {
+	if pathext.IsRoot(name, false) || name == p.root {
 		return p.root
 	}
 
@@ -537,8 +537,12 @@ func (p *MetadataPersister) getSanitizedPath(ctx context.Context, name string) s
 		prefix = ""
 	} else if p.root == "." {
 		prefix = "."
+	} else if p.root == "./" {
+		return "./" + strings.TrimPrefix(strings.TrimPrefix(name, "./"), "/") // // If the root path is "./"; this is `tar`s default behaviour if . is the source
 	} else if p.root == "/" {
 		prefix = "/"
+	} else if !(strings.HasPrefix(p.root, "/") || strings.HasPrefix(p.root, "./")) { // If the root path is relative, but does not start with "./"; this is `tar`s default behaviour if ${PWD} is the source
+		return name
 	} else {
 		return "./" + filepath.Clean(strings.TrimPrefix(name, "/")) // Special case: There is no root directory, only files, and the files start with `./`
 	}
