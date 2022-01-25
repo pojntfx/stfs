@@ -541,12 +541,16 @@ func (f *File) ReadAt(p []byte, off int64) (n int, err error) {
 		"off":  off,
 	})
 
-	if f.info.IsDir() {
-		return -1, config.ErrIsDirectory
-	}
-
 	if !f.flags.Read {
 		return -1, os.ErrPermission
+	}
+
+	if len(p) <= 0 {
+		return 0, nil
+	}
+
+	if f.info.IsDir() {
+		return -1, config.ErrIsDirectory
 	}
 
 	if _, err := f.Seek(off, io.SeekStart); err != nil {
