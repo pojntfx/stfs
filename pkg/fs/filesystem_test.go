@@ -913,6 +913,231 @@ func TestSTFS_Initialize(t *testing.T) {
 	}
 }
 
+func runIntegrationTest(t *testing.T, name string, action func(t *testing.T, tmp string, cfg stfsConfig)) {
+	baseTmp, err := os.MkdirTemp(os.TempDir(), "stfs-test-*")
+	if err != nil {
+		t.Error(err)
+
+		return
+	}
+
+	for _, cfg := range stfsConfigs {
+		t.Run(fmt.Sprintf(`%v config=%v`, "Initialize empty integration", stfsPermutation{
+			cfg.recordSize,
+			cfg.readOnly,
+
+			cfg.signature,
+			cfg.encryption,
+			cfg.compression,
+			cfg.compressionLevel,
+
+			cfg.writeCache,
+			cfg.fileSystemCache,
+
+			cfg.fileSystemCacheDuration,
+		}), func(t *testing.T) {
+			tmp, err := os.MkdirTemp(baseTmp, "fs-*")
+			if err != nil {
+				t.Error(err)
+
+				return
+			}
+
+			t.Parallel()
+
+			action(t, tmp, cfg)
+
+			if err := os.RemoveAll(tmp); err != nil {
+				t.Error(err)
+
+				return
+			}
+		})
+	}
+}
+
+type initializeEmptyArgs struct {
+	rootProposal string
+	rootPerm     os.FileMode
+}
+
+var initializeEmptyTests = []struct {
+	name     string
+	args     initializeEmptyArgs
+	wantRoot string
+}{
+	{
+		"Can run integration test for empty initialization and absolute root directory /",
+		initializeEmptyArgs{"/", os.ModePerm},
+		"/",
+	},
+	{
+		"Can run integration test for empty initialization and absolute root directory /test",
+		initializeEmptyArgs{"/test", os.ModePerm},
+		"/test",
+	},
+	{
+		"Can run integration test for empty initialization and absolute root directory /test/yes",
+		initializeEmptyArgs{"/test/yes", os.ModePerm},
+		"/test/yes",
+	},
+	{
+		"Can run integration test for empty initialization and absolute root directory test",
+		initializeEmptyArgs{"test", os.ModePerm},
+		"test",
+	},
+	{
+		"Can run integration test for empty initialization and absolute root directory test/yes",
+		initializeEmptyArgs{"test/yes", os.ModePerm},
+		"test/yes",
+	},
+}
+
+func TestSTFS_InitializeEmptyIntegration(t *testing.T) {
+	for _, tt := range initializeEmptyTests {
+		tt := tt
+
+		runIntegrationTest(t, tt.name, func(t *testing.T, tmp string, cfg stfsConfig) {
+			drive := filepath.Join(tmp, "drive.tar")
+			metadata := filepath.Join(tmp, "metadata.sqlite")
+
+			writeCacheDir := filepath.Join(tmp, "write-cache")
+			fileSystemCacheDir := filepath.Join(tmp, "filesystem-cache")
+
+			stfs, err := createSTFS(
+				drive,
+				metadata,
+
+				cfg.recordSize,
+				cfg.readOnly,
+				verbose,
+
+				cfg.signature,
+				cfg.signatureRecipient,
+				cfg.signatureIdentity,
+
+				cfg.encryption,
+				cfg.encryptionRecipient,
+				cfg.encryptionIdentity,
+
+				cfg.compression,
+				cfg.compressionLevel,
+
+				cfg.writeCache,
+				writeCacheDir,
+
+				cfg.fileSystemCache,
+				fileSystemCacheDir,
+				cfg.fileSystemCacheDuration,
+
+				false,
+			)
+			if err != nil {
+				t.Error(err)
+
+				return
+			}
+
+			f, ok := stfs.(*STFS)
+			if !ok {
+				if stfs.Name() == config.FileSystemNameSTFS {
+					t.Fatal("Initialize function missing from filesystem")
+
+					return
+				}
+
+				// Skip non-STFS filesystems
+				return
+			}
+
+			gotRoot, err := f.Initialize(tt.args.rootProposal, tt.args.rootPerm)
+			if err != nil {
+				t.Errorf("%v.Initialize() error = %v", f.Name(), err)
+
+				return
+			}
+
+			wantRoot := tt.args.rootProposal
+			if gotRoot != wantRoot {
+				t.Errorf("%v.Initialize() = %v, want %v", f.Name(), gotRoot, wantRoot)
+			}
+
+			if _, err := f.Stat("/"); err != nil {
+				t.Errorf("%v.Stat() error = %v, wantErr %v", f.Name(), err, false)
+
+				return
+			}
+
+			gotDir, err := f.Open("/")
+			if err != nil {
+				t.Errorf("%v.Open() error = %v, wantErr %v", f.Name(), err, false)
+
+				return
+			}
+
+			gotFile, err := f.Create("/test.txt")
+			if err != nil {
+				t.Errorf("%v.Create() error = %v, wantErr %v", f.Name(), err, false)
+
+				return
+			}
+
+			wantFile := "/test.txt"
+			if gotFile.Name() != wantFile {
+				t.Errorf("%v.Create() = %v, want %v", f.Name(), gotFile.Name(), wantFile)
+
+				return
+			}
+
+			gotWrite, err := gotFile.WriteString("Hello, world!")
+			if err != nil {
+				t.Errorf("%v.WriteString() error = %v, wantErr %v", f.Name(), err, false)
+
+				return
+			}
+
+			wantWrite := 13
+			if gotWrite != wantWrite {
+				t.Errorf("%v.WriteString() = %v, want %v", f.Name(), gotWrite, wantWrite)
+
+				return
+			}
+
+			if err := gotFile.Close(); err != nil {
+				t.Errorf("%v.File.Close() error = %v, wantErr %v", f.Name(), err, false)
+
+				return
+			}
+
+			if err := f.Mkdir("/mydir", os.ModePerm); err != nil {
+				t.Errorf("%v.Mkdir() error = %v, wantErr %v", f.Name(), err, false)
+
+				return
+			}
+
+			gotChildren, err := gotDir.Readdir(-1)
+			if err != nil {
+				t.Errorf("%v.Readdir() error = %v, wantErr %v", f.Name(), err, false)
+
+				return
+			}
+
+			wantChildren := 2
+			if len(gotChildren) != wantChildren {
+				t.Errorf("%v.Readdir() = %v, want %v", f.Name(), len(gotChildren), wantChildren)
+
+				return
+			}
+
+			if err := gotDir.Close(); err != nil {
+				t.Errorf("%v.Dir.Close() error = %v, wantErr %v", f.Name(), err, false)
+
+				return
+			}
+		})
+	}
+}
+
 type mkdirArgs struct {
 	name string
 	perm os.FileMode
