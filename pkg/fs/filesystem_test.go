@@ -922,7 +922,7 @@ func runIntegrationTest(t *testing.T, name string, action func(t *testing.T, tmp
 	}
 
 	for _, cfg := range stfsConfigs {
-		t.Run(fmt.Sprintf(`%v config=%v`, "Initialize empty integration", stfsPermutation{
+		t.Run(fmt.Sprintf(`%v config=%v`, name, stfsPermutation{
 			cfg.recordSize,
 			cfg.readOnly,
 
@@ -965,31 +965,61 @@ var initializeEmptyTests = []struct {
 	name     string
 	args     initializeEmptyArgs
 	wantRoot string
+	wantErr  bool
 }{
 	{
 		"Can run integration test for empty initialization and absolute root directory /",
 		initializeEmptyArgs{"/", os.ModePerm},
 		"/",
+		false,
 	},
 	{
-		"Can run integration test for empty initialization and absolute root directory /test",
+		"Can not run integration test for empty initialization and absolute root directory /test",
 		initializeEmptyArgs{"/test", os.ModePerm},
 		"/test",
+		true,
 	},
 	{
-		"Can run integration test for empty initialization and absolute root directory /test/yes",
+		"Can not run integration test for empty initialization and absolute root directory /test/yes",
 		initializeEmptyArgs{"/test/yes", os.ModePerm},
 		"/test/yes",
+		true,
 	},
 	{
-		"Can run integration test for empty initialization and absolute root directory test",
+		"Can not run integration test for empty initialization and absolute root directory test",
 		initializeEmptyArgs{"test", os.ModePerm},
 		"test",
+		true,
 	},
 	{
-		"Can run integration test for empty initialization and absolute root directory test/yes",
+		"Can not run integration test for empty initialization and absolute root directory test/yes",
 		initializeEmptyArgs{"test/yes", os.ModePerm},
 		"test/yes",
+		true,
+	},
+	{
+		"Can not run integration test for empty initialization and relative root directory ' '",
+		initializeEmptyArgs{" ", os.ModePerm},
+		" ",
+		true,
+	},
+	{
+		"Can run integration test for empty initialization and relative root directory ''",
+		initializeEmptyArgs{"", os.ModePerm},
+		"",
+		false,
+	},
+	{
+		"Can run integration test for empty initialization and relative root directory .",
+		initializeEmptyArgs{".", os.ModePerm},
+		".",
+		false,
+	},
+	{
+		"Can run integration test for empty initialization and relative root directory ./",
+		initializeEmptyArgs{"./", os.ModePerm},
+		"./",
+		false,
 	},
 }
 
@@ -997,7 +1027,7 @@ func TestSTFS_InitializeEmptyIntegration(t *testing.T) {
 	for _, tt := range initializeEmptyTests {
 		tt := tt
 
-		runIntegrationTest(t, tt.name, func(t *testing.T, tmp string, cfg stfsConfig) {
+		runIntegrationTest(t, fmt.Sprintf("%v root=%v", tt.name, tt.wantRoot), func(t *testing.T, tmp string, cfg stfsConfig) {
 			drive := filepath.Join(tmp, "drive.tar")
 			metadata := filepath.Join(tmp, "metadata.sqlite")
 
@@ -1026,7 +1056,7 @@ func TestSTFS_InitializeEmptyIntegration(t *testing.T) {
 				cfg.writeCache,
 				writeCacheDir,
 
-				cfg.fileSystemCache,
+				config.NoneKey,
 				fileSystemCacheDir,
 				cfg.fileSystemCacheDuration,
 
@@ -1082,9 +1112,11 @@ func TestSTFS_InitializeEmptyIntegration(t *testing.T) {
 				return
 			}
 
-			wantFile := "/test.txt"
-			if gotFile.Name() != wantFile {
-				t.Errorf("%v.Create() = %v, want %v", f.Name(), gotFile.Name(), wantFile)
+			wantFileAbsolute := "/test.txt"
+			wantFileRelative := "test.txt"
+			wantFileRelativeDot := "./test.txt"
+			if !(gotFile.Name() == wantFileAbsolute || gotFile.Name() == wantFileRelative || gotFile.Name() == wantFileRelativeDot) {
+				t.Errorf("%v.Create() = %v, want %v", f.Name(), gotFile.Name(), []string{wantFileAbsolute, wantFileRelative, wantFileRelativeDot})
 
 				return
 			}
@@ -1123,7 +1155,7 @@ func TestSTFS_InitializeEmptyIntegration(t *testing.T) {
 			}
 
 			wantChildren := 2
-			if len(gotChildren) != wantChildren {
+			if len(gotChildren) != wantChildren && !tt.wantErr {
 				t.Errorf("%v.Readdir() = %v, want %v", f.Name(), len(gotChildren), wantChildren)
 
 				return
