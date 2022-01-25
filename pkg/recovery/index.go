@@ -103,9 +103,17 @@ func Index(
 			}
 
 			if hdr == nil {
-				// EOF
+				// Try to skip over the next file mark; this makes it possible to append to a tar file created by i.e. GNU tar
+				if _, err := reader.Drive.Read(make([]byte, config.MagneticTapeBlockSize*2)); err != nil {
+					if err == io.EOF {
+						// EOF
+						break
+					}
 
-				break
+					return err
+				}
+
+				continue
 			}
 
 			if i >= offset {
