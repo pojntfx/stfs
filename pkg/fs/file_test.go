@@ -9,6 +9,7 @@ import (
 	"io"
 	"os"
 	"path"
+	"strings"
 	"testing"
 	"time"
 
@@ -2872,6 +2873,196 @@ func TestFile_ReadAt(t *testing.T) {
 			}
 
 			if err := tt.check(file); (err != nil) != tt.wantErr {
+				t.Errorf("%v check() error = %v", fs.fs.Name(), err)
+
+				return
+			}
+		})
+	}
+}
+
+type seekArgs struct {
+	offset int64
+	whence int
+}
+
+var seekTests = []struct {
+	name      string
+	open      string
+	args      seekArgs
+	wantErr   bool
+	prepare   func(afero.Fs) error
+	check     func(afero.File, int64) error
+	withCache bool
+	withOsFs  bool
+}{
+	{
+		"Can seek on /",
+		"/",
+		seekArgs{1000, io.SeekStart},
+		false,
+		func(f afero.Fs) error { return nil },
+		func(f afero.File, i int64) error { return nil },
+		true,
+		true,
+	},
+	{
+		"Can seek on /mydir",
+		"/mydir",
+		seekArgs{1000, io.SeekStart},
+		false,
+		func(f afero.Fs) error {
+			if err := f.Mkdir("/mydir", os.ModePerm); err != nil {
+				return err
+			}
+
+			return nil
+		},
+		func(f afero.File, i int64) error { return nil },
+		true,
+		true,
+	},
+	{
+		"Can seek on /test.txt within limits",
+		"/test.txt",
+		seekArgs{6, io.SeekStart},
+		false,
+		func(f afero.Fs) error {
+			file, err := f.Create("/test.txt")
+			if err != nil {
+				return err
+			}
+
+			if _, err := file.WriteString("Hello, world!"); err != nil {
+				return err
+			}
+
+			return file.Close()
+		},
+		func(f afero.File, i int64) error {
+			wantCount := int64(6)
+			gotCount := i
+
+			if wantCount != gotCount {
+				return fmt.Errorf("invalid count, got %v, want %v", gotCount, wantCount)
+			}
+
+			wantContent := " world!"
+			gotContent := make([]byte, 7)
+
+			if _, err := f.Read(gotContent); err != nil {
+				return err
+			}
+
+			if string(gotContent) != string(wantContent) {
+				return fmt.Errorf("invalid read content, got %v, want %v", string(gotContent), string(wantContent))
+			}
+
+			return nil
+		},
+		true,
+		true,
+	},
+	{
+		"Can seek on /test.txt outside limits",
+		"/test.txt",
+		seekArgs{1000, io.SeekStart},
+		false,
+		func(f afero.Fs) error {
+			file, err := f.Create("/test.txt")
+			if err != nil {
+				return err
+			}
+
+			if _, err := file.WriteString("Hello, world!"); err != nil {
+				return err
+			}
+
+			return file.Close()
+		},
+		func(f afero.File, i int64) error {
+			wantCount := int64(1000)
+			gotCount := i
+
+			if wantCount != gotCount {
+				return fmt.Errorf("invalid count, got %v, want %v", gotCount, wantCount)
+			}
+
+			gotContent := make([]byte, 1)
+
+			if _, err := f.Read(gotContent); !strings.Contains(err.Error(), "EOF") {
+				return err
+			}
+
+			return nil
+		},
+		true,
+		true,
+	},
+	{
+		"Can seek on empty /test.txt outside limits",
+		"/test.txt",
+		seekArgs{1000, io.SeekStart},
+		false,
+		func(f afero.Fs) error {
+			file, err := f.Create("/test.txt")
+			if err != nil {
+				return err
+			}
+
+			return file.Close()
+		},
+		func(f afero.File, i int64) error {
+			wantCount := int64(1000)
+			gotCount := i
+
+			if wantCount != gotCount {
+				return fmt.Errorf("invalid count, got %v, want %v", gotCount, wantCount)
+			}
+
+			gotContent := make([]byte, 1)
+
+			if _, err := f.Read(gotContent); !strings.Contains(err.Error(), "EOF") {
+				return err
+			}
+
+			return nil
+		},
+		true,
+		true,
+	},
+}
+
+func TestFile_Seek(t *testing.T) {
+	for _, tt := range seekTests {
+		tt := tt
+
+		runTestForAllFss(t, tt.name, true, tt.withCache, tt.withOsFs, func(t *testing.T, fs fsConfig) {
+			if err := tt.prepare(fs.fs); err != nil {
+				t.Errorf("%v prepare() error = %v", fs.fs.Name(), err)
+
+				return
+			}
+
+			file, err := fs.fs.Open(tt.open)
+			if err != nil && tt.wantErr {
+				return
+			}
+
+			if err != nil {
+				t.Errorf("%v open() error = %v", fs.fs.Name(), err)
+
+				return
+			}
+
+			n, err := file.Seek(tt.args.offset, tt.args.whence)
+			if (err != nil) != tt.wantErr {
+				t.Errorf("%v.Seek() error = %v", fs.fs.Name(), err)
+
+				return
+			}
+
+			if err := tt.check(file, n); (err != nil) != tt.wantErr {
 				t.Errorf("%v check() error = %v", fs.fs.Name(), err)
 
 				return
