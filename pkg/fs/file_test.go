@@ -3866,7 +3866,143 @@ var writeAtTests = []struct {
 		true,
 		false,
 	},
-	// TODO: Add rest of tests from `.Write`
+	{
+		"Can write empty string to /test.txt",
+		"/test.txt",
+		false,
+		func(f symFs) error {
+			file, err := f.Create("/test.txt")
+			if err != nil {
+				return err
+			}
+
+			return file.Close()
+		},
+		func(f afero.File) error {
+			if _, err := f.WriteAt([]byte(""), 0); err != nil {
+				return err
+			}
+
+			return nil
+		},
+		func(f afero.File) error {
+			wantContent := []byte{}
+			gotContent := make([]byte, len(wantContent))
+
+			wantLength := len(wantContent)
+			gotLength, err := f.Read(gotContent)
+			if err != io.EOF {
+				return err
+			}
+
+			if wantLength != gotLength {
+				return fmt.Errorf("invalid write length, got %v, want %v", gotLength, wantLength)
+			}
+
+			if string(wantContent) != string(gotContent) {
+				return fmt.Errorf("invalid write content, got %v, want %v", gotContent, wantContent)
+			}
+
+			return nil
+		},
+		true,
+		true,
+		false,
+	},
+	{
+		"Can write small amount of data to /test.txt if seeking afterwards",
+		"/test.txt",
+		false,
+		func(f symFs) error {
+			file, err := f.Create("/test.txt")
+			if err != nil {
+				return err
+			}
+
+			return file.Close()
+		},
+		func(f afero.File) error {
+			if _, err := f.WriteAt([]byte("Hello, world!"), 0); err != nil {
+				return err
+			}
+
+			return nil
+		},
+		func(f afero.File) error {
+			if _, err := f.Seek(0, io.SeekStart); err != nil {
+				return err
+			}
+
+			wantContent := []byte("Hello, world")
+			gotContent := make([]byte, len(wantContent))
+
+			wantLength := len(wantContent)
+			gotLength, err := f.Read(gotContent)
+			if err != io.EOF {
+				return err
+			}
+
+			if wantLength != gotLength {
+				return fmt.Errorf("invalid write length, got %v, want %v", gotLength, wantLength)
+			}
+
+			if string(wantContent) != string(gotContent) {
+				return fmt.Errorf("invalid write content, got %v, want %v", gotContent, wantContent)
+			}
+
+			return nil
+		},
+		true,
+		true,
+		false,
+	},
+	{
+		"Can write small amount of data to /test.txt if not seeking afterwards",
+		"/test.txt",
+		false,
+		func(f symFs) error {
+			file, err := f.Create("/test.txt")
+			if err != nil {
+				return err
+			}
+
+			return file.Close()
+		},
+		func(f afero.File) error {
+			if _, err := f.WriteAt([]byte(""), 0); err != nil {
+				return err
+			}
+
+			return nil
+		},
+		func(f afero.File) error {
+			if _, err := f.Seek(0, io.SeekStart); err != nil {
+				return err
+			}
+
+			wantContent := []byte("")
+			gotContent := make([]byte, len(wantContent))
+
+			wantLength := len(wantContent)
+			gotLength, err := f.Read(gotContent)
+			if err != io.EOF {
+				return err
+			}
+
+			if wantLength != gotLength {
+				return fmt.Errorf("invalid write length, got %v, want %v", gotLength, wantLength)
+			}
+
+			if string(wantContent) != string(gotContent) {
+				return fmt.Errorf("invalid write content, got %v, want %v", gotContent, wantContent)
+			}
+
+			return nil
+		},
+		true,
+		true,
+		false,
+	},
 	{
 		"Can write 30 MB amount of data at once to start of /test.txt",
 		"/test.txt",
@@ -4160,6 +4296,73 @@ var writeAtTests = []struct {
 		true,
 		true,
 		false,
+	},
+	{
+		"Can write 300 MB amount of data in chunks to start of /test.txt",
+		"/test.txt",
+		false,
+		func(f symFs) error {
+			file, err := f.Create("/test.txt")
+			if err != nil {
+				return err
+			}
+
+			return file.Close()
+		},
+		func(f afero.File) error {
+			r := newDeterministicReader(300000)
+
+			curr := int64(0)
+			chunkSize := 1024
+			for {
+				buf := make([]byte, chunkSize)
+
+				if _, err := r.Read(buf); err != nil {
+					if err == io.EOF {
+						break
+					}
+
+					return err
+				}
+
+				n, err := f.WriteAt(buf, curr)
+				if err != nil {
+					return err
+				}
+
+				curr += int64(n)
+			}
+
+			return nil
+		},
+		func(f afero.File) error {
+			if _, err := f.Seek(0, io.SeekStart); err != nil {
+				return err
+			}
+
+			wantHash := "CugMuX6FzQQ8rkSD2etvKlqjrghwxROsmRxdNmry4OR0SEGmUsHrRTXjSsmxrUZUDTxOdhz7gEBktbiFE0A30Q=="
+			wantLength := int64(307201024)
+
+			hasher := sha512.New()
+			gotLength, err := io.Copy(hasher, f)
+			if err != nil {
+				return err
+			}
+			gotHash := base64.URLEncoding.EncodeToString(hasher.Sum(nil))
+
+			if gotLength != wantLength {
+				return fmt.Errorf("invalid read length, got %v, want %v", gotLength, wantLength)
+			}
+
+			if gotHash != wantHash {
+				return fmt.Errorf("invalid read hash, got %v, want %v", gotHash, wantHash)
+			}
+
+			return nil
+		},
+		true,
+		true,
+		false, // TODO: Flip once hashes are updated
 	},
 }
 
