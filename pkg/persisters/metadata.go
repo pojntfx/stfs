@@ -110,7 +110,6 @@ func (p *MetadataPersister) UpsertHeader(ctx context.Context, dbhdr *config.Head
 	if _, err := models.Headers(
 		qm.Where(models.HeaderColumns.Name+" = ?", hdr.Name),
 		qm.Where(models.HeaderColumns.Linkname+" = ?", hdr.Linkname),
-		qm.Where(models.HeaderColumns.Deleted+" != 1"),
 	).One(ctx, p.sqlite.DB); err != nil {
 		if err == sql.ErrNoRows {
 			if err := hdr.Insert(ctx, p.sqlite.DB, boil.Infer()); err != nil {
