@@ -4362,7 +4362,218 @@ var writeAtTests = []struct {
 		},
 		true,
 		true,
-		false, // TODO: Flip once hashes are updated
+		true,
+	},
+	{
+		"Can not write to symlink to /",
+		"/existingsymlink",
+		true,
+		func(f symFs) error {
+			if err := f.SymlinkIfPossible("/", "/existingsymlink"); err != nil {
+				return err
+			}
+
+			return nil
+		},
+		func(f afero.File) error {
+			if _, err := f.WriteAt([]byte("Hello, world!"), 0); err != nil {
+				return err
+			}
+
+			return nil
+		},
+		func(f afero.File) error { return nil },
+		true,
+		true,
+		false,
+	},
+	{
+		"Can not write to symlink to /mydir",
+		"/existingsymlink",
+		true,
+		func(f symFs) error {
+			if err := f.Mkdir("/mydir", os.ModePerm); err != nil {
+				return err
+			}
+
+			if err := f.SymlinkIfPossible("/mydir", "/existingsymlink"); err != nil {
+				return err
+			}
+
+			return nil
+		},
+		func(f afero.File) error {
+			if _, err := f.WriteAt([]byte("Hello, world!"), 0); err != nil {
+				return err
+			}
+
+			return nil
+		},
+		func(f afero.File) error { return nil },
+		true,
+		true,
+		false,
+	},
+	{
+		"Can write empty string to symlink to /test.txt",
+		"/existingsymlink",
+		false,
+		func(f symFs) error {
+			file, err := f.Create("/test.txt")
+			if err != nil {
+				return err
+			}
+
+			if err := file.Close(); err != nil {
+				return err
+			}
+
+			if err := f.SymlinkIfPossible("/test.txt", "/existingsymlink"); err != nil {
+				return err
+			}
+
+			return nil
+		},
+		func(f afero.File) error {
+			if _, err := f.WriteAt([]byte(""), 0); err != nil {
+				return err
+			}
+
+			return nil
+		},
+		func(f afero.File) error {
+			wantContent := []byte{}
+			gotContent := make([]byte, len(wantContent))
+
+			wantLength := len(wantContent)
+			gotLength, err := f.Read(gotContent)
+			if err != io.EOF {
+				return err
+			}
+
+			if wantLength != gotLength {
+				return fmt.Errorf("invalid write length, got %v, want %v", gotLength, wantLength)
+			}
+
+			if string(wantContent) != string(gotContent) {
+				return fmt.Errorf("invalid write content, got %v, want %v", gotContent, wantContent)
+			}
+
+			return nil
+		},
+		true,
+		true,
+		false,
+	},
+	{
+		"Can write small amount of data to symlink to /test.txt if seeking afterwards",
+		"/existingsymlink",
+		false,
+		func(f symFs) error {
+			file, err := f.Create("/test.txt")
+			if err != nil {
+				return err
+			}
+
+			if err := file.Close(); err != nil {
+				return err
+			}
+
+			if err := f.SymlinkIfPossible("/test.txt", "/existingsymlink"); err != nil {
+				return err
+			}
+
+			return nil
+		},
+		func(f afero.File) error {
+			if _, err := f.WriteAt([]byte("Hello, world!"), 0); err != nil {
+				return err
+			}
+
+			return nil
+		},
+		func(f afero.File) error {
+			if _, err := f.Seek(0, io.SeekStart); err != nil {
+				return err
+			}
+
+			wantContent := []byte("Hello, world")
+			gotContent := make([]byte, len(wantContent))
+
+			wantLength := len(wantContent)
+			gotLength, err := f.Read(gotContent)
+			if err != io.EOF {
+				return err
+			}
+
+			if wantLength != gotLength {
+				return fmt.Errorf("invalid write length, got %v, want %v", gotLength, wantLength)
+			}
+
+			if string(wantContent) != string(gotContent) {
+				return fmt.Errorf("invalid write content, got %v, want %v", gotContent, wantContent)
+			}
+
+			return nil
+		},
+		true,
+		true,
+		false,
+	},
+	{
+		"Can write small amount of data to symlink to /test.txt if not seeking afterwards",
+		"/existingsymlink",
+		false,
+		func(f symFs) error {
+			file, err := f.Create("/test.txt")
+			if err != nil {
+				return err
+			}
+
+			if err := file.Close(); err != nil {
+				return err
+			}
+
+			if err := f.SymlinkIfPossible("/test.txt", "/existingsymlink"); err != nil {
+				return err
+			}
+
+			return nil
+		},
+		func(f afero.File) error {
+			if _, err := f.WriteAt([]byte(""), 0); err != nil {
+				return err
+			}
+
+			return nil
+		},
+		func(f afero.File) error {
+			if _, err := f.Seek(0, io.SeekStart); err != nil {
+				return err
+			}
+
+			wantContent := []byte("")
+			gotContent := make([]byte, len(wantContent))
+
+			wantLength := len(wantContent)
+			gotLength, err := f.Read(gotContent)
+			if err != io.EOF {
+				return err
+			}
+
+			if wantLength != gotLength {
+				return fmt.Errorf("invalid write length, got %v, want %v", gotLength, wantLength)
+			}
+
+			if string(wantContent) != string(gotContent) {
+				return fmt.Errorf("invalid write content, got %v, want %v", gotContent, wantContent)
+			}
+
+			return nil
+		},
+		true,
+		true,
+		false,
 	},
 }
 
