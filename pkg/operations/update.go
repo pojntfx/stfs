@@ -240,6 +240,7 @@ func (o *Operations) Update(
 				return []*tar.Header{}, err
 			}
 		} else {
+			hdr.PAXRecords[records.STFSRecordReplacesContent] = records.STFSRecordReplacesContentFalse
 			hdr.Size = 0 // Don't try to seek after the record
 
 			if o.onHeader != nil {
