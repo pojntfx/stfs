@@ -3814,3 +3814,228 @@ func TestFile_Write(t *testing.T) {
 		})
 	}
 }
+
+var writeAtTests = []struct {
+	name      string
+	open      string
+	wantErr   bool
+	prepare   func(symFs) error
+	apply     func(afero.File) error
+	check     func(afero.File) error
+	withCache bool
+	withOsFs  bool
+	large     bool
+}{
+	{
+		"Can not write to /",
+		"/",
+		true,
+		func(f symFs) error { return nil },
+		func(f afero.File) error {
+			if _, err := f.WriteAt([]byte("Hello, world!"), 0); err != nil {
+				return err
+			}
+
+			return nil
+		},
+		func(f afero.File) error { return nil },
+		true,
+		true,
+		false,
+	},
+	{
+		"Can not write to /mydir",
+		"/mydir",
+		true,
+		func(f symFs) error {
+			if err := f.Mkdir("/mydir", os.ModePerm); err != nil {
+				return err
+			}
+
+			return nil
+		},
+		func(f afero.File) error {
+			if _, err := f.WriteAt([]byte("Hello, world!"), 0); err != nil {
+				return err
+			}
+
+			return nil
+		},
+		func(f afero.File) error { return nil },
+		true,
+		true,
+		false,
+	},
+	// TODO: Add rest of tests from `.Write`
+	{
+		"Can write 30 MB amount of data at once to start of /test.txt",
+		"/test.txt",
+		false,
+		func(f symFs) error {
+			file, err := f.Create("/test.txt")
+			if err != nil {
+				return err
+			}
+
+			return file.Close()
+		},
+		func(f afero.File) error {
+			buf := make([]byte, 32800768)
+
+			r := newDeterministicReader(1000)
+			if _, err := r.Read(buf); err != nil {
+				return err
+			}
+
+			if _, err := f.WriteAt(buf, 0); err != nil {
+				return err
+			}
+
+			return nil
+		},
+		func(f afero.File) error {
+			if _, err := f.Seek(0, io.SeekStart); err != nil {
+				return err
+			}
+
+			wantHash := "sZ4wO0XI9RAwmM2bFMyhTVcRMJZ9kcWIehLlvF10NKvn7-GakaTo7oee-qTVArFoLtZDwyAev7-zugiw81U31g=="
+			wantLength := int64(32800768)
+
+			hasher := sha512.New()
+			gotLength, err := io.Copy(hasher, f)
+			if err != nil {
+				return err
+			}
+			gotHash := base64.URLEncoding.EncodeToString(hasher.Sum(nil))
+
+			if gotLength != wantLength {
+				return fmt.Errorf("invalid read length, got %v, want %v", gotLength, wantLength)
+			}
+
+			if gotHash != wantHash {
+				return fmt.Errorf("invalid read hash, got %v, want %v", gotHash, wantHash)
+			}
+
+			return nil
+		},
+		true,
+		true,
+		false,
+	},
+	{
+		"Can write 30 MB amount of data in chunks to start of /test.txt",
+		"/test.txt",
+		false,
+		func(f symFs) error {
+			file, err := f.Create("/test.txt")
+			if err != nil {
+				return err
+			}
+
+			return file.Close()
+		},
+		func(f afero.File) error {
+			r := newDeterministicReader(30000)
+
+			curr := int64(0)
+			chunkSize := 1024
+			for {
+				buf := make([]byte, chunkSize)
+
+				if _, err := r.Read(buf); err != nil {
+					if err == io.EOF {
+						break
+					}
+
+					return err
+				}
+
+				n, err := f.WriteAt(buf, curr)
+				if err != nil {
+					return err
+				}
+
+				curr += int64(n)
+			}
+
+			return nil
+		},
+		func(f afero.File) error {
+			if _, err := f.Seek(0, io.SeekStart); err != nil {
+				return err
+			}
+
+			wantHash := "rKXm2Rt1HzSEyLcA7ifXl0BJke75vxNZVoa0v9Z_ltDWfvURoB1z1w9muLf73ajUa6k5Q-7vGOIA0jEpetz0hg=="
+			wantLength := int64(30721024)
+
+			hasher := sha512.New()
+			gotLength, err := io.Copy(hasher, f)
+			if err != nil {
+				return err
+			}
+			gotHash := base64.URLEncoding.EncodeToString(hasher.Sum(nil))
+
+			if gotLength != wantLength {
+				return fmt.Errorf("invalid read length, got %v, want %v", gotLength, wantLength)
+			}
+
+			if gotHash != wantHash {
+				return fmt.Errorf("invalid read hash, got %v, want %v", gotHash, wantHash)
+			}
+
+			return nil
+		},
+		true,
+		true,
+		false,
+	},
+}
+
+func TestFile_WriteAt(t *testing.T) {
+	for _, tt := range writeAtTests {
+		tt := tt
+
+		runTestForAllFss(t, tt.name, true, tt.withCache, tt.withOsFs, func(t *testing.T, fs fsConfig) {
+			if tt.large && testing.Short() {
+				return
+			}
+
+			symFs, ok := fs.fs.(symFs)
+			if !ok {
+				return
+			}
+
+			if err := tt.prepare(symFs); err != nil {
+				t.Errorf("%v prepare() error = %v", symFs.Name(), err)
+
+				return
+			}
+
+			file, err := symFs.OpenFile(tt.open, os.O_RDWR, os.ModePerm)
+			if err != nil && tt.wantErr {
+				return
+			}
+
+			if err != nil {
+				t.Errorf("%v open() error = %v", symFs.Name(), err)
+
+				return
+			}
+
+			err = tt.apply(file)
+			if (err != nil) != tt.wantErr {
+				t.Errorf("%v.Write() error = %v", symFs.Name(), err)
+
+				return
+			}
+
+			if err == nil {
+				if err := tt.check(file); (err != nil) != tt.wantErr {
+					t.Errorf("%v check() error = %v", fs.fs.Name(), err)
+
+					return
+				}
+			}
+		})
+	}
+}
