@@ -507,6 +507,10 @@ func (f *STFS) OpenFile(name string, flag int, perm os.FileMode) (afero.File, er
 						f.onHeader,
 					)
 					if err != nil {
+						if err == sql.ErrNoRows {
+							return os.ErrNotExist
+						}
+
 						return err
 					}
 				} else {
@@ -862,7 +866,8 @@ func (f *STFS) updateMetadata(hdr *tar.Header) error {
 
 func (f *STFS) Chmod(name string, mode os.FileMode) error {
 	f.log.Debug("FileSystem.Chmod", map[string]interface{}{
-		"name": mode,
+		"name": name,
+		"mode": mode,
 	})
 
 	if f.readOnly {
