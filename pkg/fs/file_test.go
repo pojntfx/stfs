@@ -4625,3 +4625,418 @@ func TestFile_WriteAt(t *testing.T) {
 		})
 	}
 }
+
+type writeStringArgs struct {
+	s string
+}
+
+var writeStringTests = []struct {
+	name      string
+	open      string
+	args      writeStringArgs
+	wantErr   bool
+	prepare   func(symFs) error
+	check     func(afero.File, int) error
+	withCache bool
+	withOsFs  bool
+}{
+	{
+		"Can not write to /",
+		"/",
+		writeStringArgs{
+			s: "Hello, world",
+		},
+		true,
+		func(f symFs) error { return nil },
+		func(f afero.File, i int) error { return nil },
+		true,
+		true,
+	},
+	{
+		"Can not write to /mydir",
+		"/mydir",
+		writeStringArgs{
+			s: "Hello, world",
+		},
+		true,
+		func(f symFs) error {
+			if err := f.Mkdir("/mydir", os.ModePerm); err != nil {
+				return err
+			}
+
+			return nil
+		},
+		func(f afero.File, i int) error { return nil },
+		true,
+		true,
+	},
+	{
+		"Can write empty string to /test.txt",
+		"/test.txt",
+		writeStringArgs{
+			s: "",
+		},
+		false,
+		func(f symFs) error {
+			file, err := f.Create("/test.txt")
+			if err != nil {
+				return err
+			}
+
+			return file.Close()
+		},
+		func(f afero.File, i int) error {
+			wantContent := []byte{}
+			gotContent := make([]byte, len(wantContent))
+
+			wantLength := len(wantContent)
+			gotLength, err := f.Read(gotContent)
+			if err != io.EOF {
+				return err
+			}
+
+			if wantLength != gotLength {
+				return fmt.Errorf("invalid write length, got %v, want %v", gotLength, wantLength)
+			}
+
+			if wantLength != i {
+				return fmt.Errorf("invalid write length n, got %v, want %v", i, wantLength)
+			}
+
+			if string(wantContent) != string(gotContent) {
+				return fmt.Errorf("invalid write content, got %v, want %v", gotContent, wantContent)
+			}
+
+			return nil
+		},
+		true,
+		true,
+	},
+	{
+		"Can write small amount of data to /test.txt if seeking afterwards",
+		"/test.txt",
+		writeStringArgs{
+			s: "Hello, world!",
+		},
+		false,
+		func(f symFs) error {
+			file, err := f.Create("/test.txt")
+			if err != nil {
+				return err
+			}
+
+			return file.Close()
+		},
+		func(f afero.File, i int) error {
+			if _, err := f.Seek(0, io.SeekStart); err != nil {
+				return err
+			}
+
+			wantContent := []byte("Hello, world")
+			gotContent := make([]byte, len(wantContent))
+
+			wantLength := len(wantContent)
+			gotLength, err := f.Read(gotContent)
+			if err != io.EOF {
+				return err
+			}
+
+			if wantLength != gotLength {
+				return fmt.Errorf("invalid write length, got %v, want %v", gotLength, wantLength)
+			}
+
+			if wantLength != i {
+				return fmt.Errorf("invalid write length n, got %v, want %v", i, wantLength)
+			}
+
+			if string(wantContent) != string(gotContent) {
+				return fmt.Errorf("invalid write content, got %v, want %v", gotContent, wantContent)
+			}
+
+			return nil
+		},
+		true,
+		true,
+	},
+	{
+		"Can write small amount of data to /test.txt if not seeking afterwards",
+		"/test.txt",
+		writeStringArgs{
+			s: "Hello, world!",
+		},
+		false,
+		func(f symFs) error {
+			file, err := f.Create("/test.txt")
+			if err != nil {
+				return err
+			}
+
+			return file.Close()
+		},
+		func(f afero.File, i int) error {
+			wantContent := []byte("")
+			gotContent := make([]byte, len(wantContent))
+
+			wantLength := len(wantContent)
+			gotLength, err := f.Read(gotContent)
+			if err != io.EOF {
+				return err
+			}
+
+			if wantLength != gotLength {
+				return fmt.Errorf("invalid write length, got %v, want %v", gotLength, wantLength)
+			}
+
+			if wantLength != i {
+				return fmt.Errorf("invalid write length n, got %v, want %v", i, wantLength)
+			}
+
+			if string(wantContent) != string(gotContent) {
+				return fmt.Errorf("invalid write content, got %v, want %v", gotContent, wantContent)
+			}
+
+			return nil
+		},
+		true,
+		true,
+	},
+	{
+		"Can not write to symlink to /",
+		"/existingsymlink",
+		writeStringArgs{
+			s: "Hello, world",
+		},
+		true,
+		func(f symFs) error {
+			if err := f.SymlinkIfPossible("/", "/existingsymlink"); err != nil {
+				return err
+			}
+
+			return nil
+		},
+		func(f afero.File, i int) error { return nil },
+		true,
+		true,
+	},
+	{
+		"Can not write to symlink to /mydir",
+		"/existingsymlink",
+		writeStringArgs{
+			s: "Hello, world",
+		},
+		true,
+		func(f symFs) error {
+			if err := f.Mkdir("/mydir", os.ModePerm); err != nil {
+				return err
+			}
+
+			if err := f.SymlinkIfPossible("/mydir", "/existingsymlink"); err != nil {
+				return err
+			}
+
+			return nil
+		},
+		func(f afero.File, i int) error { return nil },
+		true,
+		true,
+	},
+	{
+		"Can write empty string to symlink to /test.txt",
+		"/existingsymlink",
+		writeStringArgs{
+			s: "",
+		},
+		false,
+		func(f symFs) error {
+			file, err := f.Create("/test.txt")
+			if err != nil {
+				return err
+			}
+
+			if err := file.Close(); err != nil {
+				return err
+			}
+
+			if err := f.SymlinkIfPossible("/test.txt", "/existingsymlink"); err != nil {
+				return err
+			}
+
+			return nil
+		},
+		func(f afero.File, i int) error {
+			wantContent := []byte{}
+			gotContent := make([]byte, len(wantContent))
+
+			wantLength := len(wantContent)
+			gotLength, err := f.Read(gotContent)
+			if err != io.EOF {
+				return err
+			}
+
+			if wantLength != gotLength {
+				return fmt.Errorf("invalid write length, got %v, want %v", gotLength, wantLength)
+			}
+
+			if wantLength != i {
+				return fmt.Errorf("invalid write length n, got %v, want %v", i, wantLength)
+			}
+
+			if string(wantContent) != string(gotContent) {
+				return fmt.Errorf("invalid write content, got %v, want %v", gotContent, wantContent)
+			}
+
+			return nil
+		},
+		true,
+		true,
+	},
+	{
+		"Can write small amount of data to symlink to /test.txt if seeking afterwards",
+		"/existingsymlink",
+		writeStringArgs{
+			s: "Hello, world!",
+		},
+		false,
+		func(f symFs) error {
+			file, err := f.Create("/test.txt")
+			if err != nil {
+				return err
+			}
+
+			if err := file.Close(); err != nil {
+				return err
+			}
+
+			if err := f.SymlinkIfPossible("/test.txt", "/existingsymlink"); err != nil {
+				return err
+			}
+
+			return nil
+		},
+		func(f afero.File, i int) error {
+			if _, err := f.Seek(0, io.SeekStart); err != nil {
+				return err
+			}
+
+			wantContent := []byte("Hello, world")
+			gotContent := make([]byte, len(wantContent))
+
+			wantLength := len(wantContent)
+			gotLength, err := f.Read(gotContent)
+			if err != io.EOF {
+				return err
+			}
+
+			if wantLength != gotLength {
+				return fmt.Errorf("invalid write length, got %v, want %v", gotLength, wantLength)
+			}
+
+			if wantLength != i {
+				return fmt.Errorf("invalid write length n, got %v, want %v", i, wantLength)
+			}
+
+			if string(wantContent) != string(gotContent) {
+				return fmt.Errorf("invalid write content, got %v, want %v", gotContent, wantContent)
+			}
+
+			return nil
+		},
+		true,
+		true,
+	},
+	{
+		"Can write small amount of data to symlink to /test.txt if not seeking afterwards",
+		"/existingsymlink",
+		writeStringArgs{
+			s: "Hello, world!",
+		},
+		false,
+		func(f symFs) error {
+			file, err := f.Create("/test.txt")
+			if err != nil {
+				return err
+			}
+
+			if err := file.Close(); err != nil {
+				return err
+			}
+
+			if err := f.SymlinkIfPossible("/test.txt", "/existingsymlink"); err != nil {
+				return err
+			}
+
+			return nil
+		},
+		func(f afero.File, i int) error {
+			wantContent := []byte("")
+			gotContent := make([]byte, len(wantContent))
+
+			wantLength := len(wantContent)
+			gotLength, err := f.Read(gotContent)
+			if err != io.EOF {
+				return err
+			}
+
+			if wantLength != gotLength {
+				return fmt.Errorf("invalid write length, got %v, want %v", gotLength, wantLength)
+			}
+
+			if wantLength != i {
+				return fmt.Errorf("invalid write length n, got %v, want %v", i, wantLength)
+			}
+
+			if string(wantContent) != string(gotContent) {
+				return fmt.Errorf("invalid write content, got %v, want %v", gotContent, wantContent)
+			}
+
+			return nil
+		},
+		true,
+		true,
+	},
+}
+
+func TestFile_WriteString(t *testing.T) {
+	for _, tt := range writeStringTests {
+		tt := tt
+
+		runTestForAllFss(t, tt.name, true, tt.withCache, tt.withOsFs, func(t *testing.T, fs fsConfig) {
+			symFs, ok := fs.fs.(symFs)
+			if !ok {
+				return
+			}
+
+			if err := tt.prepare(symFs); err != nil {
+				t.Errorf("%v prepare() error = %v", symFs.Name(), err)
+
+				return
+			}
+
+			file, err := symFs.OpenFile(tt.open, os.O_RDWR, os.ModePerm)
+			if err != nil && tt.wantErr {
+				return
+			}
+
+			if err != nil {
+				t.Errorf("%v open() error = %v", symFs.Name(), err)
+
+				return
+			}
+
+			n, err := file.WriteString(tt.args.s)
+			if (err != nil) != tt.wantErr {
+				t.Errorf("%v.WriteString() error = %v", symFs.Name(), err)
+
+				return
+			}
+
+			if err == nil {
+				if err := tt.check(file, int(n)); (err != nil) != tt.wantErr {
+					t.Errorf("%v check() error = %v", fs.fs.Name(), err)
+
+					return
+				}
+			}
+		})
+	}
+}
