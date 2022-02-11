@@ -33,6 +33,16 @@ func (o *Operations) Archive(
 	o.diskOperationLock.Lock()
 	defer o.diskOperationLock.Unlock()
 
+	return o.archive(getSrc, compressionLevel, overwrite, initializing)
+}
+
+func (o *Operations) archive(
+	getSrc func() (config.FileConfig, error),
+	compressionLevel string,
+	overwrite bool,
+	initializing bool,
+) ([]*tar.Header, error) {
+
 	writer, err := o.backend.GetWriter()
 	if err != nil {
 		return []*tar.Header{}, err
