@@ -5040,3 +5040,254 @@ func TestFile_WriteString(t *testing.T) {
 		})
 	}
 }
+
+type truncateArgs struct {
+	size int64
+}
+
+var truncateTests = []struct {
+	name      string
+	open      string
+	args      truncateArgs
+	wantErr   bool
+	prepare   func(symFs) error
+	check     func(afero.File) error
+	withCache bool
+	withOsFs  bool
+}{
+	{
+		"Can not truncate /",
+		"/",
+		truncateArgs{
+			size: 0,
+		},
+		true,
+		func(f symFs) error { return nil },
+		func(f afero.File) error { return nil },
+		true,
+		true,
+	},
+	{
+		"Can not truncate /mydir",
+		"/mydir",
+		truncateArgs{
+			size: 0,
+		},
+		true,
+		func(f symFs) error { return nil },
+		func(f afero.File) error { return nil },
+		true,
+		true,
+	},
+	{
+		"Can truncate empty file to 0",
+		"/test.txt",
+		truncateArgs{
+			size: 0,
+		},
+		false,
+		func(f symFs) error {
+			file, err := f.Create("/test.txt")
+			if err != nil {
+				return err
+			}
+
+			return file.Close()
+		},
+		func(f afero.File) error {
+			wantLength := 0
+
+			gotStat, err := f.Stat()
+			if err != nil {
+				return err
+			}
+			gotLength := int(gotStat.Size())
+
+			if wantLength != gotLength {
+				return fmt.Errorf("invalid resulting size, got %v, want %v", gotLength, wantLength)
+			}
+
+			return nil
+		},
+		true,
+		true,
+	},
+	{
+		"Can truncate empty file to 100",
+		"/test.txt",
+		truncateArgs{
+			size: 100,
+		},
+		false,
+		func(f symFs) error {
+			file, err := f.Create("/test.txt")
+			if err != nil {
+				return err
+			}
+
+			return file.Close()
+		},
+		func(f afero.File) error {
+			wantLength := 100
+
+			gotStat, err := f.Stat()
+			if err != nil {
+				return err
+			}
+			gotLength := int(gotStat.Size())
+
+			if wantLength != gotLength {
+				return fmt.Errorf("invalid resulting size, got %v, want %v", gotLength, wantLength)
+			}
+
+			return nil
+		},
+		true,
+		true,
+	},
+	{
+		"Can truncate non-empty file to 0",
+		"/test.txt",
+		truncateArgs{
+			size: 0,
+		},
+		false,
+		func(f symFs) error {
+			file, err := f.Create("/test.txt")
+			if err != nil {
+				return err
+			}
+
+			if _, err := file.WriteString("Hello, world!"); err != nil {
+				return err
+			}
+
+			return file.Close()
+		},
+		func(f afero.File) error {
+			wantLength := int64(0)
+
+			gotStat, err := f.Stat()
+			if err != nil {
+				return err
+			}
+			gotLength := gotStat.Size()
+
+			if wantLength != gotLength {
+				return fmt.Errorf("invalid resulting size, got %v, want %v", gotLength, wantLength)
+			}
+
+			if _, err := f.Seek(0, io.SeekStart); err != nil {
+				return err
+			}
+
+			gotLength, err = io.Copy(io.Discard, f)
+			if err != nil {
+				return err
+			}
+
+			if gotLength != wantLength {
+				return fmt.Errorf("invalid read length, got %v, want %v", gotLength, wantLength)
+			}
+
+			return nil
+		},
+		true,
+		true,
+	},
+	{
+		"Can truncate non-empty file to 100",
+		"/test.txt",
+		truncateArgs{
+			size: 100,
+		},
+		false,
+		func(f symFs) error {
+			file, err := f.Create("/test.txt")
+			if err != nil {
+				return err
+			}
+
+			if _, err := file.WriteString("Hello, world!"); err != nil {
+				return err
+			}
+
+			return file.Close()
+		},
+		func(f afero.File) error {
+			wantLength := int64(100)
+
+			gotStat, err := f.Stat()
+			if err != nil {
+				return err
+			}
+			gotLength := gotStat.Size()
+
+			if wantLength != gotLength {
+				return fmt.Errorf("invalid resulting size, got %v, want %v", gotLength, wantLength)
+			}
+
+			if _, err := f.Seek(0, io.SeekStart); err != nil {
+				return err
+			}
+
+			gotLength, err = io.Copy(io.Discard, f)
+			if err != nil {
+				return err
+			}
+
+			if gotLength != wantLength {
+				return fmt.Errorf("invalid read length, got %v, want %v", gotLength, wantLength)
+			}
+
+			return nil
+		},
+		true,
+		true,
+	},
+}
+
+func TestFile_Truncate(t *testing.T) {
+	for _, tt := range truncateTests {
+		tt := tt
+
+		runTestForAllFss(t, tt.name, true, tt.withCache, tt.withOsFs, func(t *testing.T, fs fsConfig) {
+			symFs, ok := fs.fs.(symFs)
+			if !ok {
+				return
+			}
+
+			if err := tt.prepare(symFs); err != nil {
+				t.Errorf("%v prepare() error = %v", symFs.Name(), err)
+
+				return
+			}
+
+			file, err := symFs.OpenFile(tt.open, os.O_RDWR, os.ModePerm)
+			if err != nil && tt.wantErr {
+				return
+			}
+
+			if err != nil {
+				t.Errorf("%v open() error = %v", symFs.Name(), err)
+
+				return
+			}
+
+			err = file.Truncate(tt.args.size)
+			if (err != nil) != tt.wantErr {
+				t.Errorf("%v.Truncate() error = %v", symFs.Name(), err)
+
+				return
+			}
+
+			if err == nil {
+				if err := tt.check(file); (err != nil) != tt.wantErr {
+					t.Errorf("%v check() error = %v", fs.fs.Name(), err)
+
+					return
+				}
+			}
+		})
+	}
+}
