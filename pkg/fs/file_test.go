@@ -5803,3 +5803,133 @@ func TestFile_Sync(t *testing.T) {
 		})
 	}
 }
+
+var closeTests = []struct {
+	name      string
+	open      string
+	wantErr   bool
+	prepare   func(symFs) error
+	check     func(afero.File, symFs) error
+	withCache bool
+	withOsFs  bool
+}{
+	{
+		"Can not close /",
+		"/",
+		true,
+		func(f symFs) error { return nil },
+		func(f afero.File, s symFs) error { return nil },
+		true,
+		true,
+	},
+	{
+		"Can not close /mydir",
+		"/mydir",
+		true,
+		func(f symFs) error {
+			if err := f.Mkdir("/mydir", os.ModePerm); err != nil {
+				return err
+			}
+
+			return nil
+		},
+		func(f afero.File, s symFs) error { return nil },
+		true,
+		true,
+	},
+	{
+		"Can close empty file",
+		"/test.txt",
+		false,
+		func(f symFs) error {
+			file, err := f.Create("/test.txt")
+			if err != nil {
+				return err
+			}
+
+			return file.Close()
+		},
+		func(f afero.File, s symFs) error {
+			file, err := s.Create("/test2.txt")
+			if err != nil {
+				return fmt.Errorf("could not open new file after closing old one: %v", err)
+			}
+
+			return file.Close()
+		},
+		true,
+		true,
+	},
+	{
+		"Can close non-empty file",
+		"/test.txt",
+		false,
+		func(f symFs) error {
+			file, err := f.Create("/test.txt")
+			if err != nil {
+				return err
+			}
+
+			if _, err := file.WriteString("Hello, world!"); err != nil {
+				return err
+			}
+
+			return file.Close()
+		},
+		func(f afero.File, s symFs) error {
+			file, err := s.Create("/test2.txt")
+			if err != nil {
+				return fmt.Errorf("could not open new file after closing old one: %v", err)
+			}
+
+			return file.Close()
+		},
+		true,
+		true,
+	},
+}
+
+func TestFile_Close(t *testing.T) {
+	for _, tt := range closeTests {
+		tt := tt
+
+		runTestForAllFss(t, tt.name, true, tt.withCache, tt.withOsFs, func(t *testing.T, fs fsConfig) {
+			symFs, ok := fs.fs.(symFs)
+			if !ok {
+				return
+			}
+
+			if err := tt.prepare(symFs); err != nil {
+				t.Errorf("%v prepare() error = %v", symFs.Name(), err)
+
+				return
+			}
+
+			file, err := symFs.OpenFile(tt.open, os.O_RDWR, os.ModePerm)
+			if err != nil && tt.wantErr {
+				return
+			}
+
+			if err != nil {
+				t.Errorf("%v open() error = %v", symFs.Name(), err)
+
+				return
+			}
+
+			err = file.Close()
+			if (err != nil) != tt.wantErr {
+				t.Errorf("%v.Close() error = %v", symFs.Name(), err)
+
+				return
+			}
+
+			if err == nil {
+				if err := tt.check(file, symFs); (err != nil) != tt.wantErr {
+					t.Errorf("%v check() error = %v", fs.fs.Name(), err)
+
+					return
+				}
+			}
+		})
+	}
+}
