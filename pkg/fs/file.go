@@ -406,6 +406,15 @@ func (f *File) Stat() (os.FileInfo, error) {
 	f.ioLock.Lock()
 	defer f.ioLock.Unlock()
 
+	if f.writeBuf != nil {
+		size, err := f.writeBuf.Size()
+		if err != nil {
+			return nil, err
+		}
+
+		f.info.size = size
+	}
+
 	if f.link != "" {
 		info := f.info
 
@@ -689,7 +698,30 @@ func (f *File) Truncate(size int64) error {
 		return err
 	}
 
-	return f.writeBuf.Truncate(size)
+	oldSize, err := f.writeBuf.Size()
+	if err != nil {
+		return err
+	}
+
+	if size > oldSize {
+		if err := f.writeBuf.Truncate(0); err != nil {
+			return err
+		}
+
+		for i := int64(0); i < size; i++ {
+			if _, err := f.writeBuf.Write(make([]byte, 1)); err != nil {
+				return err
+			}
+		}
+
+		return nil
+	}
+
+	if err := f.writeBuf.Truncate(size); err != nil {
+		return err
+	}
+
+	return nil
 }
 
 // Cleanup operations
