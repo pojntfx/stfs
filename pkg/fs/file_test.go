@@ -5496,16 +5496,29 @@ var syncTests = []struct {
 			return file.Close()
 		},
 		func(f afero.File, s symFs) error {
-			wantLength := 0
+			wantLength := int64(0)
 
 			gotStat, err := f.Stat()
 			if err != nil {
 				return err
 			}
-			gotLength := int(gotStat.Size())
+			gotLength := gotStat.Size()
 
 			if wantLength != gotLength {
 				return fmt.Errorf("invalid resulting size, got %v, want %v", gotLength, wantLength)
+			}
+
+			if _, err := f.Seek(0, io.SeekStart); err != nil {
+				return err
+			}
+
+			gotLength, err = io.Copy(io.Discard, f)
+			if err != nil {
+				return err
+			}
+
+			if gotLength != wantLength {
+				return fmt.Errorf("invalid read length, got %v, want %v", gotLength, wantLength)
 			}
 
 			return nil
@@ -5528,6 +5541,168 @@ var syncTests = []struct {
 			}
 
 			return file.Close()
+		},
+		func(f afero.File, s symFs) error {
+			for i := 0; i < 2; i++ {
+				if i >= 1 {
+					err := f.Close()
+					if err != nil {
+						return err
+					}
+
+					f, err = s.Open("/test.txt")
+					if err != nil {
+						return err
+					}
+				}
+
+				wantLength := int64(13)
+
+				gotStat, err := f.Stat()
+				if err != nil {
+					return err
+				}
+				gotLength := gotStat.Size()
+
+				if wantLength != gotLength {
+					return fmt.Errorf("invalid resulting size, got %v, want %v", gotLength, wantLength)
+				}
+
+				if _, err := f.Seek(0, io.SeekStart); err != nil {
+					return err
+				}
+
+				wantHash := "wVJ82JPBJHc9gRkRlwyP5uhX1t9dySJr2KFgYUwM2WOk3eorlLt9NgIe-dhl1c6ilKgt1JoLsmn1H256V_eUIQ=="
+
+				hasher := sha512.New()
+				gotLength, err = io.Copy(hasher, f)
+				if err != nil {
+					return err
+				}
+				gotHash := base64.URLEncoding.EncodeToString(hasher.Sum(nil))
+
+				if gotLength != wantLength {
+					return fmt.Errorf("invalid read length, got %v, want %v", gotLength, wantLength)
+				}
+
+				if gotHash != wantHash {
+					return fmt.Errorf("invalid read hash, got %v, want %v", gotHash, wantHash)
+				}
+			}
+
+			return nil
+		},
+		true,
+		true,
+	},
+	{
+		"Can not sync symlink to /",
+		"/existingsymlink",
+		true,
+		func(f symFs) error {
+			if err := f.SymlinkIfPossible("/", "/existingsymlink"); err != nil {
+				return err
+			}
+
+			return nil
+		},
+		func(f afero.File, s symFs) error { return nil },
+		true,
+		true,
+	},
+	{
+		"Can not sync symlink to /mydir",
+		"/existingsymlink",
+		true,
+		func(f symFs) error {
+			if err := f.Mkdir("/mydir", os.ModePerm); err != nil {
+				return err
+			}
+
+			if err := f.SymlinkIfPossible("/mydir", "/existingsymlink"); err != nil {
+				return err
+			}
+
+			return nil
+		},
+		func(f afero.File, s symFs) error { return nil },
+		true,
+		true,
+	},
+	{
+		"Can sync symlink to empty file",
+		"/existingsymlink",
+		false,
+		func(f symFs) error {
+			file, err := f.Create("/test.txt")
+			if err != nil {
+				return err
+			}
+
+			if err := file.Close(); err != nil {
+				return err
+			}
+
+			if err := f.SymlinkIfPossible("/test.txt", "/existingsymlink"); err != nil {
+				return err
+			}
+
+			return nil
+		},
+		func(f afero.File, s symFs) error {
+			wantLength := int64(0)
+
+			gotStat, err := f.Stat()
+			if err != nil {
+				return err
+			}
+			gotLength := gotStat.Size()
+
+			if wantLength != gotLength {
+				return fmt.Errorf("invalid resulting size, got %v, want %v", gotLength, wantLength)
+			}
+
+			if _, err := f.Seek(0, io.SeekStart); err != nil {
+				return err
+			}
+
+			gotLength, err = io.Copy(io.Discard, f)
+			if err != nil {
+				return err
+			}
+
+			if gotLength != wantLength {
+				return fmt.Errorf("invalid read length, got %v, want %v", gotLength, wantLength)
+			}
+
+			return nil
+		},
+		true,
+		true,
+	},
+	{
+		"Can sync symlink to non-empty file",
+		"/existingsymlink",
+		false,
+		func(f symFs) error {
+			file, err := f.Create("/test.txt")
+			if err != nil {
+				return err
+			}
+
+			if _, err := file.WriteString("Hello, world!"); err != nil {
+				return err
+			}
+
+			if err := file.Close(); err != nil {
+				return err
+			}
+
+			if err := f.SymlinkIfPossible("/test.txt", "/existingsymlink"); err != nil {
+				return err
+			}
+
+			return nil
 		},
 		func(f afero.File, s symFs) error {
 			for i := 0; i < 2; i++ {
