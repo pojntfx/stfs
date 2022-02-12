@@ -5245,6 +5245,158 @@ var truncateTests = []struct {
 		true,
 		true,
 	},
+	{
+		"Can not truncate symlink to /",
+		"/existingsymlink",
+		truncateArgs{
+			size: 0,
+		},
+		true,
+		func(f symFs) error {
+			if err := f.SymlinkIfPossible("/", "/existingsymlink"); err != nil {
+				return err
+			}
+
+			return nil
+		},
+		func(f afero.File) error { return nil },
+		true,
+		true,
+	},
+	{
+		"Can not truncate symlink to /mydir",
+		"/existingsymlink",
+		truncateArgs{
+			size: 0,
+		},
+		true,
+		func(f symFs) error {
+			if err := f.Mkdir("/mydir", os.ModePerm); err != nil {
+				return err
+			}
+
+			if err := f.SymlinkIfPossible("/mydir", "/existingsymlink"); err != nil {
+				return err
+			}
+
+			return nil
+		},
+		func(f afero.File) error { return nil },
+		true,
+		true,
+	},
+	{
+		"Can truncate symlink to empty file to 0",
+		"/existingsymlink",
+		truncateArgs{
+			size: 0,
+		},
+		false,
+		func(f symFs) error {
+			file, err := f.Create("/test.txt")
+			if err != nil {
+				return err
+			}
+
+			if err := file.Close(); err != nil {
+				return err
+			}
+
+			if err := f.SymlinkIfPossible("/test.txt", "/existingsymlink"); err != nil {
+				return err
+			}
+
+			return nil
+		},
+		func(f afero.File) error {
+			wantLength := int64(0)
+
+			gotStat, err := f.Stat()
+			if err != nil {
+				return err
+			}
+			gotLength := gotStat.Size()
+
+			if wantLength != gotLength {
+				return fmt.Errorf("invalid resulting size, got %v, want %v", gotLength, wantLength)
+			}
+
+			if _, err := f.Seek(0, io.SeekStart); err != nil {
+				return err
+			}
+
+			gotLength, err = io.Copy(io.Discard, f)
+			if err != nil {
+				return err
+			}
+
+			if gotLength != wantLength {
+				return fmt.Errorf("invalid read length, got %v, want %v", gotLength, wantLength)
+			}
+
+			return nil
+		},
+		true,
+		true,
+	},
+	{
+		"Can truncate symlink to non-empty file to 0",
+		"/existingsymlink",
+		truncateArgs{
+			size: 0,
+		},
+		false,
+		func(f symFs) error {
+			file, err := f.Create("/test.txt")
+			if err != nil {
+				return err
+			}
+
+			if _, err := file.WriteString("Hello, world!"); err != nil {
+				return err
+			}
+
+			if err := file.Close(); err != nil {
+				return err
+			}
+
+			if err := f.SymlinkIfPossible("/test.txt", "/existingsymlink"); err != nil {
+				return err
+			}
+
+			return nil
+		},
+		func(f afero.File) error {
+			wantLength := int64(0)
+
+			gotStat, err := f.Stat()
+			if err != nil {
+				return err
+			}
+			gotLength := gotStat.Size()
+
+			if wantLength != gotLength {
+				return fmt.Errorf("invalid resulting size, got %v, want %v", gotLength, wantLength)
+			}
+
+			if _, err := f.Seek(0, io.SeekStart); err != nil {
+				return err
+			}
+
+			gotLength, err = io.Copy(io.Discard, f)
+			if err != nil {
+				return err
+			}
+
+			if gotLength != wantLength {
+				return fmt.Errorf("invalid read length, got %v, want %v", gotLength, wantLength)
+			}
+
+			return nil
+		},
+		true,
+		true,
+	},
 }
 
 func TestFile_Truncate(t *testing.T) {
