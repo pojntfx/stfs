@@ -5074,7 +5074,13 @@ var truncateTests = []struct {
 			size: 0,
 		},
 		true,
-		func(f symFs) error { return nil },
+		func(f symFs) error {
+			if err := f.Mkdir("/mydir", os.ModePerm); err != nil {
+				return err
+			}
+
+			return nil
+		},
 		func(f afero.File) error { return nil },
 		true,
 		true,
@@ -5435,6 +5441,185 @@ func TestFile_Truncate(t *testing.T) {
 
 			if err == nil {
 				if err := tt.check(file); (err != nil) != tt.wantErr {
+					t.Errorf("%v check() error = %v", fs.fs.Name(), err)
+
+					return
+				}
+			}
+		})
+	}
+}
+
+var syncTests = []struct {
+	name      string
+	open      string
+	wantErr   bool
+	prepare   func(symFs) error
+	check     func(afero.File, symFs) error
+	withCache bool
+	withOsFs  bool
+}{
+	{
+		"Can not sync /",
+		"/",
+		true,
+		func(f symFs) error { return nil },
+		func(f afero.File, s symFs) error { return nil },
+		true,
+		true,
+	},
+	{
+		"Can not sync /mydir",
+		"/mydir",
+		true,
+		func(f symFs) error {
+			if err := f.Mkdir("/mydir", os.ModePerm); err != nil {
+				return err
+			}
+
+			return nil
+		},
+		func(f afero.File, s symFs) error { return nil },
+		true,
+		true,
+	},
+	{
+		"Can sync empty file",
+		"/test.txt",
+		false,
+		func(f symFs) error {
+			file, err := f.Create("/test.txt")
+			if err != nil {
+				return err
+			}
+
+			return file.Close()
+		},
+		func(f afero.File, s symFs) error {
+			wantLength := 0
+
+			gotStat, err := f.Stat()
+			if err != nil {
+				return err
+			}
+			gotLength := int(gotStat.Size())
+
+			if wantLength != gotLength {
+				return fmt.Errorf("invalid resulting size, got %v, want %v", gotLength, wantLength)
+			}
+
+			return nil
+		},
+		true,
+		true,
+	},
+	{
+		"Can sync non-empty file",
+		"/test.txt",
+		false,
+		func(f symFs) error {
+			file, err := f.Create("/test.txt")
+			if err != nil {
+				return err
+			}
+
+			if _, err := file.WriteString("Hello, world!"); err != nil {
+				return err
+			}
+
+			return file.Close()
+		},
+		func(f afero.File, s symFs) error {
+			for i := 0; i < 2; i++ {
+				if i >= 1 {
+					err := f.Close()
+					if err != nil {
+						return err
+					}
+
+					f, err = s.Open("/test.txt")
+					if err != nil {
+						return err
+					}
+				}
+
+				wantLength := int64(13)
+
+				gotStat, err := f.Stat()
+				if err != nil {
+					return err
+				}
+				gotLength := gotStat.Size()
+
+				if wantLength != gotLength {
+					return fmt.Errorf("invalid resulting size, got %v, want %v", gotLength, wantLength)
+				}
+
+				if _, err := f.Seek(0, io.SeekStart); err != nil {
+					return err
+				}
+
+				wantHash := "wVJ82JPBJHc9gRkRlwyP5uhX1t9dySJr2KFgYUwM2WOk3eorlLt9NgIe-dhl1c6ilKgt1JoLsmn1H256V_eUIQ=="
+
+				hasher := sha512.New()
+				gotLength, err = io.Copy(hasher, f)
+				if err != nil {
+					return err
+				}
+				gotHash := base64.URLEncoding.EncodeToString(hasher.Sum(nil))
+
+				if gotLength != wantLength {
+					return fmt.Errorf("invalid read length, got %v, want %v", gotLength, wantLength)
+				}
+
+				if gotHash != wantHash {
+					return fmt.Errorf("invalid read hash, got %v, want %v", gotHash, wantHash)
+				}
+			}
+
+			return nil
+		},
+		true,
+		true,
+	},
+}
+
+func TestFile_Sync(t *testing.T) {
+	for _, tt := range syncTests {
+		tt := tt
+
+		runTestForAllFss(t, tt.name, true, tt.withCache, tt.withOsFs, func(t *testing.T, fs fsConfig) {
+			symFs, ok := fs.fs.(symFs)
+			if !ok {
+				return
+			}
+
+			if err := tt.prepare(symFs); err != nil {
+				t.Errorf("%v prepare() error = %v", symFs.Name(), err)
+
+				return
+			}
+
+			file, err := symFs.OpenFile(tt.open, os.O_RDWR, os.ModePerm)
+			if err != nil && tt.wantErr {
+				return
+			}
+
+			if err != nil {
+				t.Errorf("%v open() error = %v", symFs.Name(), err)
+
+				return
+			}
+
+			err = file.Sync()
+			if (err != nil) != tt.wantErr {
+				t.Errorf("%v.Sync() error = %v", symFs.Name(), err)
+
+				return
+			}
+
+			if err == nil {
+				if err := tt.check(file, symFs); (err != nil) != tt.wantErr {
 					t.Errorf("%v check() error = %v", fs.fs.Name(), err)
 
 					return
