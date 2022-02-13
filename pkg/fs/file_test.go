@@ -5887,6 +5887,106 @@ var closeTests = []struct {
 		true,
 		true,
 	},
+	{
+		"Can not close symlink to /",
+		"/existingsymlink",
+		true,
+		func(f symFs) error {
+			if err := f.SymlinkIfPossible("/", "/existingsymlink"); err != nil {
+				return err
+			}
+
+			return nil
+		},
+		func(f afero.File, s symFs) error { return nil },
+		true,
+		true,
+	},
+	{
+		"Can not close symlink to /mydir",
+		"/existingsymlink",
+		true,
+		func(f symFs) error {
+			if err := f.Mkdir("/mydir", os.ModePerm); err != nil {
+				return err
+			}
+
+			if err := f.SymlinkIfPossible("/mydir", "/existingsymlink"); err != nil {
+				return err
+			}
+
+			return nil
+		},
+		func(f afero.File, s symFs) error { return nil },
+		true,
+		true,
+	},
+	{
+		"Can close symlink to empty file",
+		"/existingsymlink",
+		false,
+		func(f symFs) error {
+			file, err := f.Create("/test.txt")
+			if err != nil {
+				return err
+			}
+
+			if err := file.Close(); err != nil {
+				return err
+			}
+
+			if err := f.SymlinkIfPossible("/test.txt", "/existingsymlink"); err != nil {
+				return err
+			}
+
+			return nil
+		},
+		func(f afero.File, s symFs) error {
+			file, err := s.Create("/test2.txt")
+			if err != nil {
+				return fmt.Errorf("could not open new file after closing old one: %v", err)
+			}
+
+			return file.Close()
+		},
+		true,
+		true,
+	},
+	{
+		"Can close symlink to non-empty file",
+		"/existingsymlink",
+		false,
+		func(f symFs) error {
+			file, err := f.Create("/test.txt")
+			if err != nil {
+				return err
+			}
+
+			if _, err := file.WriteString("Hello, world!"); err != nil {
+				return err
+			}
+
+			if err := file.Close(); err != nil {
+				return err
+			}
+
+			if err := f.SymlinkIfPossible("/test.txt", "/existingsymlink"); err != nil {
+				return err
+			}
+
+			return nil
+		},
+		func(f afero.File, s symFs) error {
+			file, err := s.Create("/test2.txt")
+			if err != nil {
+				return fmt.Errorf("could not open new file after closing old one: %v", err)
+			}
+
+			return file.Close()
+		},
+		true,
+		true,
+	},
 }
 
 func TestFile_Close(t *testing.T) {
