@@ -5,7 +5,6 @@ Simple Tape File System (STFS), a file system for tapes and tar files.
 ⚠️ STFS has not yet been audited! While we try to make it as secure as possible, it has not yet undergone a formal security audit by a third party. Please keep this in mind if you use it for security-critical applications. ⚠️
 
 [![hydrun CI](https://github.com/pojntfx/stfs/actions/workflows/hydrun.yaml/badge.svg)](https://github.com/pojntfx/stfs/actions/workflows/hydrun.yaml)
-[![Docker CI](https://github.com/pojntfx/stfs/actions/workflows/docker.yaml/badge.svg)](https://github.com/pojntfx/stfs/actions/workflows/docker.yaml)
 [![Go Reference](https://pkg.go.dev/badge/github.com/pojntfx/stfs.svg)](https://pkg.go.dev/github.com/pojntfx/stfs)
 [![Matrix](https://img.shields.io/matrix/stfs:matrix.org)](https://matrix.to/#/#stfs:matrix.org?via=matrix.org)
 [![Binary Downloads](https://img.shields.io/github/downloads/pojntfx/stfs/total?label=binary%20downloads)](https://github.com/pojntfx/stfs/releases)
@@ -161,7 +160,7 @@ Global Flags:
 Use "stfs inventory [command] --help" for more information about a command.
 ```
 
-### Key Generation
+#### Key Generation
 
 ```shell
 $ stfs keygen --help
