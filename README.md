@@ -2,7 +2,11 @@
 
 Simple Tape File System (STFS), a file system for tapes and tar files.
 
+⚠️ STFS has not yet been audited! While we try to make it as secure as possible, it has not yet undergone a formal security audit by a third party. Please keep this in mind if you use it for security-critical applications. ⚠️
+
 [![hydrun CI](https://github.com/pojntfx/stfs/actions/workflows/hydrun.yaml/badge.svg)](https://github.com/pojntfx/stfs/actions/workflows/hydrun.yaml)
+[![Docker CI](https://github.com/pojntfx/stfs/actions/workflows/docker.yaml/badge.svg)](https://github.com/pojntfx/stfs/actions/workflows/docker.yaml)
+[![Go Reference](https://pkg.go.dev/badge/github.com/pojntfx/stfs.svg)](https://pkg.go.dev/github.com/pojntfx/stfs)
 [![Matrix](https://img.shields.io/matrix/stfs:matrix.org)](https://matrix.to/#/#stfs:matrix.org?via=matrix.org)
 [![Binary Downloads](https://img.shields.io/github/downloads/pojntfx/stfs/total?label=binary%20downloads)](https://github.com/pojntfx/stfs/releases)
 
@@ -10,8 +14,316 @@ Simple Tape File System (STFS), a file system for tapes and tar files.
 
 🚧 This project is a work-in-progress! Instructions will be added as soon as it is usable. 🚧
 
+## Installation
+
+Static binaries are available on [GitHub releases](https://github.com/pojntfx/stfs/releases).
+
+On Linux, you can install them like so:
+
+```shell
+$ curl -L -o /tmp/stfs "https://github.com/pojntfx/stfs/releases/latest/download/stfs.linux-$(uname -m)"
+$ sudo install /tmp/stfs /usr/local/bin
+$ sudo setcap cap_net_admin+ep /usr/local/bin/stfs # This allows rootless execution
+```
+
+On macOS, you can use the following:
+
+```shell
+$ curl -L -o /tmp/stfs "https://github.com/pojntfx/stfs/releases/latest/download/stfs.darwin-$(uname -m)"
+$ sudo install /tmp/stfs /usr/local/bin
+```
+
+On Windows, the following should work (using PowerShell as administrator):
+
+```shell
+PS> Invoke-WebRequest https://github.com/pojntfx/stfs/releases/latest/download/stfs.windows-x86_64.exe -OutFile \Windows\System32\stfs.exe
+```
+
+You can find binaries for more operating systems and architectures on [GitHub releases](https://github.com/pojntfx/stfs/releases).
+
+## Usage
+
+### 1. Generating Keys with `stfs keygen`
+
+### 2. Serving a Tape Read-Only with `stfs serve http`
+
+### 3. Serving a Tape Read-Write with `stfs serve ftp`
+
+### 4. Using Optimized Operations with `stfs operation`
+
+### 5. Managing the Index with `stfs inventory`
+
+### 6. Recovering Data with `stfs recovery`
+
+### 7. Managing the Drive with `stfs drive`
+
+### 8. Embedding STFS with `fs.STFS`
+
+🚀 **That's it!** We hope you enjoy using stfs.
+
+## Reference
+
+### Command Line Arguments
+
+```shell
+$ stfs --help
+Simple Tape File System (STFS), a file system for tapes and tar files.
+
+Find more information at:
+https://github.com/pojntfx/stfs
+
+Usage:
+  stfs [command]
+
+Available Commands:
+  completion  Generate the autocompletion script for the specified shell
+  drive       Manage tape drives
+  help        Help about any command
+  inventory   Get contents and metadata of tape or tar file from the index
+  keygen      Generate a encryption or signature key
+  operation   Perform operations on tape or tar file and the index
+  recovery    Recover tapes or tar files
+  serve       Serve tape or tar file and the index
+
+Flags:
+  -c, --compression string   Compression format to use (default , available are [ gzip parallelgzip lz4 zstandard brotli bzip2 parallelbzip2])
+  -d, --drive string         Tape or tar file to use (default "/dev/nst0")
+  -e, --encryption string    Encryption format to use (default , available are [ age pgp])
+  -h, --help                 help for stfs
+  -m, --metadata string      Metadata database to use (default "/home/pojntfx/.local/share/stfs/var/lib/stfs/metadata.sqlite")
+  -s, --signature string     Signature format to use (default , available are [ minisign pgp])
+  -v, --verbose int          Verbosity level (default 2, available are [0 1 2 3 4]) (default 2)
+
+Use "stfs [command] --help" for more information about a command.
+```
+
+<details>
+  <summary>Expand subcommand reference</summary>
+
+#### Drive Management
+
+```shell
+$ stfs drive --help
+Manage tape drives
+
+Usage:
+  stfs drive [command]
+
+Aliases:
+  drive, dri, d
+
+Available Commands:
+  eject       Eject tape from drive
+  tell        Get the current record on the tape
+
+Flags:
+  -h, --help   help for drive
+
+Global Flags:
+  -c, --compression string   Compression format to use (default , available are [ gzip parallelgzip lz4 zstandard brotli bzip2 parallelbzip2])
+  -d, --drive string         Tape or tar file to use (default "/dev/nst0")
+  -e, --encryption string    Encryption format to use (default , available are [ age pgp])
+  -m, --metadata string      Metadata database to use (default "/home/pojntfx/.local/share/stfs/var/lib/stfs/metadata.sqlite")
+  -s, --signature string     Signature format to use (default , available are [ minisign pgp])
+  -v, --verbose int          Verbosity level (default 2, available are [0 1 2 3 4]) (default 2)
+
+Use "stfs drive [command] --help" for more information about a command.
+```
+
+#### Inventory
+
+```shell
+$ stfs inventory --help
+Get contents and metadata of tape or tar file from the index
+
+Usage:
+  stfs inventory [command]
+
+Aliases:
+  inventory, inv, i
+
+Available Commands:
+  find        Find a file or directory on tape or tar file by matching against a regex
+  list        List the contents of a directory on tape or tar file
+  stat        Get information on a file or directory on tape or tar file
+
+Flags:
+  -h, --help   help for inventory
+
+Global Flags:
+  -c, --compression string   Compression format to use (default , available are [ gzip parallelgzip lz4 zstandard brotli bzip2 parallelbzip2])
+  -d, --drive string         Tape or tar file to use (default "/dev/nst0")
+  -e, --encryption string    Encryption format to use (default , available are [ age pgp])
+  -m, --metadata string      Metadata database to use (default "/home/pojntfx/.local/share/stfs/var/lib/stfs/metadata.sqlite")
+  -s, --signature string     Signature format to use (default , available are [ minisign pgp])
+  -v, --verbose int          Verbosity level (default 2, available are [0 1 2 3 4]) (default 2)
+
+Use "stfs inventory [command] --help" for more information about a command.
+```
+
+### Key Generation
+
+```shell
+$ stfs keygen --help
+Generate a encryption or signature key
+
+Usage:
+  stfs keygen [flags]
+
+Aliases:
+  keygen, key, k
+
+Flags:
+  -h, --help               help for keygen
+  -i, --identity string    Path to write the private key to
+  -p, --password string    Password to protect the private key with
+  -r, --recipient string   Path to write the public key to
+
+Global Flags:
+  -c, --compression string   Compression format to use (default , available are [ gzip parallelgzip lz4 zstandard brotli bzip2 parallelbzip2])
+  -d, --drive string         Tape or tar file to use (default "/dev/nst0")
+  -e, --encryption string    Encryption format to use (default , available are [ age pgp])
+  -m, --metadata string      Metadata database to use (default "/home/pojntfx/.local/share/stfs/var/lib/stfs/metadata.sqlite")
+  -s, --signature string     Signature format to use (default , available are [ minisign pgp])
+  -v, --verbose int          Verbosity level (default 2, available are [0 1 2 3 4]) (default 2)
+```
+
+#### Operations
+
+```shell
+$ stfs operation --help
+Perform operations on tape or tar file and the index
+
+Usage:
+  stfs operation [command]
+
+Aliases:
+  operation, ope, o, op
+
+Available Commands:
+  archive     Archive a file or directory to tape or tar file
+  delete      Delete a file or directory from tape or tar file
+  initialize  Truncate and initalize a file or directory
+  move        Move a file or directory on tape or tar file
+  restore     Restore a file or directory from tape or tar file
+  update      Update a file or directory's content and metadata on tape or tar file
+
+Flags:
+  -h, --help   help for operation
+
+Global Flags:
+  -c, --compression string   Compression format to use (default , available are [ gzip parallelgzip lz4 zstandard brotli bzip2 parallelbzip2])
+  -d, --drive string         Tape or tar file to use (default "/dev/nst0")
+  -e, --encryption string    Encryption format to use (default , available are [ age pgp])
+  -m, --metadata string      Metadata database to use (default "/home/pojntfx/.local/share/stfs/var/lib/stfs/metadata.sqlite")
+  -s, --signature string     Signature format to use (default , available are [ minisign pgp])
+  -v, --verbose int          Verbosity level (default 2, available are [0 1 2 3 4]) (default 2)
+
+Use "stfs operation [command] --help" for more information about a command.
+```
+
+#### Recovery
+
+```shell
+$ stfs recovery --help
+Recover tapes or tar files
+
+Usage:
+  stfs recovery [command]
+
+Aliases:
+  recovery, rec, r
+
+Available Commands:
+  fetch       Fetch a file or directory from tape or tar file by record and block without the index
+  index       Index contents of tape or tar file
+  query       Query contents of tape or tar file without the index
+
+Flags:
+  -h, --help   help for recovery
+
+Global Flags:
+  -c, --compression string   Compression format to use (default , available are [ gzip parallelgzip lz4 zstandard brotli bzip2 parallelbzip2])
+  -d, --drive string         Tape or tar file to use (default "/dev/nst0")
+  -e, --encryption string    Encryption format to use (default , available are [ age pgp])
+  -m, --metadata string      Metadata database to use (default "/home/pojntfx/.local/share/stfs/var/lib/stfs/metadata.sqlite")
+  -s, --signature string     Signature format to use (default , available are [ minisign pgp])
+  -v, --verbose int          Verbosity level (default 2, available are [0 1 2 3 4]) (default 2)
+
+Use "stfs recovery [command] --help" for more information about a command.
+```
+
+#### Servers
+
+```shell
+stfs serve --help
+Serve tape or tar file and the index
+
+Usage:
+  stfs serve [command]
+
+Aliases:
+  serve, ser, s, srv
+
+Available Commands:
+  ftp         Serve tape or tar file and the index over FTP (read-write)
+  http        Serve tape or tar file and the index over HTTP (read-only)
+
+Flags:
+  -h, --help   help for serve
+
+Global Flags:
+  -c, --compression string   Compression format to use (default , available are [ gzip parallelgzip lz4 zstandard brotli bzip2 parallelbzip2])
+  -d, --drive string         Tape or tar file to use (default "/dev/nst0")
+  -e, --encryption string    Encryption format to use (default , available are [ age pgp])
+  -m, --metadata string      Metadata database to use (default "/home/pojntfx/.local/share/stfs/var/lib/stfs/metadata.sqlite")
+  -s, --signature string     Signature format to use (default , available are [ minisign pgp])
+  -v, --verbose int          Verbosity level (default 2, available are [0 1 2 3 4]) (default 2)
+
+Use "stfs serve [command] --help" for more information about a command.
+```
+
+</details>
+
+### Environment Variables
+
+All command line arguments described above can also be set using environment variables; for example, to set `--drive` to `/tmp/drive.tar` with an environment variable, use `STFS_DRIVE=/tmp/drive.tar`.
+
+### Caching Options
+
+### Compression Options
+
+### Encryption Options
+
+### Signature Options
+
+## Acknowledgements
+
+- [aead.dev/minisign](https://github.com/aead/minisign) provides the Minisign signature implementation.
+- [filippo.io/age](https://github.com/FiloSottile/age) provides the Age encryption implementation.
+- [ProtonMail/gopenpgp](github.com/ProtonMail/gopenpgp) provides the PGP signature and encryption implementation.
+- [fclairamb/ftpserverlib](github.com/fclairamb/ftpserverlib) provides the FTP server implementation.
+- [spf13/afero](https://github.com/spf13/afero) provides the file system abstraction layer implementation.
+- All the rest of the authors who worked on the dependencies used! Thanks a lot!
+
+## Contributing
+
+To contribute, please use the [GitHub flow](https://guides.github.com/introduction/flow/) and follow our [Code of Conduct](./CODE_OF_CONDUCT.md).
+
+To build and start a development version of stfs locally, run the following:
+
+```shell
+$ git clone https://github.com/pojntfx/stfs.git
+$ cd stfs
+$ make depend
+$ make && sudo make install
+$ stfs serve ftp -d /tmp/drive.tar -m /tmp/dev.sqlite # Now point Nautilus to `ftp://localhost:1337`
+```
+
+Have any questions or need help? Chat with us [on Matrix](https://matrix.to/#/#stfs:matrix.org?via=matrix.org)!
+
 ## License
 
-STFS (c) 2021 Felicitas Pojtinger and contributors
+STFS (c) 2022 Felicitas Pojtinger and contributors
 
 SPDX-License-Identifier: AGPL-3.0
