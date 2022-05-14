@@ -26,7 +26,7 @@ const (
 var rootCmd = &cobra.Command{
 	Use:   "stfs",
 	Short: "Simple Tape File System",
-	Long: `Simple Tape File System (STFS) is a file system for tapes and tar files.
+	Long: `Simple Tape File System (STFS), a file system for tapes and tar files.
 
 Find more information at:
 https://github.com/pojntfx/stfs`,
