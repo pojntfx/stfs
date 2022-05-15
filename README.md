@@ -44,9 +44,55 @@ You can find binaries for more operating systems and architectures on [GitHub re
 
 ### 1. Generating Keys with `stfs keygen`
 
-### 2. Serving a Tape Read-Only with `stfs serve http`
+While not strictly required, it is recommended to generate keys to sign and encrypt your data on tape. There are multiple methods available; `PGP` and [age](https://github.com/FiloSottile/age) for encryption, and `PGP` as well as [Minisign](https://github.com/aead/minisign) for signatures. In most cases, using age for encryption and PGP for signatures is the best option. To generate the appropriate keys, run the following; make sure to save the keys in a secure location and use a secure password:
 
-### 3. Serving a Tape Read-Write with `stfs serve ftp`
+```shell
+$ stfs keygen --encryption age --password mysecureencryptionpassword --identity ~/.stfs-age.priv --recipient ~/.stfs-age.pub
+$ stfs keygen --signature pgp --password mysecuresignaturepassword --identity ~/.stfs-pgp.priv --recipient ~/.stfs-pgp.pub
+```
+
+For more information, see the [key generation reference](#key-generation).
+
+### 2. Serving a Tape Read-Write with `stfs serve ftp`
+
+The simplest way to read or write to/from the tape (or tar file) is to use the integrated FTP server. To speed up operations, caching mechanisms and compression are available. For the write cache (`--cache-write-type`) the following types are available:
+
+- `memory`: A simple in-memory cache; should not be used in most cases due to potential RAM exhaustion when adding large files
+- `file`: A on-disk cache; this is recommended in most cases, especially if a SSD is available
+
+For the read cache (`--cache-filesystem-type`), which is especially useful when working with many small files, similar types are available (`memory` and `dir`). `dir` uses a overlay filesystem to cache files in the directory specified with `--cache-dir`.
+
+To further speed up IO-limited read/write operations, multiple compression options are available to be selected with `--compression` and can be tuned with `--compression-level`:
+
+- `zstandard`: A Meta-led replacement for `gzip` with very high speeds and a very good compression ratio; this is recommended for most users
+- `gzip`/`parallelgzip`: The GNU format commonly used in combination with `tar`, i.e. for `.tar.gz`; reasonably fast and with a good compression ratio
+- `bzip2`/`parallelbzip2`: A reliable compression format with good speeds and a better compression ratio than `gzip`.
+- `lz4`: Very fast, but at the cost of a lower compression ratio
+- `brotli`: A Google-led compression format with good adoption on the web platform; very high compression ratio, very slow speeds
+
+To serve a tape (or tar file), run the following (adjust the options accordinly):
+
+```shell
+# Use `-d /dev/nst0` for your primary tape drive instead
+$ stfs serve ftp \
+    -d ~/Downloads/drive.tar \
+    -m ~/Downloads/metadata.sqlite \
+    -e age \
+    --encryption-identity ~/.stfs-age.priv \
+    --encryption-recipient ~/.stfs-age.pub \
+    --encryption-password mysecureencryptionpassword \
+    -s pgp \
+    --signature-identity ~/.stfs-pgp.priv \
+    --signature-recipient ~/.stfs-pgp.pub \
+    --signature-password mysecuresignaturepassword
+{"time":1652646259,"level":"INFO","event":"FTP server listening","data":[{"laddr":":1337"}]}
+{"time":1652646259,"level":"INFO","event":"Listening...","data":["address",{"IP":"::","Port":1337,"Zone":""}]}
+{"time":1652646259,"level":"INFO","event":"Starting...","data":null}
+```
+
+You can now point your FTP browser (such as Nautilus on GNOME) to `ftp://localhost:1337` and read/write files from the tape (or tape file).
+
+### 3. Serving a Tape Read-Only with `stfs serve http`
 
 ### 4. Using Optimized Operations with `stfs operation`
 
@@ -287,14 +333,6 @@ Use "stfs serve [command] --help" for more information about a command.
 ### Environment Variables
 
 All command line arguments described above can also be set using environment variables; for example, to set `--drive` to `/tmp/drive.tar` with an environment variable, use `STFS_DRIVE=/tmp/drive.tar`.
-
-### Caching Options
-
-### Compression Options
-
-### Encryption Options
-
-### Signature Options
 
 ## Acknowledgements
 

@@ -3,10 +3,5 @@
 
 package models
 
-var TableNames = struct {
-	GorpMigrations string
-	Headers        string
-}{
-	GorpMigrations: "gorp_migrations",
-	Headers:        "headers",
-}
+var ViewNames = struct {
+}{}
