@@ -70,7 +70,7 @@ To further speed up IO-limited read/write operations, multiple compression optio
 - `lz4`: Very fast, but at the cost of a lower compression ratio
 - `brotli`: A Google-led compression format with good adoption on the web platform; very high compression ratio, very slow speeds
 
-To serve a tape (or tar file), run the following (adjust the options accordinly):
+To serve a tape (or tar file), run the following (adjust the options accordingly):
 
 ```shell
 # Use `-d /dev/nst0` for your primary tape drive instead
@@ -84,15 +84,38 @@ $ stfs serve ftp \
     -s pgp \
     --signature-identity ~/.stfs-pgp.priv \
     --signature-recipient ~/.stfs-pgp.pub \
-    --signature-password mysecuresignaturepassword
+    --signature-password mysecuresignaturepassword \
+    --compression zstandard
 {"time":1652646259,"level":"INFO","event":"FTP server listening","data":[{"laddr":":1337"}]}
 {"time":1652646259,"level":"INFO","event":"Listening...","data":["address",{"IP":"::","Port":1337,"Zone":""}]}
 {"time":1652646259,"level":"INFO","event":"Starting...","data":null}
 ```
 
-You can now point your FTP browser (such as Nautilus on GNOME) to `ftp://localhost:1337` and read/write files from the tape (or tape file).
+You can now point your file manager (GNOME files on Linux, Windows Explorer on Windows and Finder on macOS all have support for it, but macOS is read-only) to `ftp://localhost:1337` and read/write files from the tape (or tape file).
+
+For more information, see the [servers reference](#servers).
 
 ### 3. Serving a Tape Read-Only with `stfs serve http`
+
+If you want to serve a tape (or tar file) read-only, using the integrated HTTP server is the best option. It inherits all the same options from [Serving a Tape Read-Write with `stfs serve ftp`](#2-serving-a-tape-read-write-with-stfs-serve-ftp), minus the write cache due to it being read-only. To use it, run:
+
+```shell
+# Use `-d /dev/nst0` for your primary tape drive instead
+$ stfs serve http \
+    -d ~/Downloads/drive.tar \
+    -m ~/Downloads/metadata.sqlite \
+    -e age \
+    --identity ~/.stfs-age.priv \
+    --password mysecureencryptionpassword \
+    -s pgp \
+    --recipient ~/.stfs-pgp.pub \
+    --compression zstandard
+{"time":1652653259,"level":"INFO","event":"HTTP server listening","data":[{"laddr":":1337"}]}
+```
+
+You can now point your web browser to `http://localhost:1337` and read files from the tape (or tape file).
+
+For more information, see the [servers reference](#servers).
 
 ### 4. Using Optimized Operations with `stfs operation`
 
