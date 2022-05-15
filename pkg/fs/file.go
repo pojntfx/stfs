@@ -223,7 +223,7 @@ func (f *File) enterWriteMode() error {
 
 	if f.writeBuf == nil {
 		exists := false
-		_, err := inventory.Stat(
+		existingFile, err := inventory.Stat(
 			f.metadata,
 
 			f.path,
@@ -232,7 +232,9 @@ func (f *File) enterWriteMode() error {
 			f.onHeader,
 		)
 		if err == nil {
-			exists = true
+			if existingFile.Size != 0 {
+				exists = true
+			}
 		} else {
 			if err != sql.ErrNoRows {
 				return err
