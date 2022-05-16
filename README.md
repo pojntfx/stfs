@@ -12,7 +12,15 @@ Simple Tape File System (STFS), a file system for tapes and tar files.
 
 ## Overview
 
-🚧 This project is a work-in-progress! Instructions will be added as soon as it is usable. 🚧
+STFS is a filesystem that brings tapes and tar files into the 21st century.
+
+It enables you too ...
+
+- **Use a tape or tar file like a regular disk**: STFS uses the robust `tar` format and tape technology to provide a fully features filesystem. This makes such storage solutions much for accessible and manageable, while also significantly increasing the performance of everyday operations such as listing and searching for files by using a SQLite-based on-disk index.
+- **Archive data securely**: The integrated transparent, asymmetrical encryption and signature support makes it possible to use almost any tape as a regulations compliant storage medium, while still being able to take advantage of all the benefits of tapes like reduced cost and increased reliability.
+- **Compress data efficiently**: By leveraging the embedded compression functionality, it is possible to store even more data on tapes without sacrificing the user experience.
+- **Recover data in unexpected scenarios**: Even if sudden power drops happen, the drive fails, the index gets corrupted or STFS stops being maintained, your data is secure. Because it is based on open standards such as `tar`, SQLite, `zstandard`, PGP and others, it is possible to extract your data even if STFS's integrated recovery tools don't suffice.
+- **Build your own storage solution**: In addition to its own, optimized APIs, STFS provides a [`afero.FS implementation`](https://github.com/spf13/afero). This makes embedding STFS and accessing files on a tape or in a tar file through Go easy.
 
 ## Installation
 
@@ -23,7 +31,6 @@ On Linux, you can install them like so:
 ```shell
 $ curl -L -o /tmp/stfs "https://github.com/pojntfx/stfs/releases/latest/download/stfs.linux-$(uname -m)"
 $ sudo install /tmp/stfs /usr/local/bin
-$ sudo setcap cap_net_admin+ep /usr/local/bin/stfs # This allows rootless execution
 ```
 
 On macOS, you can use the following:
