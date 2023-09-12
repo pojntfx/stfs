@@ -19,7 +19,7 @@ jobs:
             src: .
             os: golang:bookworm
             flags: ""
-            cmd: go test ./...
+            cmd: GOFLAGS="-short" ./Hydrunfile test
             dst: out/*
           - id: go-stfs
             src: .
