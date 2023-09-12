@@ -40,12 +40,6 @@ $ curl -L -o /tmp/stfs "https://github.com/pojntfx/stfs/releases/latest/download
 $ sudo install /tmp/stfs /usr/local/bin
 ```
 
-On Windows, the following should work (using PowerShell as administrator):
-
-```shell
-PS> Invoke-WebRequest https://github.com/pojntfx/stfs/releases/latest/download/stfs.windows-x86_64.exe -OutFile \Windows\System32\stfs.exe
-```
-
 You can find binaries for more operating systems and architectures on [GitHub releases](https://github.com/pojntfx/stfs/releases).
 
 ## Usage
@@ -601,7 +595,6 @@ All command line arguments described above can also be set using environment var
 - [ProtonMail/gopenpgp](github.com/ProtonMail/gopenpgp) provides the PGP signature and encryption implementation.
 - [fclairamb/ftpserverlib](github.com/fclairamb/ftpserverlib) provides the FTP server implementation.
 - [spf13/afero](https://github.com/spf13/afero) provides the file system abstraction layer implementation.
-- All the rest of the authors who worked on the dependencies used! Thanks a lot!
 
 ## Contributing
 
@@ -621,6 +614,6 @@ Have any questions or need help? Chat with us [on Matrix](https://matrix.to/#/#s
 
 ## License
 
-STFS (c) 2022 Felicitas Pojtinger and contributors
+STFS (c) 2023 Felicitas Pojtinger and contributors
 
 SPDX-License-Identifier: AGPL-3.0
