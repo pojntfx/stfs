@@ -27,12 +27,13 @@ jobs:
             flags: ""
             cmd: ./Hydrunfile go stfs
             dst: out/*
-          - id: gccgo-stfs
-            src: .
-            os: ghcr.io/pojntfx/bagccgop-base-sid
-            flags: -e '--privileged'
-            cmd: ./Hydrunfile gccgo stfs
-            dst: out/*
+          # Disabled until `gccgo` supports generics/Go 1.21: https://go.dev/doc/install/gccgo
+          # - id: gccgo-stfs
+          #   src: .
+          #   os: ghcr.io/pojntfx/bagccgop-base-sid
+          #   flags: -e '--privileged'
+          #   cmd: ./Hydrunfile gccgo stfs
+          #   dst: out/*
 
     steps:
       - name: Maximize build space
