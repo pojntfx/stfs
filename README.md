@@ -8,7 +8,6 @@ Simple Tape File System (STFS), a file system for tapes and tar files.
 ![Go Version](https://img.shields.io/badge/go%20version-%3E=1.17-61CFDD.svg)
 [![Go Reference](https://pkg.go.dev/badge/github.com/pojntfx/stfs.svg)](https://pkg.go.dev/github.com/pojntfx/stfs)
 [![Matrix](https://img.shields.io/matrix/stfs:matrix.org)](https://matrix.to/#/#stfs:matrix.org?via=matrix.org)
-[![Binary Downloads](https://img.shields.io/github/downloads/pojntfx/stfs/total?label=binary%20downloads)](https://github.com/pojntfx/stfs/releases)
 
 ## Overview
 
