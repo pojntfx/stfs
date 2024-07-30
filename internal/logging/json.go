@@ -85,6 +85,12 @@ func (l JSONLogger) Error(event string, keyvals ...interface{}) {
 	}
 }
 
+func (l JSONLogger) Panic(event string, keyvals ...interface{}) {
+	if l.verbosity >= 0 {
+		printJSON("PANIC", event, keyvals)
+	}
+}
+
 func (l JSONLogger) With(keyvals ...interface{}) golog.Logger {
 	return l
 }

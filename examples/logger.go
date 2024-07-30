@@ -41,6 +41,10 @@ func (l Logger) Error(event string, keyvals ...interface{}) {
 	l.log("ERROR", event, keyvals)
 }
 
+func (l Logger) Panic(event string, keyvals ...interface{}) {
+	l.log("PANIC", event, keyvals)
+}
+
 func (l Logger) With(keyvals ...interface{}) golog.Logger {
 	return l
 }

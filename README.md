@@ -2,10 +2,8 @@
 
 Simple Tape File System (STFS), a file system for tapes and tar files.
 
-⚠️ STFS has not yet been audited! While we try to make it as secure as possible, it has not yet undergone a formal security audit by a third party. Please keep this in mind if you use it for security-critical applications. ⚠️
-
 [![hydrun CI](https://github.com/pojntfx/stfs/actions/workflows/hydrun.yaml/badge.svg)](https://github.com/pojntfx/stfs/actions/workflows/hydrun.yaml)
-![Go Version](https://img.shields.io/badge/go%20version-%3E=1.17-61CFDD.svg)
+![Go Version](https://img.shields.io/badge/go%20version-%3E=1.21-61CFDD.svg)
 [![Go Reference](https://pkg.go.dev/badge/github.com/pojntfx/stfs.svg)](https://pkg.go.dev/github.com/pojntfx/stfs)
 [![Matrix](https://img.shields.io/matrix/stfs:matrix.org)](https://matrix.to/#/#stfs:matrix.org?via=matrix.org)
 
@@ -13,7 +11,7 @@ Simple Tape File System (STFS), a file system for tapes and tar files.
 
 STFS is a filesystem that brings tapes and tar files into the 21st century.
 
-It enables you too ...
+It enables you to:
 
 - **Use a tape or tar file like a regular disk**: STFS uses the robust `tar` format and tape technology to provide a fully features filesystem. This makes such storage solutions much for accessible and manageable, while also significantly increasing the performance of everyday operations such as listing and searching for files by using a SQLite-based on-disk index.
 - **Archive data securely**: The integrated transparent, asymmetrical encryption and signature support makes it possible to use almost any tape as a regulations compliant storage medium, while still being able to take advantage of all the benefits of tapes like reduced cost and increased reliability.
@@ -39,9 +37,17 @@ $ curl -L -o /tmp/stfs "https://github.com/pojntfx/stfs/releases/latest/download
 $ sudo install /tmp/stfs /usr/local/bin
 ```
 
+On Windows, the following should work (using PowerShell as administrator):
+
+```shell
+PS> Invoke-WebRequest https://github.com/pojntfx/stfs/releases/latest/download/stfs.windows-x86_64.exe -OutFile \Windows\System32\stfs.exe
+```
+
+Note that only the Linux version supports reading from tape drives; macOS and Windows are limited to operating on tar files.
+
 You can find binaries for more operating systems and architectures on [GitHub releases](https://github.com/pojntfx/stfs/releases).
 
-## Usage
+## Tutorial
 
 > Please note that this is only a short overview and does not explain all configuration options. To get more info on available commands or options, use `--help`.
 
@@ -613,6 +619,6 @@ Have any questions or need help? Chat with us [on Matrix](https://matrix.to/#/#s
 
 ## License
 
-STFS (c) 2023 Felicitas Pojtinger and contributors
+STFS (c) 2024 Felicitas Pojtinger and contributors
 
 SPDX-License-Identifier: AGPL-3.0
