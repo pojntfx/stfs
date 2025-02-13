@@ -27,7 +27,7 @@ On Linux, you can install them like so:
 
 ```shell
 $ curl -L -o /tmp/stfs "https://github.com/pojntfx/stfs/releases/latest/download/stfs.linux-$(uname -m)"
-$ sudo install /tmp/stfs /usr/local/bin
+$ sudo install /tmp/stfs /usr/local/bin/
 ```
 
 On macOS, you can use the following:
